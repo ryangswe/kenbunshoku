@@ -1,5 +1,5 @@
 {
-  "$comment": "Everything a fork changes to make this extension its own. Read docs/make-it-yours.md. The build validates this file (scripts/fork-config.mjs).",
+  "$comment": "Everything a fork changes to make this extension its own. Read README.md, 'Make it yours'. The build validates this file (scripts/fork-config.mjs).",
   "name": "Kenbunshoku",
   "shortName": "Kenbunshoku",
   "description": "Unofficial fan project, not affiliated with Bandai. Hover a One Piece Card Game card in a YouTube or Twitch video to see the card.",
