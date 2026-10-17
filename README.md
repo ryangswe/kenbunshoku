@@ -1,34 +1,21 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Kenbunshoku
 
-A Chrome extension for watching One Piece Card Game videos. Rest the pointer on a card in a
-YouTube or Twitch video, and the card's picture appears beside it, enlarged. The picture may be a
-different printing of the recognized card.
+>PUT BANNER HERE
+
+A Chrome extension for watching One Piece Card Game videos and streams. Hover a card in a
+Twitch or YouTube video/stream and a larger, high resolution picture appears.
 
 **Kenbunshoku is an unofficial fan project, not affiliated with Bandai.** The One Piece Card
 Game, its card names and its card art belong to their owners.
 
-**Kenbunshoku is lightly maintained and looking for a new maintainer.** The author publishes
-occasional updates (an update for EB-05 is planned), but there is no fixed update schedule and
-future set coverage is not guaranteed. If you would like to take it on,
-[get in touch](https://github.com/ryangswe/kenbunshoku/issues).
-
-- Runs on supported YouTube and Twitch pages: YouTube watch pages, live pages and embedded
-  players served from `www.youtube.com` (including those frames on other websites, without
-  reading the surrounding website), and Twitch live channels and past broadcasts on
-  `www.twitch.tv`. Other embedding addresses, such as `youtube-nocookie.com` or
-  `player.twitch.tv`, are not supported.
-- No streamer setup is needed. It recognizes supported cards from the video picture, in your
-  browser.
-- Hover only: it shows a card when you point at one, and stays out of the way otherwise. It can
-  leave uncertain matches blank. It can also miss cards or show an incorrect match.
+---
 
 ## Install
 
 <img src="docs/install/install.gif" alt="Installing Kenbunshoku from the zip, step by step" width="600">
 
-For now it is installed from a zip file; a Chrome Web Store listing is planned. It takes a few
-minutes.
+The extension is installed from a zip file (2 minutes). A Chrome Web Store listing is coming soon. 
 
 1. Open the project's [releases page](https://github.com/ryangswe/kenbunshoku/releases) and,
    under the newest release, download the file named `kenbunshoku-<version>.zip`.
@@ -80,19 +67,7 @@ an extension installed this way; choose to keep it.
 To update without losing your settings, or to remove it, see
 [Updating and removing](docs/using.md#updating-and-removing).
 
-## Privacy
-
-- **No accounts, analytics, telemetry or advertising.**
-- **Video frames are never uploaded.** Pictures of the video are analyzed inside your browser,
-  by the extension itself, temporarily in memory; they are not saved to storage.
-- **Two hosts.** The extension makes requests to `cdn.kenbunshoku.com` and `optcgapi.com`, for
-  a settings file, card pictures and, where Chrome has WebGPU, a card-feature file of about 60 MB
-  downloaded on first use (the first video you turn card hovers on for) and cached. These
-  requests carry no cookies, no account ID or per-user tracking identifier, and not the address
-  of the page you watch.
-
-[PRIVACY.md](PRIVACY.md) has the details, and [docs/permissions.md](docs/permissions.md) says
-what each permission is for.
+---
 
 ## Documentation
 
@@ -106,6 +81,20 @@ what each permission is for.
 | Build it from source, update the runtime or test on a local video | [docs/development.md](docs/development.md) |
 | Make the same extension for another card game | [docs/make-it-yours.md](docs/make-it-yours.md) |
 | Publish to the card-art CDN | [cdn/README.md](cdn/README.md) and [cdn/SETTINGS.md](cdn/SETTINGS.md) |
+
+## Privacy
+
+- **No accounts, analytics, telemetry or advertising.**
+- **Video frames are never uploaded.** Pictures of the video are analyzed inside your browser,
+  by the extension itself, temporarily in memory; they are not saved to storage.
+- **Two hosts.** The extension makes requests to `cdn.kenbunshoku.com` and `optcgapi.com`, for
+  a settings file, card pictures and, where Chrome has WebGPU, a card-feature file of about 60 MB
+  downloaded on first use (the first video you turn card hovers on for) and cached. These
+  requests carry no cookies, no account ID or per-user tracking identifier, and not the address
+  of the page you watch.
+
+[PRIVACY.md](PRIVACY.md) has the details, and [docs/permissions.md](docs/permissions.md) says
+what each permission is for.
 
 ## Help
 
