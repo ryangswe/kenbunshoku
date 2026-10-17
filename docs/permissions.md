@@ -12,4 +12,4 @@ What each Chrome permission Kenbunshoku asks for is used for. What it reads, sen
 | Storage and unlimited storage | Storage keeps the on/off switch, the channels you turned card hovers on for, the last settings file and a dismissed update notice, on your computer. Unlimited storage lets the extension keep its approximately 60 MB card-feature cache without the normal quota and eviction limits. It does not give the extension access to any other website. |
 
 It does not request the tabs or history permissions. Its content scripts run only on the
-supported YouTube and Twitch pages and player frames listed in the [README](../README.md).
+supported YouTube and Twitch pages and player frames listed in [Where it works](using.md#where-it-works).

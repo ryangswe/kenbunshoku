@@ -5,6 +5,18 @@ How card hovers work once the extension is installed, what to expect, and how to
 
 *[Back to README](../README.md)*
 
+## Where it works
+
+- Runs on supported YouTube and Twitch pages: YouTube watch pages, live pages and embedded
+  players served from `www.youtube.com` (including those frames on other websites, without
+  reading the surrounding website), and Twitch live channels and past broadcasts on
+  `www.twitch.tv`. Other embedding addresses, such as `youtube-nocookie.com` or
+  `player.twitch.tv`, are not supported.
+- No streamer setup is needed. It recognizes supported cards from the video picture, in your
+  browser.
+- Hover only: it shows a card when you point at one, and stays out of the way otherwise. It can
+  leave uncertain matches blank. It can also miss cards or show an incorrect match.
+
 ## Turning card hovers on
 
 Open a One Piece Card Game video on YouTube or Twitch and move the pointer over the video. A

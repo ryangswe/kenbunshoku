@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Kenbunshoku
 
->PUT BANNER HERE
+<img src="docs/banner.webp" alt="Kenbunshoku: hover a card in a Twitch or YouTube stream to see it. Free and open source. Unofficial fan project, not affiliated with Bandai." width="100%">
 
 A Chrome extension for watching One Piece Card Game videos and streams. Hover a card in a
 Twitch or YouTube video/stream and a larger, high resolution picture appears.
@@ -15,7 +15,7 @@ Game, its card names and its card art belong to their owners.
 
 <img src="docs/install/install.gif" alt="Installing Kenbunshoku from the zip, step by step" width="600">
 
-The extension is installed from a zip file (2 minutes). A Chrome Web Store listing is coming soon. 
+The extension is installed from a zip file (2 minutes). A Chrome Web Store listing is coming soon.
 
 1. Open the project's [releases page](https://github.com/ryangswe/kenbunshoku/releases) and,
    under the newest release, download the file named `kenbunshoku-<version>.zip`.
