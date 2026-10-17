@@ -109,8 +109,9 @@ The models were measured once, before release, on 25 frames of 13 public videos 
 recording groups that were not used in training (2 on a digital client, 7 of physical play).
 "Named right" is the share of readable card faces under the pointer for which the right card
 was shown; "wrong of shown" is the share of the cards shown that were wrong, counting a card
-shown over a card back or an empty part of the table as wrong. In brackets, 95% intervals
-over recording groups.
+shown over a card back or an empty part of the table as wrong. Unknown or unreadable evaluation
+points are excluded from these rates, and so is a name shown just off a face of that same card;
+see the model card for the counts. In brackets, 95% intervals over recording groups.
 
 These are held-out Python evaluation results for B2, not a held-out test of the shipping browser
 extension. B2.1, the release the extension ships, has the same models and vector bank, with one
@@ -121,9 +122,9 @@ catalog entry corrected and the identity grouping that follows from it.
 | B2 models only — Python evaluation | 221/297 = 74.4% (50.3–83.8) | 9/230 = 3.9% (1.6–11.8) |
 | B2 + geometric stage — Python evaluation | 249/297 = 83.8% (62.5–91.8) | 7/256 = 2.7% (0.6–10.3) |
 
-In the extension, the first row corresponds to running without WebGPU, and the second to the
-extra-accuracy check on WebGPU. That mapping is intended behavior: it holds when the check loads
-successfully and stays on.
+The browser uses the models-only pipeline when geometry is unavailable or disabled, and adds the
+geometric check when it loads and remains active. The table measures those pipelines in Python,
+not their browser accuracy.
 
 The held-out geometric-stage results above were measured in Python. The browser implementation
 of the check was compared with Python on development data only, not on the held-out set. On
@@ -201,7 +202,8 @@ pre-registration), and the caveats: https://huggingface.co/JuicyKaraageNo1/kenbu
 | `cdn.kenbunshoku.com`, `optcgapi.com` | To load the settings file, card pictures and the card-feature file. |
 | Storage and unlimited storage | Storage keeps the on/off switch, the channels you turned card hovers on for, the last settings file and a dismissed update notice, on your computer. Unlimited storage lets the extension keep its approximately 60 MB card-feature cache without the normal quota and eviction limits. It does not give the extension access to any other website. |
 
-No access to other sites, your tabs or your history.
+It does not request the tabs or history permissions. Its content scripts run only on the
+supported YouTube and Twitch pages and player frames described above.
 
 ## How it works
 
@@ -249,6 +251,11 @@ for is ignored (adding a host needs a new release). The extension also reads an 
 `update: { "latest": "x.y.z", "url": "https://…" }` field: when the running version is lower,
 the popup shows one dismissible "New version available" line. The address must be on the
 project's releases page; any other is ignored.
+
+## Help
+
+- Questions and help: the Discord channel, https://discord.gg/dsmmyU6RTG.
+- Bug reports: GitHub Issues, https://github.com/ryangswe/kenbunshoku/issues.
 
 ## Build from source
 

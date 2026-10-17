@@ -23,8 +23,8 @@ videos. This page says what it reads, what it sends, and what it keeps.
   activity over the video: for 10 seconds after the pointer last moved there, and after that
   only while a card is showing under the resting pointer (until 5 seconds after it stops
   showing). It stops when the pointer leaves the video or the tab goes to the background.
-- It does not read your browser history, comments, chat messages or account information, and it
-  does not read the website around an embedded player. The picture it analyzes is the whole
+- It does not access Chrome's saved browsing history, and does not read comments, chat messages
+  or account information. It does not read the website around an embedded player. The picture it analyzes is the whole
   video frame, so anything drawn into the video itself (such as an overlay showing chat) is part
   of that picture; the extension looks only for cards in it and does not read text or identify
   people.
@@ -59,22 +59,25 @@ the channels you turned on.
 `cdn.kenbunshoku.com` is run by the maintainer on Cloudflare (R2 storage). No request logging is
 set up for it: the maintainer can see only Cloudflare's aggregate traffic statistics, not a
 record of individual requests or IP addresses. Cloudflare handles the requests under its own
-privacy policy. `optcgapi.com` is run by a third party under its own policy.
+[privacy policy](https://www.cloudflare.com/privacypolicy/). `optcgapi.com` is run by a third
+party; it publishes no privacy policy that we could find (checked on 2026-10-16).
 
 The settings file can turn card pictures off (`namesOnly`); the extension then requests no
 pictures at all.
 
 ## What it keeps on your computer
 
-In the extension's own local storage (`chrome.storage.local`, not synced), never sent anywhere:
+Stored locally by the extension, without Chrome Sync, and never sent anywhere:
 
-- whether it is switched on;
-- the channels you turned card hovers on for (their YouTube handle or id, Twitch name, or video id),
-  each with the time you turned it on, and that you have seen the button's first-view label;
-- the last settings file it fetched, and when;
-- the version of a "New version available" notice you dismissed;
-- the card-feature file (in the extension's cache storage; the extension asks Chrome to keep
-  it).
+- **In `chrome.storage.local`** (settings):
+  - whether it is switched on;
+  - the channels you turned card hovers on for (their YouTube handle or id, Twitch name, or
+    video id), each with the time you turned it on, and that you have seen the button's
+    first-view label;
+  - the last settings file it fetched, and when;
+  - the version of a "New version available" notice you dismissed.
+- **In Cache Storage** (the extension's own cache): the card-feature file. The extension asks
+  Chrome to keep it.
 
 The "unlimited storage" permission lets the extension keep its approximately 60 MB card-feature
 cache without the normal quota and eviction limits. It does not give the extension access to any
