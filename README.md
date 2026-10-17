@@ -32,6 +32,9 @@ minutes.
 
 1. Open the project's [releases page](https://github.com/ryangswe/kenbunshoku/releases) and,
    under the newest release, download the file named `kenbunshoku-<version>.zip`.
+
+   <img src="docs/install/step-1-download.png" alt="Download kenbunshoku-0.1.0.zip from Assets on the project's releases page." width="600">
+
 2. Unzip it: double-click the file on a Mac, or right-click it and choose **Extract All** on
    Windows. You get a folder named `kenbunshoku-<version>`. Move that folder somewhere it can stay,
    for example your Documents folder. Chrome loads the extension from it each time it starts, so
