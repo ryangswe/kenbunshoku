@@ -8,10 +8,10 @@ different printing of the recognized card.
 **Kenbunshoku is an unofficial fan project, not affiliated with Bandai.** The One Piece Card
 Game, its card names and its card art belong to their owners.
 
-**Kenbunshoku is published as an unmaintained community example, looking for a maintainer,
-with no ongoing support or update schedule.** The author may publish occasional updates (an
-update for EB-05 is planned), but future set coverage is not guaranteed. If you would like to
-take it on, [get in touch](https://github.com/ryangswe/kenbunshoku/issues).
+**Kenbunshoku is lightly maintained and looking for a new maintainer.** The author publishes
+occasional updates (an update for EB-05 is planned), but there is no fixed update schedule and
+future set coverage is not guaranteed. If you would like to take it on,
+[get in touch](https://github.com/ryangswe/kenbunshoku/issues).
 
 - Runs on supported YouTube and Twitch pages: YouTube watch pages, live pages and embedded
   players served from `www.youtube.com` (including those frames on other websites, without

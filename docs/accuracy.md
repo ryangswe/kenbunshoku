@@ -67,7 +67,7 @@ itself off where it is too slow.
   decks up to ST-36 and the premium boosters PRB-01 and PRB-02. New sets require an extension
   update and are not supported until included in a release; publishing an official list does not
   update an installed extension. Future updates are not guaranteed (an EB-05 update is planned;
-  there is no ongoing update schedule). Cards from sets not yet supported (for example pre-release
+  there is no fixed update schedule). Cards from sets not yet supported (for example pre-release
   reveals in deck builders and simulators) usually show nothing, but can be mistaken for a
   different supported card of similar colors and layout.
 
