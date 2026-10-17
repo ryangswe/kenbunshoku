@@ -9,8 +9,6 @@ Twitch or YouTube video/stream and a larger, high resolution picture appears.
 **Kenbunshoku is an unofficial fan project, not affiliated with Bandai.** The One Piece Card
 Game, its card names and its card art belong to their owners.
 
----
-
 ## Install
 
 <img src="docs/install/install.gif" alt="Installing Kenbunshoku from the zip, step by step" width="600">
@@ -66,8 +64,6 @@ an extension installed this way; choose to keep it.
 
 To update without losing your settings, or to remove it, see
 [Updating and removing](docs/using.md#updating-and-removing).
-
----
 
 ## Documentation
 
