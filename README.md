@@ -1,4 +1,6 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
+*Kenbunshoku is looking for a maintainer. [Get in touch](https://github.com/ryangswe/kenbunshoku/issues) for more details!*
+
 # Kenbunshoku
 
 <img src="docs/banner.webp" alt="Kenbunshoku: hover a card in a Twitch or YouTube stream to see it. Free and open source. Unofficial fan project, not affiliated with Bandai." width="100%">
