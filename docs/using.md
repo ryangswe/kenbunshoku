@@ -75,6 +75,13 @@ How often it is right, and what it does not recognize, is in [accuracy.md](accur
 
 ## Updating and removing
 
+**Chrome Web Store installs update themselves.** Chrome installs new versions on its own, and
+your settings stay. The rest of this section is about installs from a release zip.
+
+Switching from a zip install to the Web Store: the two are separate extensions to Chrome, so
+turn card hovers on again for your channels after you install from the store, then remove the
+zip install.
+
 Every install from a release zip has the same extension ID (`igfdjmpikcbplijnlpkligaafepgoaaa`).
 That alone does not keep settings: they are kept only when you update in place, as below.
 

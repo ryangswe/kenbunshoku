@@ -13,9 +13,18 @@ Game, its card names and its card art belong to their owners.
 
 ## Install
 
+**[Add Kenbunshoku to Chrome from the Chrome Web Store](https://chromewebstore.google.com/detail/kenbunshoku/gndfmgcngfebiiiioddngmifddjiiabf)**: one click, and Chrome keeps it
+up to date.
+
+Then open a One Piece Card Game video on Twitch or YouTube, point at the player and click the
+round eye button in its top-right corner to turn card hovers on for that channel. Rest the
+pointer on a card: its picture appears beside it.
+
+### Or install from the zip
+
 <img src="docs/install/install.gif" alt="Installing Kenbunshoku from the zip, step by step" width="600">
 
-The extension is installed from a zip file (2 minutes). A Chrome Web Store listing is coming soon.
+For Chrome setups that can't use the Web Store, or to try a release before it reaches the store. It takes a few minutes, and a zip install does not update itself.
 
 1. Open the project's [releases page](https://github.com/ryangswe/kenbunshoku/releases) and,
    under the newest release, download the file named `kenbunshoku-<version>.zip`.
