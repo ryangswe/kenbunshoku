@@ -26,7 +26,7 @@ npm run build -- --release <release folder> --images-index <images.jsonl>
   regenerates.
 - `--dev` makes a development build that also runs on the local test page.
 
-The result is `dist/`, an unpacked extension: load it with **Load unpacked**, as in the [install steps](../README.md#install).
+The result is `dist/`, an unpacked extension: load it with **Load unpacked**, as in [Install from a release zip](install-from-zip.md).
 
 - Builds carry the public key in `keys/unpacked-public.pem` as the manifest's `key`, which fixes
   the extension ID of unpacked installs. `--store` leaves it out, for a Chrome Web Store upload
