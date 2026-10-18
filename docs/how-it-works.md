@@ -31,6 +31,65 @@ nothing when the match is not clear.
   the stage off by itself when it is too slow or fails. The compute frame asks the browser to
   keep that storage (`navigator.storage.persist()`).
 
+## Architecture
+
+```mermaid
+flowchart TD
+    subgraph PAGE["YouTube or Twitch page"]
+        VID["Video element"]
+        CS["Content script:<br/>channel, pointer, capture"]
+        BTN["In-player button"]
+        OUT["Outline host"]
+        subgraph CF["Compute iframe, extension origin"]
+            HS["Host session:<br/>when to analyze, hover rule"]
+            W["Worker: cardvision-browser<br/>ONNX Runtime Web,<br/>WebGPU or WASM"]
+            GEO["Geometric stage:<br/>WebGPU, optional"]
+        end
+        TT["Tooltip iframe,<br/>extension origin"]
+    end
+    PKG["Bundled in the extension:<br/>release, models, bank"]
+    POP["Popup"]
+    BG["Background"]
+    CDN["cdn.kenbunshoku.com"]
+    OPT["optcgapi.com"]
+
+    BTN -- "on or off,<br/>per channel" --> CS
+    VID -- "drawn to a canvas<br/>at analysis size" --> CS
+    CS -- "pointer, seeks;<br/>frame as ImageBitmap" --> HS
+    HS -- "capture request;<br/>card id, name, box" --> CS
+    HS <-- "frame out,<br/>boxes and names back" --> W
+    PKG -- "release.json<br/>at load" --> W
+    W -.-> GEO
+    CS -- "card id and name" --> TT
+    TT -- "its size" --> CS
+    CS -- "the named box" --> OUT
+    TT -- "refresh request" --> BG
+    POP -- "refresh request" --> BG
+    BG -- "config.json: install, update,<br/>browser start, then at most hourly" --> CDN
+    TT -- "card picture,<br/>when not loaded yet" --> CDN
+    TT -. "card picture,<br/>when the CDN fails" .-> OPT
+    GEO -. "card-feature index:<br/>when hovers start, WebGPU,<br/>then cached" .-> CDN
+```
+
+**How to read it.** Dashed arrows are the optional geometric stage and the picture fallback;
+the rest is the base pipeline. An arrow into `cdn.kenbunshoku.com` or
+`optcgapi.com` is a request, with its contents and its timing as in [PRIVACY.md](../PRIVACY.md).
+
+- **The content script** works out the page's channel from its address or channel link, and
+  shows the in-player button. Until the viewer turns card hovers on for that channel, it makes
+  no frame and loads no model. After that it reports the pointer and seeks to the compute frame,
+  and, when asked and the pointer is active over the player, draws the video to a canvas at
+  analysis size and transfers it as an `ImageBitmap`.
+- **The compute frame** decides when to analyze and runs the hover rule; its worker runs the
+  vendored runtime on the release bundled in the extension. Nothing in it goes to the network
+  except the card-feature index of the optional geometric stage, which the worker downloads
+  after the release has loaded and keeps in Cache Storage.
+- **The tooltip frame** gets a card id and name, loads the card's picture (from the CDN, then
+  `optcgapi.com` if the CDN fails, or none with `namesOnly`), and reports its size back. The
+  content script places it, and draws the **outline** around the same box.
+- **The background** fetches the settings file. The popup and the tooltip frame ask it for a
+  refresh, which it makes at most once an hour.
+
 ## The settings file
 
 Where pictures come from is decided by a small settings file at
