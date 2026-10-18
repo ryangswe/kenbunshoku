@@ -30,6 +30,9 @@ nothing beyond the local server.
    values (its ID, its CDN, its release) are skipped in a copy whose `packageName` is not
    `kenbunshoku`. One test fails until you change both the `packageName` (step 2) and the
    extension's key (step 6): a copy must not keep one of Kenbunshoku's and not the other.
+   Every run of `npm test` also prints `DOMException` lines and stack traces before its
+   summary ("Failed to load iframe page ... Iframe page loading is disabled.", from the
+   happy-dom test environment): they are harmless when the summary says every test passed.
 
 2. **Edit `kenbunshoku.config.json`.** Its keys are explained at the top of
    `scripts/fork-config.mjs`. In short:
@@ -61,12 +64,19 @@ nothing beyond the local server.
    `PROVENANCE.md` (what the models were trained and built from). Release files are never
    committed. The card's name (the picture's alt text, and what shows without a picture)
    comes from the release's catalog. Replace `data/source-files.json` with `{}` (it maps One Piece cards to
-   file names on `optcgapi.com`) and build without `--images-index`.
+   file names on `optcgapi.com`) and build without `--images-index`. The build still prints a
+   line such as `{sourceFile} map from data/source-files.json: optcgapi 0 of 20 cards`: that is
+   expected in a copy that does not use that host.
 
 4. **Card pictures: choose one.** `cdn/config.json` is the settings file built into the
    extension, used when no fetch has succeeded (always, with `settingsUrl` `null`).
    - **Names only.** Set `"namesOnly": true`, `"primary": null`, `"fallbacks": []`,
      and `"geometric": false`. The tooltip then shows each card's name.
+   - **Either way, set `"cardLink": null`.** The file still holds `cardLink`, a One Piece
+     address. It is obsolete: the extension never reads it, so it has no effect, but it should
+     not name One Piece in your copy. `null` is the clean value: `cdn/opcdn.py` accepts it
+     silently, and only warns if the key is left out altogether
+     ([cdn/SETTINGS.md](../cdn/SETTINGS.md)).
    - **Your own image host.** Follow [cdn/SETTINGS.md](../cdn/SETTINGS.md), the settings file's
      contract. Serve each picture at a path made from the catalog's `art` value (for example
      `https://<your host>/art/{art}`), serve `config.json` beside it with
@@ -92,11 +102,18 @@ nothing beyond the local server.
 6. **Your own extension ID.** Builds carry `keys/unpacked-public.pem` as the manifest's `key`,
    which fixes the ID of unpacked installs. Do not reuse it: make your own key pair, keep the
    private key out of the repository, and commit the public one. The ID follows from it.
+   These commands write the private key to `../private-key.pem`, the folder above your copy,
+   outside the repository:
 
    ```
-   openssl genrsa -out private-key.pem 2048
-   openssl rsa -in private-key.pem -pubout -out keys/unpacked-public.pem
+   openssl genrsa -out ../private-key.pem 2048
+   openssl rsa -in ../private-key.pem -pubout -out keys/unpacked-public.pem
    ```
+
+   **Never commit the private key**, and keep it somewhere safe: anyone who has it can publish
+   an extension that carries your ID. `.gitignore` ignores every `.pem` file except
+   `keys/unpacked-public.pem`, as a guard, but do not rely on that: keep the private key
+   outside the repository.
 
    A `--store` build leaves the key out; the Chrome Web Store assigns its own ID.
 
