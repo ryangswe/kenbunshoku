@@ -62,8 +62,10 @@ what each permission is for.
 
 Kenbunshoku runs the Apache-2.0 cardvision browser runtime (`cardvision-browser`), vendored as
 built modules in [vendor/cardvision-browser/](vendor/cardvision-browser/) with its license and
-notice. The cardvision toolkit (training, the labeling tools and the runtime's source) is being
-released separately, and this section will link it then. The One Piece Card Game models are on
+notice. The cardvision toolkit (training, the labeling tools and the runtime's source) is at
+[ryangswe/riftsight-vision](https://github.com/ryangswe/riftsight-vision), with a
+[demo page](https://ryangswe.github.io/riftsight-vision/) that runs these models in your
+browser. The One Piece Card Game models are on
 [Hugging Face](https://huggingface.co/JuicyKaraageNo1/kenbunshoku-onepiece).
 
 ## License

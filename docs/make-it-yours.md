@@ -14,8 +14,9 @@ your release and its legal files, and build.
 
 - a release folder for your game, as the cardvision toolkit's adapt guide makes it
   (`cardvision build-release`; check it with `cardvision verify-release`, which prints its
-  16-hex-digit id). The toolkit and its guide are being released separately: see
-  [Built on cardvision](../README.md#built-on-cardvision);
+  16-hex-digit id). The toolkit and its
+  [adapt guide](https://github.com/ryangswe/riftsight-vision/blob/main/docs/adapt-your-game.md)
+  are at [ryangswe/riftsight-vision](https://github.com/ryangswe/riftsight-vision);
 - the license, notice and provenance of your models;
 - either a web host for your card pictures, **for pictures you have the right to serve**, or
   nothing: the extension can show names only.
