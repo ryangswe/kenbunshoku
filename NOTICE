@@ -15,7 +15,7 @@ card art belong to their owners. This repository contains no card images.
 ------------------------------------------------------------------------------
 cardvision-browser (vendored in vendor/cardvision-browser/)
 License: Apache-2.0
-Upstream: the cardvision toolkit (browser/), released separately (release coming)
+Upstream: https://github.com/ryangswe/riftsight-vision (the cardvision toolkit, browser/)
 ------------------------------------------------------------------------------
 
 The card detection and recognition runtime this extension runs on. Its own LICENSE and NOTICE
