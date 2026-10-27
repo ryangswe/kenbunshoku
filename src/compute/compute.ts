@@ -118,7 +118,8 @@ void (async () => {
     onGeometricStatus: (status) => {
       if (__DEV__) geometricBytes = status.bytes;
       // G3: the runtime refused the remote release's index; the release runs with the stage off.
-      if (status.state === "off" && status.reason && lastDecision?.source === "remote") {
+      // A restart's own "worker-restarted" is the frame's, not the runtime's: rule 12 logs it.
+      if (status.state === "off" && status.reason && status.reason !== "worker-restarted" && lastDecision?.source === "remote") {
         geometricReason = `geo-runtime:${status.reason}`;
         console.info(`[${CONFIG.name}] geometric source=off reason=${geometricReason} pointer=${lastDecision.pointer ?? "-"}`);
       }
