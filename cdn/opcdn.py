@@ -1063,6 +1063,10 @@ def publish_release(args, t: Target, s3=None, verify_live=None, node=node_verify
         # The index goes first (publish-geo), immutable; it must be there, pinned and bound to this bank.
         if _remote(s3, t.bucket, mkey) is None:
             raise Refused(f"{mkey}: the index is not on the CDN; publish it first (publish-geo)")
+        mfolder, mname = mkey.rsplit("/", 1)
+        layout = geo_layout_problem(s3, t.bucket, mfolder + "/", flat=(mname == "manifest.json"))
+        if layout:
+            raise Refused(layout)
         mbytes = s3.get_object(Bucket=t.bucket, Key=mkey)["Body"].read()
         if hashlib.sha256(mbytes).hexdigest() != geo_sha:
             raise Refused(f"{mkey}: its sha256 is not --geo-manifest-sha256")
@@ -1228,6 +1232,28 @@ def _check(s3, bucket: str, key: str, f: GeoFile) -> Optional[str]:
     return "; ".join(problems) if problems else None
 
 
+GEO_SERIES_FILE = re.compile(r"(manifest|shard)-[0-9a-f]{16}\.(json|bin)")
+
+
+def geo_layout_problem(s3, bucket: str, folder: str, flat: bool) -> Optional[str]:
+    """An index folder holds one layout only (contract Addendum 4): a flat index (manifest.json and
+    shard-N.bin, written once) or a series (manifest-<16 hex>.json and shard-<16 hex>.bin, grown by
+    appending). Writing one kind into a folder that holds the other is refused: the browser's cache
+    keeps everything under the loaded manifest's folder, so the other kind's shards would never be
+    freed. Listed through the S3 API."""
+    names, token = [], None
+    while True:
+        page = s3.list_objects_v2(Bucket=bucket, Prefix=folder, **({"ContinuationToken": token} if token else {}))
+        names += [o["Key"][len(folder):] for o in page.get("Contents", [])]
+        if not page.get("IsTruncated"):
+            break
+        token = page.get("NextContinuationToken")
+    if flat:
+        series = [n for n in names if GEO_SERIES_FILE.fullmatch(n)]
+        return f"{folder} holds a series index ({series[0]}…); a flat index never goes into a series folder" if series else None
+    return f"{folder} holds a flat index (manifest.json); a series never starts in a flat folder" if "manifest.json" in names else None
+
+
 def publish_geo(s3, bucket: str, folder: str, files: list[GeoFile], dry_run: bool = False,
                 fix_metadata: bool = False, log: Callable[[str], None] = print) -> int:
     """Upload the index under `folder`, shards first, then the manifest only once every shard is
@@ -1236,6 +1262,9 @@ def publish_geo(s3, bucket: str, folder: str, files: list[GeoFile], dry_run: boo
     bytes but the wrong Content-Type or Cache-Control refuses it too, unless `fix_metadata`,
     which rewrites its metadata in place (a copy onto itself; the bytes do not change). Returns
     the number of failures (0: all published and checked)."""
+    layout = geo_layout_problem(s3, bucket, folder, flat=True)
+    if layout:
+        raise Refused(layout)
     todo: list[GeoFile] = []
     to_fix: list[GeoFile] = []
     wrong_meta: list[str] = []
@@ -1648,6 +1677,13 @@ def selftest() -> int:
             import io
             return {"Body": io.BytesIO(self.objects[Key]["Body"])}
 
+        def list_objects_v2(self, Bucket, Prefix, ContinuationToken=None):
+            keys = sorted(k for k in self.objects if k.startswith(Prefix))
+            start = int(ContinuationToken or 0)
+            page = keys[start:start + 2]  # two per page, so the paging is exercised
+            more = start + 2 < len(keys)
+            return {"Contents": [{"Key": k} for k in page], "IsTruncated": more, **({"NextContinuationToken": str(start + 2)} if more else {})}
+
         def put_object(self, Bucket, Key, Body, ContentType, CacheControl, Metadata):
             if self.fail_on and Key.endswith(self.fail_on):
                 raise OSError("connection reset")
@@ -1696,6 +1732,13 @@ def selftest() -> int:
         assert publish_geo(broken, "b", folder, gfiles, log=quiet) == 1, "a PUT that throws mid-run"
         assert folder + "manifest.json" not in broken.objects and folder + "shard-0.bin" in broken.objects
         assert publish_geo(FakeS3(), "b", folder, gfiles, log=quiet) == 0
+        # One layout per folder (Addendum 4): a flat index never goes where a series is, and back.
+        mixed = FakeS3()
+        for k in ("manifest-0123456789abcdef.json", "shard-0123456789abcdef.bin", "x.txt"):
+            mixed.objects[folder + k] = {"Body": b"x"}
+        assert refused(lambda: publish_geo(mixed, "b", folder, gfiles, log=quiet)) and not mixed.puts, "flat into a series folder"
+        assert geo_layout_problem(s3, "b", folder, flat=False), "a series into the flat folder just published"
+        assert geo_layout_problem(s3, "b", "vision/geo/0123456789abcdef/", flat=False) is None, "an empty folder takes either"
         # The same bytes with the wrong metadata: refused, or fixed in place with --fix-metadata.
         meta = FakeS3()
         publish_geo(meta, "b", folder, gfiles, log=quiet)
@@ -1828,6 +1871,9 @@ def selftest_releases(refused) -> None:
                     raise NoKey()
                 return {"Body": SimpleNamespace(read=lambda: self.objects[Key][0])}
 
+            def list_objects_v2(self, *, Bucket, Prefix, ContinuationToken=None):
+                return {"Contents": [{"Key": k} for k in sorted(self.objects) if k.startswith(Prefix)], "IsTruncated": False}
+
             def put_object(self, *, Bucket, Key, Body, ContentType, CacheControl, Metadata=None):
                 if Key in self.fail:
                     raise RuntimeError("boom")
@@ -1913,6 +1959,9 @@ def selftest_releases(refused) -> None:
         assert refused(lambda: pr(SimpleNamespace(**{**vars(gargs), "geo_manifest_sha256": hashlib.sha256(unbound).hexdigest()}), with_index(unbound), verify_live=lambda *a, **k: 0)), "bound to another bank"
         short = json.dumps({**manifest, "cards": [{"cardId": "OP01-001"}]}).encode()
         assert refused(lambda: pr(SimpleNamespace(**{**vars(gargs), "geo_manifest_sha256": hashlib.sha256(short).hexdigest()}), with_index(short), verify_live=lambda *a, **k: 0)), "a bank card without a row"
+        mixed = with_index()
+        mixed.objects["vision/geo/cd676903704f456d/manifest-0123456789abcdef.json"] = (b"{}", {})
+        assert refused(lambda: pr(gargs, mixed, verify_live=lambda *a, **k: 0)) and not mixed.puts, "a flat index whose folder also holds a series"
         for bad_path in ("https://cdn.example.org/vision/geo/cd676903704f456d/manifest-x.json", "https://optcgapi.com/vision/geo/cd676903704f456d/manifest.json",
                          "https://cdn.example.org/vision/releases/cd676903704f456d/manifest.json", "https://cdn.example.org/vision/geo/cd676903704f456d/manifest.json?v=1"):
             assert refused(lambda: geo_index_key({"index": {"path": bad_path}}, "https://cdn.example.org")), bad_path

@@ -225,7 +225,8 @@ would download it again (about 45 MB). A page whose pointer is decided before an
 **Index folders.** A flat folder (`manifest.json`, `opcdn.py publish-geo`) is written once and never
 added to. A series folder grows: each version's manifest is `manifest-<16 hex>.json` and its shards
 keep their names, so a set adds a few MB instead of a new 60 MB index. A series never starts in a
-folder that holds a flat index (the cache would keep the old shards), and a new folder starts on a
+folder that holds a flat index, nor a flat index in a series folder (the cache would keep the other
+kind's shards; `opcdn.py` refuses both), and a new folder starts on a
 change of features or OpenCV, or of an existing card's art. Moving between folders (flat to series,
 or back on a rollback) deletes the old folder's cached shards on the first load of the new one.
 
