@@ -19,6 +19,8 @@ come from.
 | `art/index.json` | every uploaded path with sha256 and size: the tool's record of what is live | `no-cache` |
 | `config.json` | the extension's settings ([SETTINGS.md](SETTINGS.md)) | `public, max-age=300` |
 | `vision/geo/<source-16>/` | the geometric stage's packed card-feature index (below) | `public, max-age=31536000, immutable` |
+| `vision/releases/<id>/` | a card-recognition release installs may run instead of their bundled one (below) | `public, max-age=31536000, immutable` |
+| `vision/releases/index.json` | the tool's record of published releases | `no-cache` |
 
 Uploads are additive: the tool never deletes. Order is images → `art/index.json` →
 `config.json` (only with `--config`, and only if every image landed).
@@ -80,7 +82,8 @@ IMAGES=<the card mirror's image folder>    # the `art` paths are relative to it
 ```
 
 - **A new set:** once the card mirror has added the images and the catalog, re-run steps 2–4.
-  Only new or changed files are uploaded.
+  Only new or changed files are uploaded. Then the set's index and release (below); the whole
+  routine is in [MAINTAINING.md](../MAINTAINING.md).
 - **Switching images off or over:** edit `config.json` (`namesOnly: true`, or `primary: null`
   to fall back to the community server), then `publish --env-file .env --config config.json`
   (config only) and `verify`. Installed extensions follow within about an hour.
@@ -95,8 +98,9 @@ The extension's extra-accuracy stage downloads a packed card-feature index (`car
 pack-features`: `manifest.json` and eight `shard-N.bin`, about 60 MB) from
 `https://cdn.kenbunshoku.com/vision/geo/<first 16 hex of the source index's sha256>/`. The
 extension pins the manifest's SHA-256 (`geometric.manifestSha256` in `kenbunshoku.config.json`), and
-the manifest pins every shard. A folder never changes content: a new index gets a new folder,
-and the extension is released with the new address and pin.
+the manifest pins every shard. A folder never changes content: a new index gets a new folder.
+The pin in `kenbunshoku.config.json` is the bundled release's index; a release published through
+the pointer names its own index (`publish-release --geometric`, below).
 
 ```bash
 # What would be uploaded, against the live bucket (uploads nothing)
@@ -126,6 +130,32 @@ and the extension is released with the new address and pin.
   them from its own origin.
 - **The release B2 index:** folder `vision/geo/cd676903704f456d/`, manifest SHA-256
   `7b9a96f636611e34183b1a845db93846cb92e5d12ad0d273dd14d1e2c60cef19`.
+
+## Releases (`vision/releases/`)
+
+Installs from 0.2.0 run the release the settings file's `release` field names, when it is not the
+one bundled in them ([SETTINGS.md](SETTINGS.md), "The release pointer"). A release goes out after
+its art and its index, and the pointer moves last:
+
+```bash
+# Every check, nothing written: the local seal (the runtime's own loader), the ONNX Runtime of every
+# version the pointer reaches (RUNTIMES.json), the index on the CDN bound to the bank, remote state
+.venv/bin/python opcdn.py publish-release --env-file .env --release <folder named after its id> \
+    --min-version 0.2.0 --geometric <geometric settings file> --geo-manifest-sha256 <manifest sha256> \
+    --config ../config.json --set-pointer --dry-run
+
+# The same without --dry-run: the files, geometric.json, release.json, a live check, then config.json
+# Afterwards, at any time: the live pointer, its files' bytes, headers, CORS and index
+.venv/bin/python opcdn.py verify-release-live --env-file .env
+```
+
+- `OPCDN_EXTENSION_IDS` in `.env`: the store and unpacked extension ids, comma-separated (the
+  CORS check asks for each).
+- Folders are never overwritten: a changed release is a new id. Another file's bytes under a key
+  refuse the whole run before anything is uploaded; `--fix-metadata` rewrites only metadata.
+- `--sessions` also starts both ONNX Runtime sessions in Node; it is required when the models
+  differ from what installs run.
+- `publish --config` refuses a `release` that does not verify live, so a rollback is checked too.
 
 ## Guards
 

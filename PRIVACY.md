@@ -10,8 +10,9 @@ videos. This page says what it reads, what it sends, and what it keeps.
 - Video frames are processed temporarily in memory, inside your browser. They are not saved to
   storage and never uploaded.
 - The extension makes requests to two hosts, `cdn.kenbunshoku.com` and `optcgapi.com`, for a
-  settings file, card pictures and, where Chrome has WebGPU, a card-feature file of about 60 MB
-  downloaded on first use (the first video you turn card hovers on for) and cached.
+  settings file, card pictures, updated card-recognition data when new cards are published, and,
+  where Chrome has WebGPU, a card-feature file of about 60 MB downloaded on first use (the first
+  video you turn card hovers on for) and cached.
 
 ## What it reads
 
@@ -48,10 +49,13 @@ is analyzed, then discarded. It is not saved to storage, uploaded or shared.
 | --- | --- | --- | --- |
 | The settings file (`config.json`) | `cdn.kenbunshoku.com` | When the extension is installed or updated and when Chrome starts, then at most once an hour while you use it (when you open the popup, or when card hovers start in a tab) | Your IP address and that the extension asked for its settings |
 | A card's picture | `cdn.kenbunshoku.com`, or `optcgapi.com` when the first fails | When a card is shown and its picture is not already loaded | Your IP address and which card picture was asked for |
-| The card-feature file (a manifest and eight parts, about 60 MB in all) | `cdn.kenbunshoku.com` | On first use: the first video you turn card hovers on for, in a Chrome that has WebGPU; never at install. Again only if Chrome cleared its storage or the file changes | Your IP address and that the file was downloaded |
+| The card-feature file (a manifest and its parts, about 60 MB in all) | `cdn.kenbunshoku.com` | On first use: the first video you turn card hovers on for, in a Chrome that has WebGPU; never at install. Again only if Chrome cleared its storage or the file changes: when new cards are published with a new card-feature file, or after the extension went back to the data built into it | Your IP address and that the file was downloaded |
+| Updated card-recognition data (a release: its card list, card fingerprints, the settings of the card-feature check and, after a model update, the recognition models; data files, never code) | `cdn.kenbunshoku.com` | When card hovers start in a tab and the settings file names a release other than the one built into your version of the extension: a newer one, or an earlier one after a rollback (otherwise never). About 1.5 MB once per release when cards are added, about 12 MB when the models themselves are updated; afterwards it is read from your browser's cache. Your browser may keep a separate copy for each website, so watching on both YouTube and Twitch can download it twice. Nothing is downloaded at install or with card hovers off | Your IP address, the time, your browser's user agent and language, that this browser downloaded that release, and the extension's own id (sent as the request's origin) |
 
 These requests carry no cookies, no account ID or per-user tracking identifier, and not the
-address of the page you watch. Settings and picture requests carry no `Referer` at all. Like any
+address of the page you watch. Settings, picture and release requests carry no `Referer` at all;
+card-feature file requests may carry the extension's own address as `Referer`, which names
+nothing but the extension. Like any
 web request, they show the host your IP address, which file was asked for, and the headers your
 browser adds to every request. The extension sends nothing else to anyone, and it does not send
 the channels you turned on.
@@ -63,7 +67,8 @@ record of individual requests or IP addresses. Cloudflare handles the requests u
 party; it publishes no privacy policy that we could find (checked on 2026-10-16).
 
 The settings file can turn card pictures off (`namesOnly`); the extension then requests no
-pictures at all.
+pictures at all. The maintainer can also point every install back to the recognition data built into
+it, or to an earlier release, within about an hour, with no action from you and no store review.
 
 ## What it keeps on your computer
 
@@ -75,6 +80,8 @@ Stored locally by the extension, without Chrome Sync, and never sent anywhere:
     video id), each with the time you turned it on, and that you have seen the button's
     first-view label;
   - the last settings file it fetched, and when;
+  - if updated recognition data failed its checks, that release's id and why, so that it is not
+    downloaded again for a day (after 24 hours it is ignored, and deleted the next time it is read);
   - the version of a "New version available" notice you dismissed.
 - **In Cache Storage** (the extension's own cache): the card-feature file. The extension asks
   Chrome to keep it.
@@ -83,7 +90,8 @@ The "unlimited storage" permission lets the extension keep its approximately 60 
 cache without the normal quota and eviction limits. It does not give the extension access to any
 other website.
 
-Card pictures are kept in memory while the tab is open, and in your browser's ordinary cache.
+Card pictures are kept in memory while the tab is open, and in your browser's ordinary cache, as
+are the files of updated recognition data.
 
 To clear the channel list: click the player button again on a channel to forget that one, or
 remove the extension, which deletes all of its storage.

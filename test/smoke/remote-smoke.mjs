@@ -4,8 +4,9 @@
 //
 //   npm run build -- --dev --release <bundled release folder> --out <dist>
 //   npm install --no-save puppeteer-core
-//   node test/smoke/remote-smoke.mjs --chrome <Chrome for Testing> --dist <dist> --video <clip>
-//        --remote <remote release folder> [--expect-card "<name only the remote release has>"] [--at 2 --at 5]
+//   node test/smoke/remote-smoke.mjs --chrome <Chrome for Testing or Chromium> --dist <dist> --video <clip>
+//        --remote <remote release folder> [--geo-dir <the remote release's packed index>]
+//        [--expect-id <card id only the remote release has>] [--at 2 --at 5]
 //
 // The stand-in is an HTTPS server on 127.0.0.1 with a throwaway self-signed certificate; Chrome is
 // told to send cdn.<host> there (--host-resolver-rules) and to accept the certificate. It serves
@@ -21,6 +22,13 @@
 //   sha-mismatch  the pointer's sha256 is wrong: the bundled release, reason doc-sha, recorded.
 //   unreachable   the release's folder drops the connection: the bundled release, not recorded.
 //   version       the pointer asks for a newer extension: the bundled release, nothing fetched.
+// With --geo-dir (the geometric stage, Kenbunshoku):
+//   geo-ok        the pointer names the release's geometric.json and its index: the frame checks it
+//                 (rule G2) and the worker gets the remote index (stage ready where WebGPU runs).
+//   geo-shape     geometric.json names an index outside /vision/geo/: the remote release, stage off.
+//   remote-ok then has no `geometric` in its pointer: the remote release, stage off (geo-absent).
+// Shown card ids are read from the compute frame's `shown` messages to the page (the page can see
+// them; their facts travel on the extension-only channel).
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -38,7 +46,8 @@ const { values } = parseArgs({
     dist: { type: "string" },
     video: { type: "string" },
     remote: { type: "string" },
-    "expect-card": { type: "string" },
+    "expect-id": { type: "string", multiple: true, default: [] },
+    "geo-dir": { type: "string" },
     at: { type: "string", multiple: true, default: ["2"] },
     grid: { type: "string", default: "12x7" },
     only: { type: "string" },
@@ -53,11 +62,28 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const dist = resolve(values.dist);
 const remoteDir = resolve(values.remote);
 const manifest = JSON.parse(readFileSync(join(dist, "manifest.json"), "utf-8"));
-const cdnHost = new URL(JSON.parse(readFileSync(new URL("../../kenbunshoku.config.json", import.meta.url), "utf-8")).cdnBase).host;
+const cdnHost = new URL(JSON.parse(readFileSync(new URL("../../kenbunshoku.config.json", import.meta.url), "utf-8")).settingsUrl).host;
 const liveConfig = JSON.parse(readFileSync(new URL("../../cdn/config.json", import.meta.url), "utf-8"));
 const remoteDoc = readFileSync(join(remoteDir, "release.json"));
 const remoteId = JSON.parse(remoteDoc).id;
 const sha = (b) => createHash("sha256").update(b).digest("hex");
+const remoteRefs = (() => {
+  const d = JSON.parse(remoteDoc);
+  return [d.bank.path, d.identity.groups.path, d.catalog.path];
+})();
+// The remote release's index (flat folder) and its geometric settings file, as publish-release would
+// put them: the bundled settings with index.path on the CDN.
+const geo = values["geo-dir"]
+  ? (() => {
+      const dir = resolve(values["geo-dir"]);
+      const manifest = readFileSync(join(dir, "manifest.json"));
+      const folder = JSON.parse(manifest).source.sha256.slice(0, 16);
+      const settings = JSON.parse(readFileSync(new URL("../../data/geometric.json", import.meta.url), "utf-8"));
+      const good = Buffer.from(JSON.stringify({ ...settings, index: { ...settings.index, path: `https://${cdnHost}/vision/geo/${folder}/manifest.json` } }));
+      const bad = Buffer.from(JSON.stringify({ ...settings, index: { ...settings.index, path: `https://${cdnHost}/vision/releases/${folder}/manifest.json` } }));
+      return { dir, folder, manifestSha: sha(manifest), good, bad };
+    })()
+  : null;
 
 // ------------------------------------------------------------------ the CDN stand-in
 const certDir = mkdtempSync(join(tmpdir(), "remote-smoke-"));
@@ -67,7 +93,7 @@ execFileSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days
 // certificate and keeps the responses in its HTTP cache (it caches nothing from a connection with a
 // certificate error).
 const spki = execFileSync("sh", ["-c", `openssl x509 -pubkey -noout -in "${join(certDir, "cert.pem")}" | openssl pkey -pubin -outform der | openssl dgst -sha256 -binary | base64`], { encoding: "utf-8" }).trim();
-const state = { config: liveConfig, log: [], dropId: "deaddeaddeaddead" };
+const state = { config: liveConfig, log: [], dropId: "deaddeaddeaddead", geometric: null };
 const cdn = createServer({ key: readFileSync(join(certDir, "key.pem")), cert: readFileSync(join(certDir, "cert.pem")) }, (req, res) => {
   const path = new URL(req.url ?? "/", `https://${cdnHost}`).pathname;
   const send = (status, body, type, cache) => {
@@ -79,6 +105,14 @@ const cdn = createServer({ key: readFileSync(join(certDir, "key.pem")), cert: re
   if (m && m[1] === state.dropId) {
     state.log.push({ path, status: "dropped", bytes: 0 });
     return req.socket.destroy();
+  }
+  if (m && m[1] === remoteId && m[2] === "geometric.json" && state.geometric) {
+    return send(200, state.geometric, "application/json", "public, max-age=31536000, immutable");
+  }
+  const g = geo && /^\/vision\/geo\/([0-9a-f]{16})\/(manifest\.json|shard-[0-9]+\.bin)$/.exec(path);
+  if (g && g[1] === geo.folder) {
+    const body = readFileSync(join(geo.dir, g[2]));
+    return send(200, body, g[2].endsWith(".json") ? "application/json" : "application/octet-stream", "public, max-age=31536000, immutable");
   }
   if (m && m[1] === remoteId) {
     try {
@@ -94,8 +128,15 @@ const page = await startServer({ video: resolve(values.video), port: 0 });
 const pagePort = page.address().port;
 
 const pointer = (over = {}) => ({ id: remoteId, path: `vision/releases/${remoteId}/release.json`, sha256: sha(remoteDoc), minimumExtensionVersion: manifest.version, ...over });
+const geoPointer = (bytes) => ({ path: `vision/releases/${remoteId}/geometric.json`, sha256: sha(bytes), manifestSha256: geo.manifestSha });
 const cases = [
-  { name: "remote-ok", pointer: pointer(), expect: { source: "remote", reason: "ok" }, cacheSplit: true },
+  { name: "remote-ok", pointer: pointer(), expect: { source: "remote", reason: "ok", geo: geo ? "geo-absent" : null }, cacheSplit: true },
+  ...(geo
+    ? [
+        { name: "geo-ok", pointer: pointer({ geometric: geoPointer(geo.good) }), geometric: geo.good, expect: { source: "remote", reason: "ok", geo: "ok" } },
+        { name: "geo-shape", pointer: pointer({ geometric: geoPointer(geo.bad) }), geometric: geo.bad, expect: { source: "remote", reason: "ok", geo: "geo-shape" } },
+      ]
+    : []),
   { name: "sha-mismatch", pointer: pointer({ sha256: "0".repeat(64) }), expect: { source: "bundled", reason: "doc-sha" }, skip: true },
   { name: "unreachable", pointer: { ...pointer(), id: state.dropId, path: `vision/releases/${state.dropId}/release.json` }, expect: { source: "bundled", reason: "unreachable" } },
   { name: "version", pointer: pointer({ minimumExtensionVersion: "99.0.0" }), expect: { source: "bundled", reason: "version" } },
@@ -111,6 +152,7 @@ try {
   for (const c of cases) {
     console.log(`\n== ${c.name}`);
     state.config = { ...liveConfig, release: c.pointer };
+    state.geometric = c.geometric ?? null;
     state.log = [];
     const browser = await puppeteer.launch({
       executablePath: values.chrome,
@@ -125,21 +167,35 @@ try {
       await waitForSettings(browser, origin, c.pointer);
       await turnOn(browser, origin);
       const tab = await browser.newPage();
+      // The compute frame's `shown` messages reach the page window: record the ids and release ids.
+      await tab.evaluateOnNewDocument(() => {
+        window.__shown = [];
+        window.addEventListener("message", (e) => {
+          const card = e.data && e.data.card;
+          if (e.data && e.data.kind === "shown" && card && typeof card.cardId === "string") window.__shown.push(`${card.cardId}@${card.releaseId ?? "bundled"}`);
+        });
+      });
       const consoleLines = [];
       tab.on("console", (m) => consoleLines.push(m.text()));
       const first = await hoverPage(tab, `http://127.0.0.1:${pagePort}/`);
       const d = first.compute?.release?.decision;
       console.log(`  decision: ${JSON.stringify(d)}`);
       console.log(`  named: ${[...first.names].join(", ") || "nothing"} (analyzed ${first.compute?.analyzed}, last frame error ${first.compute?.lastFrameError})`);
+      console.log(`  shown ids: ${[...first.shown].join(", ") || "none"}`);
+      console.log(`  geometric: reason ${first.compute?.geometricReason ?? "-"}, stage ${JSON.stringify(first.compute?.geometric ?? null)}`);
+      if (c.expect.geo !== undefined && c.expect.geo !== null) check(first.compute?.geometricReason === c.expect.geo, `geometric reason ${c.expect.geo}`);
+      if (c.expect.source === "remote") for (const id of values["expect-id"]) check(first.shown.has(`${id}@${remoteId}`), `${id} shown from the remote release`);
+      if (c.expect.source === "bundled") for (const id of values["expect-id"]) check(![...first.shown].some((s) => s.startsWith(`${id}@`)), `${id} not shown (the bundled release lacks it)`);
       check(d && d.source === c.expect.source && d.reason.startsWith(c.expect.reason), `source=${c.expect.source} reason=${c.expect.reason}`);
       check(first.compute?.state === "ready", `recognition ready (${first.compute?.state})`);
-      const releaseRequests = state.log.filter((l) => l.path.startsWith("/vision/releases/"));
+      const releaseRequests = state.log.filter((l) => l.path.startsWith("/vision/releases/") && !l.path.endsWith("/geometric.json"));
+      const geoRequests = state.log.filter((l) => l.path.startsWith("/vision/geo/") || l.path.endsWith("/geometric.json"));
+      console.log(`  geometric requests: ${geoRequests.map((l) => `${l.path.split("/").slice(-2).join("/")} ${l.status}`).join("; ") || "none"}`);
       console.log(`  CDN requests: ${releaseRequests.map((l) => `${l.path.split("/").pop()} ${l.status} ${l.bytes}`).join("; ") || "none"}`);
       if (c.name === "remote-ok") {
         const files = releaseRequests.map((l) => l.path.split("/").pop()).sort();
-        check(JSON.stringify(files) === JSON.stringify(["bank.json", "catalog.json", "identity-groups.json", "release.json"].sort()), "only release.json, bank, groups and catalog downloaded (models reused)");
+        check(JSON.stringify(files) === JSON.stringify(["release.json", ...remoteRefs].sort()), "only release.json, bank, groups and catalog downloaded (models reused)");
         check(d?.reused === 2, `reused ${d?.reused}/5`);
-        if (values["expect-card"]) check(first.names.has(values["expect-card"]), `the remote release's own card shows its tooltip: ${values["expect-card"]}`);
         const line = consoleLines.find((l) => l.includes("release source="));
         check(Boolean(line) && !/127\.0\.0\.1|video|channel/.test(line), `one log line, no page data: ${line}`);
       }
@@ -259,5 +315,6 @@ async function hoverPage(tab, url) {
       }
     }
   }
-  return { names, compute: await computeState(tab) };
+  const shown = new Set(await tab.evaluate(() => window.__shown ?? []));
+  return { names, shown, compute: await computeState(tab) };
 }
