@@ -95,8 +95,8 @@ export function firefoxAddonId(config, dev) {
  * Firefox they would never start, and no card would show.
  */
 export const FIREFOX_MIN_VERSION = "148.0";
-/** Nothing about the user leaves the browser: the extension only downloads (settings, pictures,
- *  card details, releases) from its own CDN. */
+/** The extension sends no user data: it only downloads (the settings file, card pictures, the
+ *  card-feature file, releases) from its CDN, and card pictures from optcgapi.com when that fails. */
 export const FIREFOX_DATA_COLLECTION = { required: ["none"] };
 
 /**
