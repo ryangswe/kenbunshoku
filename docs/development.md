@@ -34,7 +34,10 @@ The result is `dist/`, an unpacked extension: load it with **Load unpacked**, as
 - The models' license, notice and provenance (`release-legal/`) are copied beside them into
   `dist/release/`; the build fails without them.
 
-`npm run package` zips a release build into `kenbunshoku-<version>.zip` for a release page.
+`npm run package` zips a release build. A build with the key becomes `kenbunshoku-<version>.zip` for a
+release page, with every file inside one `kenbunshoku-<version>/` folder (the folder a user selects in
+"Load unpacked"). A `--store` build becomes `kenbunshoku-<version>-store.zip` with `manifest.json` at the
+zip's top level, as the Chrome Web Store requires. It refuses a dev build.
 
 ## The runtime
 

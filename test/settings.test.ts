@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 import { describe, expect, it } from "vitest";
 
+import { parsePointer } from "../src/release/pointer.js";
+import { parseGeometricPointer } from "../src/release/geometric.js";
 import DEFAULT_CONFIG from "../cdn/config.json";
 import { UPDATE_URL_PREFIX } from "../src/constants.js";
 import { validateSettings as validateWithHosts } from "../src/settings/schema.js";
@@ -31,15 +33,21 @@ describe("validateSettings", () => {
   it.runIf(IS_KENBUNSHOKU)("accepts Kenbunshoku's bundled default as it ships", () => {
     const { settings, problems } = validateWithHosts(DEFAULT_CONFIG);
     expect(problems).toEqual([]);
-    expect(settings).toEqual({
+    // cdn/config.json mirrors the live settings file, so its date and release pointer move with each
+    // publish: the pointer may be absent or must be one the extension accepts, geometric part included.
+    const { release, ...rest } = settings!;
+    if (release !== null && release !== undefined) {
+      expect(parsePointer(release).kind).toBe("pointer");
+      expect(parseGeometricPointer(release).kind).not.toBe("malformed");
+    }
+    expect(rest).toEqual({
       schemaVersion: 1,
-      updatedAt: "2026-10-16T00:00:00Z",
+      updatedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/),
       namesOnly: false,
       primary: { id: "cdn", template: "https://cdn.kenbunshoku.com/art/{art}" },
       fallbacks: [{ id: "optcgapi", template: "https://optcgapi.com/media/static/Card_Images/{sourceFile}" }],
       update: null,
       geometric: true,
-      release: null,
     });
   });
 
