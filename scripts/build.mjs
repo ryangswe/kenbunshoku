@@ -11,7 +11,7 @@
 //                 `file`, `url`, `is_placeholder`): builds the `{sourceFile}` map for the
 //                 `optcgapi` fallback afresh. Without it, the committed data/source-files.json
 //                 is used.
-// --dev           A development build: also runs on the local test page (http://127.0.0.1).
+// --dev           A development build: also runs on the local test page (http://127.0.0.1, http://localhost).
 // --store         A Chrome Web Store build: the manifest has no `key` (the store assigns the ID).
 //                 Other builds carry the public key that fixes the ID of unpacked installs.
 //
@@ -31,7 +31,8 @@ import { parseArgs } from "node:util";
 import { build } from "esbuild";
 
 import { buildManifest } from "./manifest.mjs";
-import { buildCardTable, buildSourceFileMaps } from "./card-data.mjs";
+import { buildSourceFileMaps } from "./card-data.mjs";
+import { buildCardTable } from "../src/shared/card-table.mjs";
 import { CONFIG_PATH, geometricIndexProblem, ICON_SIZES, loadForkConfig } from "./fork-config.mjs";
 import { LEGAL_FILES, releaseLegalProblem } from "./release-legal.mjs";
 

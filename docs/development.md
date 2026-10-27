@@ -84,8 +84,12 @@ was shown (see the comment at its top; it needs `puppeteer-core`, which is not a
   config's `imageHosts`, which become the manifest's host permissions and the extension pages'
   `connect-src`.
 - The settings file's `update.url` must lie under the config's `updateUrlPrefix`.
-- TODO (each new set): when a release adds a set, update the set line in the "New sets" bullet of
-  the Limits list in [accuracy.md](accuracy.md) (today OP-17, EB-04, ST-36, PRB-02).
+- New sets reach installs through the settings file's release pointer; the routine is in
+  [MAINTAINING.md](../MAINTAINING.md). `src/release/` is the extension's side
+  (`geometric.ts` is Kenbunshoku's own; the other files are shared with other forks of this
+  extension and kept the same), and `cdn/opcdn.py publish-release` the publishing side.
+- TODO (each new set): when a store release bundles a new set, update the set line in the "New
+  sets" bullet of the Limits list in [accuracy.md](accuracy.md) (today OP-17, EB-04, ST-36, PRB-02).
 - TODO (unpublished addresses): the cardvision toolkit's repository, its adapt guide and the
   runtime's source are not public yet. When they are, link them from "Built on cardvision" in the README, the
   steps in [make-it-yours.md](make-it-yours.md), "The runtime" above and `NOTICE` (the cardvision-browser upstream). The

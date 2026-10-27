@@ -48,6 +48,7 @@ flowchart TD
         TT["Tooltip iframe,<br/>extension origin"]
     end
     PKG["Bundled in the extension:<br/>release, models, bank"]
+    REL["A newer release on the CDN<br/>(when the settings name one)"]
     POP["Popup"]
     BG["Background"]
     CDN["cdn.kenbunshoku.com"]
@@ -59,6 +60,7 @@ flowchart TD
     HS -- "capture request;<br/>card id, name, box" --> CS
     HS <-- "frame out,<br/>boxes and names back" --> W
     PKG -- "release.json<br/>at load" --> W
+    REL -. "checked files,<br/>when hovers start" .-> W
     W -.-> GEO
     CS -- "card id and name" --> TT
     TT -- "its size" --> CS
@@ -81,9 +83,13 @@ the rest is the base pipeline. An arrow into `cdn.kenbunshoku.com` or
   and, when asked and the pointer is active over the player, draws the video to a canvas at
   analysis size and transfers it as an `ImageBitmap`.
 - **The compute frame** decides when to analyze and runs the hover rule; its worker runs the
-  vendored runtime on the release bundled in the extension. Nothing in it goes to the network
-  except the card-feature index of the optional geometric stage, which the worker downloads
-  after the release has loaded and keeps in Cache Storage.
+  vendored runtime on the release bundled in the extension, or on a newer release the settings
+  file names (`src/release/`): the frame downloads that release's files once, checks each against
+  its SHA-256, reuses the bundled files that are the same, and falls back to the bundled release on
+  any problem. Frames, pictures and results never go to the network. The worker also downloads the
+  card-feature index of the optional geometric stage after the release has loaded and keeps it in
+  Cache Storage; a newer release names its own index. With a newer release, the frame also sends
+  each shown card's name to the tooltip frame over a channel the page cannot reach.
 - **The tooltip frame** gets a card id and name, loads the card's picture (from the CDN, then
   `optcgapi.com` if the CDN fails, or none with `namesOnly`), and reports its size back. The
   content script places it, and draws the **outline** around the same box.
@@ -102,6 +108,9 @@ another source, or off, without a new extension release:
 - `primary` is the project's own image server; `fallbacks` are tried in order when it fails
   (an error, a body that is not a picture, or no picture within 5 seconds); with none left, the
   tooltip shows the card's name.
+- `release` names a newer card-recognition release on the same host (its id, path and SHA-256, the
+  lowest extension version that may load it, and its card-feature index), so that new cards reach
+  installs without a store update. See "The release pointer" in [cdn/SETTINGS.md](../cdn/SETTINGS.md).
 - `cardLink` is obsolete: the tooltip has no link. A file may still carry it; it is ignored.
 
 The file is checked strictly. A file that cannot be used leaves the last good copy in effect, or

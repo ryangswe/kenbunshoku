@@ -14,8 +14,8 @@ points are excluded from these rates, and so is a name shown just off a face of 
 see the model card for the counts. In brackets, 95% intervals over recording groups.
 
 These are held-out Python evaluation results for B2, not a held-out test of the shipping browser
-extension. B2.1, the release the extension ships, has the same models and vector bank, with one
-catalog entry corrected and the identity grouping that follows from it.
+extension. B2.1, the release built into the extension, has the same models and vector bank, with
+one catalog entry corrected and the identity grouping that follows from it.
 
 | | Named right | Wrong of shown |
 | --- | --- | --- |
@@ -62,14 +62,22 @@ itself off where it is too slow.
 - **Different printings.** A match names the card; the picture shown may be a different printing
   of it.
 - **Incorrect matches remain possible**, especially on difficult physical footage.
-- **New sets.** What an installed Kenbunshoku recognizes is the card list in its release.
-  This release covers Bandai's official English card list up to OP-17 and EB-04, with the starter
-  decks up to ST-36 and the premium boosters PRB-01 and PRB-02. New sets require an extension
-  update and are not supported until included in a release; publishing an official list does not
-  update an installed extension. Future updates are not guaranteed (an EB-05 update is planned;
-  there is no fixed update schedule). Cards from sets not yet supported (for example pre-release
-  reveals in deck builders and simulators) usually show nothing, but can be mistaken for a
-  different supported card of similar colors and layout.
+- **New sets.** What an installed Kenbunshoku recognizes is the card list in the release it runs.
+  The release built into the extension covers Bandai's official English card list up to OP-17 and
+  EB-04, with the starter decks up to ST-36 and the premium boosters PRB-01 and PRB-02. From version
+  0.2.0, a new set reaches installed copies as an updated release from Kenbunshoku's CDN, without an
+  extension update, once it is on Bandai's official English card list and the update is published;
+  publishing an official list does not by itself update anything. Printings that are not on the
+  official English list are not included. Such an update adds the new cards and leaves the models
+  unchanged. The figures above were measured on the release built into the extension and are not
+  measured again for an update; the release an install runs may then be newer than the one this
+  page names. Before it is published, an update must instead pass a check fixed in advance, on our
+  development data: on our real development frames, none of the cards named right may be lost, and
+  on generated scenes only a small fixed number may change; and the new cards must be recognized
+  about as well as other cards the models were not trained on.
+  Future updates are not guaranteed (there is no fixed update schedule). Cards from sets not yet
+  supported (for example pre-release reveals in deck builders and simulators) usually show nothing,
+  but can be mistaken for a different supported card of similar colors and layout.
 
 ## The model card
 

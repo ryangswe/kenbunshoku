@@ -21,6 +21,10 @@ Upstream: https://github.com/ryangswe/riftsight-vision (the cardvision toolkit, 
 The card detection and recognition runtime this extension runs on. Its own LICENSE and NOTICE
 are kept beside it, in vendor/cardvision-browser/ and in the built extension's runtime/ folder.
 The commit it was built from is recorded in vendor/cardvision-browser/VENDOR.json.
+runtime/NOTICE is the cardvision toolkit's notice for its own code and its own Riftbound release,
+kept as published; the One Piece Card Game card names, ids and art in this extension belong to
+their owners, as "Not affiliated" above says, and its models and card data are covered by
+release/NOTICE.
 
 ------------------------------------------------------------------------------
 ONNX Runtime Web

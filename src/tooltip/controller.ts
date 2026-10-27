@@ -4,7 +4,10 @@
 //   - It starts only inside a page the extension is built for, and acts only on messages from
 //     that page's window, from that origin.
 //   - It shows only cards of the release's catalog, with the catalog's name: an id it does not
-//     know (which only a page posting to the frame itself could send) shows nothing.
+//     know (which only a page posting to the frame itself could send) shows nothing. A card of a
+//     remote release (src/release/) comes with that release's id; its facts arrive from the compute
+//     frame over the extension-only facts channel (`addFacts`), which the page cannot reach, and win
+//     over the bundled table. An id in neither is waited for FACTS_WAIT_MS, then shows nothing.
 //   - Each newly shown card asks the background for a settings refresh. The background fetches
 //     at most once an hour, so a long-open tab still picks up `namesOnly` within the hour.
 
@@ -20,6 +23,10 @@ export const CACHE_LIMIT = 60;
 export const PORTRAIT_WIDTH = 320;
 /** A landscape picture is shown this wide. */
 export const LANDSCAPE_WIDTH = 448;
+/** How long a card of a remote release waits for its facts from the channel. */
+export const FACTS_WAIT_MS = 300;
+/** Facts kept from the channel, oldest dropped first. */
+export const FACTS_LIMIT = 500;
 /** The card's shape while its picture loads (One Piece and most card games: 63 x 88 mm). */
 export const CARD_ASPECT = 88 / 63;
 
@@ -57,7 +64,15 @@ export interface TooltipDeps {
   frameFits?(size: { width: number; height: number }): Promise<void>;
   createObjectURL(blob: Blob): string;
   revokeObjectURL(url: string): void;
+  /** Ask the compute frames for a card's facts (the facts channel). */
+  requestFacts?(releaseId: string, cardId: string): void;
+  /** A timer (the facts wait); setTimeout by default. */
+  setTimer?(fn: () => void, ms: number): unknown;
+  clearTimer?(handle: unknown): void;
 }
+
+/** Pictures are cached by card id and art path. */
+const pictureKey = (card: CardFacts): string => `${card.id}|${card.art ?? ""}`;
 
 /** The card for an id, from the catalog only; null for an id the catalog does not have. */
 export function knownCard(table: CardTable, id: string): CardFacts | null {
@@ -76,6 +91,14 @@ export class TooltipController {
   current: string | null = null;
   /** The content script's number for the card shown (echoed in sizes). */
   currentSeq: number | undefined = undefined;
+  /** The facts of the card on show: every later lookup for it uses them (Addendum 1, A1). */
+  private currentFacts: CardFacts | null = null;
+  /** The remote release the card on show came with, if any. */
+  private currentRelease: string | undefined = undefined;
+  /** Card facts from the channel, by `${releaseId}|${cardId}`. */
+  private readonly facts = new Map<string, CardFacts>();
+  /** A card of a remote release whose facts have not come yet. */
+  private waiting: { cardId: string; releaseId: string; seq: number | undefined; timer: unknown } | null = null;
 
   constructor(private readonly deps: TooltipDeps) {}
 
@@ -88,17 +111,67 @@ export class TooltipController {
     this.objectUrls.clear();
   }
 
+  /** Facts for a card of a remote release, from the compute frame (the facts channel only). */
+  addFacts(releaseId: string, card: CardFacts): void {
+    const key = `${releaseId}|${card.id}`;
+    this.facts.delete(key);
+    this.facts.set(key, card);
+    while (this.facts.size > FACTS_LIMIT) this.facts.delete(this.facts.keys().next().value as string);
+    const w = this.waiting;
+    if (w && w.releaseId === releaseId && w.cardId === card.id) {
+      this.stopWaiting();
+      this.show(w.cardId, w.seq, w.releaseId);
+      return;
+    }
+    // The card on show came before its facts and was shown from the bundled table: the release's
+    // facts win (a renamed card, another artwork).
+    const shown = this.currentFacts;
+    if (this.current === card.id && this.currentRelease === releaseId && shown && JSON.stringify(shown) !== JSON.stringify(card)) {
+      this.show(card.id, this.currentSeq, releaseId);
+    }
+  }
+
+  /** The facts for a card: the channel's for its release, then the bundled table. */
+  private lookup(cardId: string, releaseId: string | undefined): CardFacts | null {
+    if (releaseId !== undefined) {
+      const f = this.facts.get(`${releaseId}|${cardId}`);
+      if (f) return f;
+    }
+    return knownCard(this.deps.table, cardId);
+  }
+
+  private stopWaiting(): void {
+    if (this.waiting) (this.deps.clearTimer ?? ((h: unknown) => clearTimeout(h as ReturnType<typeof setTimeout>)))(this.waiting.timer);
+    this.waiting = null;
+  }
+
   /** Show a card: its picture alone, or its name. False (and nothing shown) for an id the
-   *  catalog does not have. */
-  show(cardId: string, messageSeq?: number): boolean {
-    const card = knownCard(this.deps.table, cardId);
+   *  catalog does not have, and no facts came for (a card of a remote release is waited for
+   *  FACTS_WAIT_MS first). */
+  show(cardId: string, messageSeq?: number, releaseId?: string): boolean {
+    this.stopWaiting();
+    const card = this.lookup(cardId, releaseId);
     const e = this.deps.elements;
+    // A card of a remote release whose facts this frame has not received: ask for them (they win
+    // over the bundled table when they come). Asked once the wait or the card on show is set, so an
+    // answer that comes at once is not lost.
+    const ask = releaseId !== undefined && !this.facts.has(`${releaseId}|${cardId}`);
     if (!card) {
       this.clear();
+      if (releaseId !== undefined) {
+        const timer = (this.deps.setTimer ?? setTimeout)(() => {
+          if (this.waiting?.timer === timer) this.waiting = null;
+        }, FACTS_WAIT_MS);
+        this.waiting = { cardId, releaseId, seq: messageSeq, timer };
+        if (ask) this.deps.requestFacts?.(releaseId, cardId);
+      }
       return false;
     }
     this.deps.requestRefresh();
     this.current = card.id;
+    this.currentFacts = card;
+    this.currentRelease = releaseId;
+    if (ask) this.deps.requestFacts?.(releaseId!, cardId);
     this.currentSeq = messageSeq;
     const seq = ++this.seq;
     const settings = this.settings;
@@ -127,10 +200,10 @@ export class TooltipController {
         const pixels = await this.deps.imageSize(r.blob);
         if (!live()) return;
         const size = artSize(pixels.width, pixels.height);
-        let url = this.objectUrls.get(card.id);
+        let url = this.objectUrls.get(pictureKey(card));
         if (!url) {
           url = this.deps.createObjectURL(r.blob);
-          this.objectUrls.set(card.id, url);
+          this.objectUrls.set(pictureKey(card), url);
         }
         e.img.src = url;
         // Shown once it is drawable, so the placeholder never gives way to an empty box; a
@@ -154,8 +227,11 @@ export class TooltipController {
   }
 
   clear(): void {
+    this.stopWaiting();
     this.seq += 1;
     this.current = null;
+    this.currentFacts = null;
+    this.currentRelease = undefined;
     this.deps.elements.root.hidden = true;
   }
 
@@ -170,13 +246,19 @@ export class TooltipController {
   }
 
   private resolve(card: CardFacts, settings: Settings): Promise<Resolution> {
-    let entry = this.cache.get(card.id);
+    // By id and art path: the same id may carry another artwork in a remote release's facts.
+    const key = pictureKey(card);
+    let entry = this.cache.get(key);
     if (!entry) {
-      entry = resolveCardImage(card, settings, this.deps.maps, this.health, this.deps.load);
-      this.cache.set(card.id, entry);
+      // The {sourceFile} map names the bundled art's file: a release that gives the card other art
+      // skips that fallback for it (the primary CDN serves the new art).
+      const bundled = knownCard(this.deps.table, card.id);
+      const maps = bundled && bundled.art === card.art ? this.deps.maps : {};
+      entry = resolveCardImage(card, settings, maps, this.health, this.deps.load);
+      this.cache.set(key, entry);
       // A card that showed names only is tried again next time.
       void entry.then((r) => {
-        if (r.kind === "names" && this.cache.get(card.id) === entry) this.cache.delete(card.id);
+        if (r.kind === "names" && this.cache.get(key) === entry) this.cache.delete(key);
       });
       while (this.cache.size > CACHE_LIMIT) {
         const oldest = this.cache.keys().next().value as string;
@@ -212,7 +294,7 @@ export function connectTooltipFrame(
     if (!message) return;
     // The page's name for the card is never shown: the catalog's is.
     if (message.kind === "clear") controller.clear();
-    else controller.show(message.cardId, message.seq);
+    else controller.show(message.cardId, message.seq, message.releaseId);
   });
   return (message) => env.win.parent.postMessage(tag(message), parentOrigin);
 }

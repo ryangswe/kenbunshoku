@@ -11,7 +11,10 @@
 //   - a primary that uses {sourceFile} (our CDN is keyed by {art}).
 // Unknown extra fields are ignored, among them the obsolete `cardLink` (the tooltip no longer
 // has a link; files may still carry it, of any type). The optional `update` field (an addition proposed for
-// unpacked installs) is read when it is well formed and ignored otherwise.
+// unpacked installs) is read when it is well formed and ignored otherwise. The optional `release` field
+// (the remote release pointer, SETTINGS.md) is kept as written: src/release/pointer.ts and
+// src/release/geometric.ts judge it where it is used, and a malformed one never makes the file
+// unusable.
 
 import { IMAGE_HOSTS, UPDATE_URL_PREFIX } from "../constants.js";
 import { templateProblem } from "./templates.js";
@@ -38,6 +41,8 @@ export interface Settings {
   /** The geometric stage (extra accuracy). Optional in the file; absent means on. `false` turns
    *  it off without a release. */
   geometric: boolean;
+  /** The `release` field as written (null when absent); see src/release/pointer.ts. */
+  release?: unknown;
 }
 
 export interface Validation {
@@ -156,6 +161,7 @@ export function validateSettings(raw: unknown, allowedHosts: readonly string[] =
       fallbacks: kept,
       update: updateField(raw.update, problems),
       geometric: geometricField(raw.geometric, problems),
+      release: raw.release === undefined ? null : raw.release,
     },
     problems,
   };
