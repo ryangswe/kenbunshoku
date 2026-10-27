@@ -58,8 +58,8 @@ core-model refresh, below, not a set update.
 ## Store releases
 
 - The package: bump `version` in `package.json`, then `npm test`, `npm run build -- --release <release
-  folder> --store` and `npm run package`. The store zip has `manifest.json` at its top level and no
-  `key`; the other zip (`npm run build -- --release <release folder>`) is for the release page. The
+  folder> --store` and `npm run package`. The store zip (`kenbunshoku-<version>-store.zip`) has
+  `manifest.json` at its top level and no `key`; the other zip (`npm run build -- --release <release folder>`) is for the release page. The
   opening line of `release-legal/NOTICE` must name the release (the build refuses otherwise).
 - A store build bundles the release the pointer names when it is built, and its geometric pin
   (`geometric.manifestSha256` in `kenbunshoku.config.json`, and `data/geometric.json`) is that
