@@ -2,10 +2,30 @@
   "schemaVersion": 1,
   "updatedAt": "2026-10-27T00:00:00Z",
   "namesOnly": false,
-  "primary": { "id": "cdn", "template": "https://cdn.kenbunshoku.com/art/{art}" },
+  "primary": {
+    "id": "cdn",
+    "template": "https://cdn.kenbunshoku.com/art/{art}"
+  },
   "fallbacks": [
-    { "id": "optcgapi", "template": "https://optcgapi.com/media/static/Card_Images/{sourceFile}" }
+    {
+      "id": "optcgapi",
+      "template": "https://optcgapi.com/media/static/Card_Images/{sourceFile}"
+    }
   ],
   "cardLink": "https://en.onepiece-cardgame.com/cardlist/?freewords={printedId}",
-  "update": { "latest": "0.2.0", "url": "https://github.com/ryangswe/kenbunshoku/releases/tag/v0.2.0" }
+  "update": {
+    "latest": "0.2.0",
+    "url": "https://github.com/ryangswe/kenbunshoku/releases/tag/v0.2.0"
+  },
+  "release": {
+    "id": "f80d5b56cd907f03",
+    "path": "vision/releases/f80d5b56cd907f03/release.json",
+    "sha256": "843f35d77f7bf3b833713e19372e5f6af95f95fb70d62d068861de142f894f63",
+    "minimumExtensionVersion": "0.2.0",
+    "geometric": {
+      "path": "vision/releases/f80d5b56cd907f03/geometric.json",
+      "sha256": "b8e7760594856716ee6e972e928d2cdd20d2e03a0e53d0be5b568c6004be6427",
+      "manifestSha256": "7b9a96f636611e34183b1a845db93846cb92e5d12ad0d273dd14d1e2c60cef19"
+    }
+  }
 }
