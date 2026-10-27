@@ -67,9 +67,12 @@ const liveConfig = JSON.parse(readFileSync(new URL("../../cdn/config.json", impo
 const remoteDoc = readFileSync(join(remoteDir, "release.json"));
 const remoteId = JSON.parse(remoteDoc).id;
 const sha = (b) => createHash("sha256").update(b).digest("hex");
-const remoteRefs = (() => {
-  const d = JSON.parse(remoteDoc);
-  return [d.bank.path, d.identity.groups.path, d.catalog.path];
+// The files a remote load must download: the remote document's pins that the bundled release does not
+// have with the same SHA-256 and size (the rest are taken from the extension).
+const pins = (d) => [d.detector, d.recognizer, d.bank, d.identity.groups, d.catalog];
+const toDownload = (() => {
+  const bundled = pins(JSON.parse(readFileSync(join(dist, "release", "release.json"), "utf-8")));
+  return pins(JSON.parse(remoteDoc)).filter((r) => !bundled.some((b) => b.sha256 === r.sha256 && b.bytes === r.bytes)).map((r) => r.path);
 })();
 // The remote release's index (flat folder) and its geometric settings file, as publish-release would
 // put them: the bundled settings with index.path on the CDN.
@@ -194,8 +197,8 @@ try {
       console.log(`  CDN requests: ${releaseRequests.map((l) => `${l.path.split("/").pop()} ${l.status} ${l.bytes}`).join("; ") || "none"}`);
       if (c.name === "remote-ok") {
         const files = releaseRequests.map((l) => l.path.split("/").pop()).sort();
-        check(JSON.stringify(files) === JSON.stringify(["release.json", ...remoteRefs].sort()), "only release.json, bank, groups and catalog downloaded (models reused)");
-        check(d?.reused === 2, `reused ${d?.reused}/5`);
+        check(JSON.stringify(files) === JSON.stringify(["release.json", ...toDownload].sort()), `only release.json and the changed files downloaded (${toDownload.join(", ")})`);
+        check(d?.reused === 5 - toDownload.length, `reused ${d?.reused}/5`);
         const line = consoleLines.find((l) => l.includes("release source="));
         check(Boolean(line) && !/127\.0\.0\.1|video|channel/.test(line), `one log line, no page data: ${line}`);
       }
