@@ -22,7 +22,7 @@ How card hovers work once the extension is installed, what to expect, and how to
 Card hovers are on for all supported videos, embedded YouTube players on other websites
 included: open a One Piece Card Game video on YouTube or Twitch and point at a card. Nothing is
 analyzed and nothing is downloaded for card hovers before the pointer comes over a video, so a
-video you just watch costs nothing. The first time the pointer comes over any video, even one
+video you just watch costs nothing. When the pointer first comes over a video, even one
 with no cards, card hovers start there (see [When recognition runs](#when-recognition-runs)). To
 turn card hovers off everywhere, use the switch in Kenbunshoku's toolbar popup; there is no
 per-channel switch. The extension separately checks its settings file when it is installed or
@@ -56,8 +56,8 @@ On a computer whose Chrome has WebGPU, Kenbunshoku is designed to
 also check each card against the card art's shapes, which tells close-looking cards apart
 better. The check runs only when it loads successfully and stays on: it turns itself off when it
 fails or is too slow. For it, Kenbunshoku downloads a card-feature file of about 60 MB from
-`cdn.kenbunshoku.com` once, the first time card hovers start on a video (any YouTube or Twitch
-video, even one with no cards), and caches it in Chrome's storage; it is downloaded again if that storage is cleared or the file changes. Without
+`cdn.kenbunshoku.com` once, the first time card hovers start on a video (on YouTube or Twitch,
+even one with no cards), and caches it in Chrome's storage; it is downloaded again if that storage is cleared or the file changes. Without
 WebGPU it works without the extra check. Each tab
 in which you have hovered a video holds its own copy of the card features in memory, about
 60–70 MB, until the tab is closed or navigates away.

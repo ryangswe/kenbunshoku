@@ -6,7 +6,8 @@
 //
 // This frame is made on the first pointer move over a video's picture (the page's session
 // starts then), so the release, and after it the geometric stage's card-feature index (about
-// 60 MB, from the image host, kept in the browser's cache), load then and never at install. Which release: the bundled one, or the one the settings file names (src/release/,
+// 60 MB, from the image host, kept in the browser's cache), load then and never at install.
+// Which release: the bundled one, or the one the settings file names (src/release/,
 // cdn/SETTINGS.md "release"), read once per page; for a remote release the stage follows the
 // pointer's own index (src/release/geometric.ts).
 

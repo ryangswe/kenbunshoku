@@ -45,7 +45,7 @@ it reaches the store, or your own build): see [docs/install-from-zip.md](docs/in
   by the extension itself, temporarily in memory; they are not saved to storage.
 - **Two hosts.** The extension makes requests to `cdn.kenbunshoku.com` and `optcgapi.com`, for
   a settings file, card pictures and, where Chrome has WebGPU, a card-feature file of about 60 MB,
-  downloaded once, the first time card hovers start on any YouTube or Twitch video (even one with
+  downloaded once, the first time card hovers start on a YouTube or Twitch video (it may be one with
   no cards), and cached. These
   requests carry no cookies, no account ID or per-user tracking identifier, and not the address
   of the page you watch.
