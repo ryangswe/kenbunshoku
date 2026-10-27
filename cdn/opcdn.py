@@ -2033,6 +2033,12 @@ def selftest_releases(refused) -> None:
             wrong_bank = json.dumps({"kind": "geometric-index-packed", "bank": {"sha256": "0" * 64}, "cards": [{"cardId": "OP01-001"}]}).encode()
             assert vl(get=lambda *a, **k: geo_get(*a, **k, man=wrong_bank), geometric={**gptr, "manifestSha256": hashlib.sha256(wrong_bank).hexdigest()}) > 0, "unbound index"
             assert vl(get=geo_get, geometric={**gptr, "sha256": "0" * 64}) > 0, "geometric.json changed"
+            short_man = json.dumps({"kind": "geometric-index-packed", "bank": {"sha256": hashlib.sha256(gbank).hexdigest()}, "cards": []}).encode()
+            assert vl(get=lambda *a, **k: geo_get(*a, **k, man=short_man), geometric={**gptr, "manifestSha256": hashlib.sha256(short_man).hexdigest()}) > 0, "a bank card without a row"
+            seen_gate: list = []
+            pointer_gate("https://cdn.example.org", {**pointer_block(lr, "0.3.0", None), "geometric": gptr}, get=lambda *a, **k: fake_get(*a, **k, pointer=False),
+                         runtimes=same_models, verify_live=lambda *a, **k: (seen_gate.append(k.get("geometric")), 0)[1])
+            assert seen_gate == [gptr], "the publish --config gate verifies the pointer's geometric part too"
 
             # the publish --config gate
             ptr = pointer_block(lr, "0.3.0", None)

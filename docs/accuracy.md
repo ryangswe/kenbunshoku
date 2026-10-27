@@ -69,10 +69,12 @@ itself off where it is too slow.
   extension update, once it is on Bandai's official English card list and the update is published;
   publishing an official list does not by itself update anything. Printings that are not on the
   official English list are not included. Such an update adds the new cards and leaves the models
-  unchanged, so the figures above, which describe the models, still hold; the release an install
-  runs may then be newer than the one this page names. Before it is published, an update must pass
-  a check fixed in advance: no card that was named right on our development footage may be lost,
-  and the new cards must be recognized about as well as other cards the models were not trained on.
+  unchanged. The figures above were measured on the release built into the extension and are not
+  measured again for an update; the release an install runs may then be newer than the one this
+  page names. Before it is published, an update must instead pass a check fixed in advance, on our
+  development data: on our real development frames, none of the cards named right may be lost, and
+  on generated scenes only a small fixed number may change; and the new cards must be recognized
+  about as well as other cards the models were not trained on.
   Future updates are not guaranteed (there is no fixed update schedule). Cards from sets not yet
   supported (for example pre-release reveals in deck builders and simulators) usually show nothing,
   but can be mistaken for a different supported card of similar colors and layout.

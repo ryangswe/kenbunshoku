@@ -250,7 +250,11 @@ export class TooltipController {
     const key = pictureKey(card);
     let entry = this.cache.get(key);
     if (!entry) {
-      entry = resolveCardImage(card, settings, this.deps.maps, this.health, this.deps.load);
+      // The {sourceFile} map names the bundled art's file: a release that gives the card other art
+      // skips that fallback for it (the primary CDN serves the new art).
+      const bundled = knownCard(this.deps.table, card.id);
+      const maps = bundled && bundled.art === card.art ? this.deps.maps : {};
+      entry = resolveCardImage(card, settings, maps, this.health, this.deps.load);
       this.cache.set(key, entry);
       // A card that showed names only is tried again next time.
       void entry.then((r) => {

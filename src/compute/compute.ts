@@ -74,7 +74,9 @@ void (async () => {
           chooseRelease: async (hooks: { onDownloading(): void }): Promise<ReleaseChoice> => {
             // The `release` field as read once for this page: the release and its stage follow it.
             let releaseField: unknown = null;
-            const choice = await chooseRelease(
+            let choice: ReleaseChoice;
+            try {
+              choice = await chooseRelease(
               {
                 storage: chrome.storage.local,
                 readReleaseField: async () => (releaseField = (await readEffectiveSettings(chrome.storage.local)).settings.release ?? null),
@@ -89,6 +91,12 @@ void (async () => {
               },
               hooks,
             );
+            } catch (error) {
+              // After a pointer was read, anything unexpected is a fallback like rules 6-12: the stage
+              // stays off unless the pointer's index is the bundled one (the remote index stays cached).
+              const reason = `unexpected:${String(error)}`;
+              return { source: "bundled", reason, pointer: null, downloaded: 0, ms: 0, ...(releaseField ? { request: fallbackRequest(loadRequest, parseGeometricPointer(releaseField)) } : {}) };
+            }
             const field = parseGeometricPointer(releaseField);
             // Chosen before anything was fetched (rules 1-5): the bundled release, with its stage.
             if (choice.source === "bundled") return chosenBeforeFetch(choice.reason) ? choice : { ...choice, request: fallbackRequest(loadRequest, field) };
@@ -109,6 +117,11 @@ void (async () => {
     postFacts: (message) => facts.postMessage(message),
     onGeometricStatus: (status) => {
       if (__DEV__) geometricBytes = status.bytes;
+      // G3: the runtime refused the remote release's index; the release runs with the stage off.
+      if (status.state === "off" && status.reason && lastDecision?.source === "remote") {
+        geometricReason = `geo-runtime:${status.reason}`;
+        console.info(`[${CONFIG.name}] geometric source=off reason=${geometricReason} pointer=${lastDecision.pointer ?? "-"}`);
+      }
     },
     ...(__DEV__
       ? {

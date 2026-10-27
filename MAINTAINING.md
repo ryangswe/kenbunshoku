@@ -29,8 +29,9 @@ English list does not show is not added, and cards revealed before the list are 
    written once (`manifest.json`); an index that grows by appending (a series folder,
    `manifest-<16 hex>.json`) starts in a folder of its own, never in a flat one.
 5. **The regression check.** Run the maintainer's pre-registered replay against the live release:
-   no card that was named right on the development footage may be lost, and the new cards must be
-   recognized about as well as cards the models never trained on. A release that fails is not
+   on the real development frames none of the cards named right may be lost (generated scenes
+   allow a small fixed number of changes), and the new cards must be recognized about as well as
+   cards the models never trained on. A release that fails is not
    published. Its rules are fixed in advance and are not changed after seeing a result.
 6. **Legal files.** Update `release-legal/` for the new release id (the opening line of `NOTICE`
    names it; `PROVENANCE.md` says what was added). They are published beside the release's files.

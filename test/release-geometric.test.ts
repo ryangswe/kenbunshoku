@@ -93,6 +93,8 @@ describe("checkRemoteGeometric (G1, G2)", () => {
     ["another host", "https://optcgapi.com/vision/geo/0123456789abcdef/manifest.json"],
     ["plain http", "http://cdn.example.test/vision/geo/0123456789abcdef/manifest.json"],
     ["a query", "https://cdn.example.test/vision/geo/0123456789abcdef/manifest.json?v=1"],
+    ["a fragment", "https://cdn.example.test/vision/geo/0123456789abcdef/manifest.json#x"],
+    ["user info", "https://user@cdn.example.test/vision/geo/0123456789abcdef/manifest.json"],
     ["no path", 7],
   ])("turns the stage off for %s (geo-shape)", async (_, path) => {
     const f = fixture(path);
@@ -197,6 +199,22 @@ describe("the compute frame with those requests", () => {
     t.workers[0]!.onmessage?.(status(null, false));
     expect(t.workers[1]!.posted[0]).toBe(plain);
     expect(t.frame.release.source).toBe("bundled");
+  });
+
+  it("the worker loading another id (rule 11): the bundled release, by the choice's fallback request", async () => {
+    const t = start({ source: "remote", pointer: P, request: remote, fallback: plain, facts: {}, reused: 2, downloaded: 1, ms: 1 });
+    await flush();
+    t.workers[0]!.onmessage?.(status("ffffffffffffffff"));
+    expect(t.workers[1]!.posted[0]).toBe(plain);
+    expect(t.frame.release).toMatchObject({ source: "bundled", reason: "id-mismatch" });
+  });
+
+  it("a remote worker that never starts: the bundled release, by the fallback request", async () => {
+    const t = start({ source: "remote", pointer: P, request: remote, fallback: plain, facts: {}, reused: 2, downloaded: 1, ms: 1 });
+    await flush();
+    t.workers[0]!.onerror?.({ message: "no wasm" } as ErrorEvent);
+    expect(t.workers[1]!.posted[0]).toBe(plain);
+    expect(t.frame.restarts).toBe(0);
   });
 
   it("a bundled choice carries its own request (a fallback before the worker); without one, the full bundled request", async () => {

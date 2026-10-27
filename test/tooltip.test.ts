@@ -424,6 +424,19 @@ describe("cards of a remote release: races and limits", () => {
     expect(elements.placeholder.textContent).toBe("Renamed Dragon");
   });
 
+  it("uses the {sourceFile} fallback map only for the bundled art", async () => {
+    const c = make();
+    c.setSettings({ ...defaultSettings(), primary: null, fallbacks: [{ id: "src", template: "https://src.example/{sourceFile}" }] });
+    (c as unknown as { deps: TooltipDeps }).deps.maps = { src: { "OP01-001": "zoro-old.png" } } as never;
+    c.show("OP01-001", 1);
+    await tick();
+    expect(loads).toEqual(["https://src.example/zoro-old.png"]);
+    c.addFacts(RID, facts("OP01-001", "Roronoa Zoro", "alt/OP01-001.jpg"));
+    c.show("OP01-001", 2, RID);
+    await tick();
+    expect(loads).toEqual(["https://src.example/zoro-old.png"]);
+  });
+
   it("keeps pictures apart by artwork: the bundled art is not reused for a release's other art", async () => {
     const c = make();
     c.show("OP01-001", 6);

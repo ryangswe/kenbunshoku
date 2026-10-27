@@ -53,9 +53,10 @@ is analyzed, then discarded. It is not saved to storage, uploaded or shared.
 | Updated card-recognition data (a release: its card list, card fingerprints, the settings of the card-feature check and, after a model update, the recognition models; data files, never code) | `cdn.kenbunshoku.com` | When card hovers start in a tab and the settings file names a release other than the one built into your version of the extension: a newer one, or an earlier one after a rollback (otherwise never). About 1.5 MB once per release when cards are added, about 12 MB when the models themselves are updated; afterwards it is read from your browser's cache. Your browser may keep a separate copy for each website, so watching on both YouTube and Twitch can download it twice. Nothing is downloaded at install or with card hovers off | Your IP address, the time, your browser's user agent and language, that this browser downloaded that release, and the extension's own id (sent as the request's origin) |
 
 These requests carry no cookies, no account ID or per-user tracking identifier, and not the
-address of the page you watch. Settings, picture and release requests carry no `Referer` at all;
-card-feature file requests may carry the extension's own address as `Referer`, which names
-nothing but the extension. Like any
+address of the page you watch. Settings, picture and release requests made by the extension's pages
+carry no `Referer` at all; the card-feature file, and the settings of the card-feature check that
+a release names, are requested by the recognition worker and may carry the extension's own address
+as `Referer`, which names nothing but the extension. Like any
 web request, they show the host your IP address, which file was asked for, and the headers your
 browser adds to every request. The extension sends nothing else to anyone, and it does not send
 the channels you turned on.

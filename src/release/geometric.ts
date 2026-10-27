@@ -106,7 +106,7 @@ export async function checkRemoteGeometric(field: GeometricField, stageOn: boole
     return { ok: false, reason: "geo-shape" };
   }
   const settingsOrigin = new URL(deps.settingsUrl).origin;
-  if (manifest.origin !== settingsOrigin || manifest.search !== "" || manifest.hash !== "" || !GEO_MANIFEST_PATH.test(manifest.pathname)) {
+  if (manifest.origin !== settingsOrigin || manifest.username !== "" || manifest.password !== "" || manifest.search !== "" || manifest.hash !== "" || !GEO_MANIFEST_PATH.test(manifest.pathname)) {
     return { ok: false, reason: "geo-shape" };
   }
   return { ok: true, url, manifestSha256: g.manifestSha256 };

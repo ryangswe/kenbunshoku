@@ -213,7 +213,7 @@ reason=<code> pointer=<id>`.
 | G1 | the settings say `geometric: false`, or the build has no stage | remote release, stage off | `geo-setting` |
 | G1 | `geometric` absent, or malformed | remote release, stage off | `geo-absent` / `geo-malformed:<key>` |
 | G2 | `geometric.json` unreachable or non-2xx (10 s), its SHA-256 not `geometric.sha256`, not JSON, or its `index.path` not a manifest on this host at `/vision/geo/<16 hex>/manifest.json` (a flat folder) or `/vision/geo/<16 hex>/manifest-<16 hex>.json` (a series folder), with no query | remote release, stage off | `geo-unreachable` / `geo-sha` / `geo-shape` |
-| G3 | the runtime refuses the index (manifest SHA-256, bank binding, a bank card without a row, a shard's hash) | remote release, stage off for the page; never a failed release | the runtime's reason |
+| G3 | the runtime refuses the index (manifest SHA-256, bank binding, a bank card without a row, a shard's hash) | remote release, stage off for the page; never a failed release | `geo-runtime:<the runtime's reason>` |
 
 The runtime keeps the index's shards in the browser's cache and, after each load, deletes what lies
 outside the loaded manifest's folder. So a page that **falls back** from a remote release (rules
@@ -297,7 +297,8 @@ compressed (the bank and catalog are most of a card-only update).
    run the release's ONNX Runtime major.minor; otherwise raise `--min-version`. A release that needs
    a newer runtime ships bundled in a store release first, and the pointer moves at least 14 days
    later.
-3. **Geometric** (with `--geometric`): the file passes rule G2, its index manifest is already on the
+3. **Geometric** (with `--geometric`): the file passes rule G2 with an absolute
+   `https://cdn.kenbunshoku.com/vision/geo/…` `index.path` (the tool is stricter than the extension), its index manifest is already on the
    CDN (`publish-geo` first) with the SHA-256 `--geo-manifest-sha256`, bound to the release's bank,
    with a row for every bank card. Without `--geometric` the pointer has none, and installs run the
    release with the stage off.
