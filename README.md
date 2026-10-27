@@ -18,9 +18,8 @@ Game, its card names and its card art belong to their owners.
 **[Add Kenbunshoku to Chrome from the Chrome Web Store](https://chromewebstore.google.com/detail/kenbunshoku/gndfmgcngfebiiiioddngmifddjiiabf)**: one click, and Chrome keeps it
 up to date.
 
-Then open a One Piece Card Game video on Twitch or YouTube, point at the player and click the
-round eye button in its top-right corner to turn card hovers on for that channel. Rest the
-pointer on a card: its picture appears beside it.
+Then open a One Piece Card Game video on Twitch or YouTube and rest the pointer on a card: its
+picture appears beside it.
 
 Installing from a release zip instead (a Chrome setup without the Web Store, a release before
 it reaches the store, or your own build): see [docs/install-from-zip.md](docs/install-from-zip.md).
@@ -29,7 +28,7 @@ it reaches the store, or your own build): see [docs/install-from-zip.md](docs/in
 
 | I want to… | Read |
 | --- | --- |
-| Learn how to turn card hovers on, what to expect, and how to update or remove it | [docs/using.md](docs/using.md) |
+| Learn how card hovers work, what to expect, and how to update or remove it | [docs/using.md](docs/using.md) |
 | Install from a release zip, or load your own build with Load unpacked | [docs/install-from-zip.md](docs/install-from-zip.md) |
 | See how accurate it is and what it does not recognize | [docs/accuracy.md](docs/accuracy.md) |
 | Know what it reads, sends and keeps | [PRIVACY.md](PRIVACY.md) |
@@ -45,8 +44,9 @@ it reaches the store, or your own build): see [docs/install-from-zip.md](docs/in
 - **Video frames are never uploaded.** Pictures of the video are analyzed inside your browser,
   by the extension itself, temporarily in memory; they are not saved to storage.
 - **Two hosts.** The extension makes requests to `cdn.kenbunshoku.com` and `optcgapi.com`, for
-  a settings file, card pictures and, where Chrome has WebGPU, a card-feature file of about 60 MB
-  downloaded on first use (the first video you turn card hovers on for) and cached. These
+  a settings file, card pictures and, where Chrome has WebGPU, a card-feature file of about 60 MB,
+  downloaded once, the first time card hovers start on any YouTube or Twitch video (even one with
+  no cards), and cached. These
   requests carry no cookies, no account ID or per-user tracking identifier, and not the address
   of the page you watch.
 
