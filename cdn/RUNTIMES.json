@@ -1,0 +1,12 @@
+{
+  "$comment": "Every pointer-aware Kenbunshoku version shipped: the runtime it runs and the release bundled in it (cdn/SETTINGS.md, 'Publishing a release'). publish-release refuses a release one of the versions its pointer reaches could not load, and asks for --sessions when its models differ from what installs run. Add a row with each store release.",
+  "0.2.0": {
+    "vendoredCommit": "3d8962cbc98f347dab9943dce031e29ba27aaff3",
+    "ortWeb": "1.29.0",
+    "bundledRelease": {
+      "id": "f80d5b56cd907f03",
+      "detectorSha256": "e8b36a038a6d4603c9a431834919afbeca85513dfca240bd967270b6aefe61ea",
+      "recognizerSha256": "c65b12e322f025db111993c1424e29addda8063a0540cc9fa958a3dade856f4c"
+    }
+  }
+}
