@@ -123,7 +123,8 @@ describe("popup", () => {
   });
 
   it.runIf(UPDATE_URL_PREFIX !== null)("shows the new-version line only when the settings name a newer version", async () => {
-    initPopup({ doc: document, local: memoryStorage(), onChanged: listenersOf().onChanged, version: "0.1.0" });
+    // The built-in default (cdn/config.json) may name the latest version: a version past any it can name.
+    initPopup({ doc: document, local: memoryStorage(), onChanged: listenersOf().onChanged, version: "99.0.0" });
     await settle();
     expect(document.getElementById("update")!.hidden).toBe(true);
     document.body.innerHTML = HTML;
