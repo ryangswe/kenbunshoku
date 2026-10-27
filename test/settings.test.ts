@@ -39,6 +39,7 @@ describe("validateSettings", () => {
       fallbacks: [{ id: "optcgapi", template: "https://optcgapi.com/media/static/Card_Images/{sourceFile}" }],
       update: null,
       geometric: true,
+      release: null,
     });
   });
 

@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // The card data the build writes into dist/data/ (see src/tooltip/card-data.ts):
 //
-//   cards.json         { "<card id>": [name, set, art path or null] } from the release's catalog
-//   source-files.json  { "optcgapi": { "<card id>": "<file name on optcgapi.com>" } }
+//   cards.json         { "<card id>": [name, set, art path or null] } from the release's catalog,
+//                      by src/shared/card-table.mjs (the compute frame uses the same rule for a
+//                      remote release's catalog)
+//   source-files.json  { "optcgapi": { "<card id>": "<file name on optcgapi.com>" } }, built here
 //
 // The `{sourceFile}` map is built from the card mirror's image index. A card is mapped only
 // when the mirror holds the very picture the catalog names (`file` equals the catalog's `art`),
@@ -11,19 +13,6 @@
 // is not mapped skips that fallback.
 
 export const OPTCGAPI_PREFIX = "https://optcgapi.com/media/static/Card_Images/";
-
-/** The tooltip's card table. With `printed`, each card's `printed` field (the "catalog"
- *  printed-number rule) comes along as a fourth value. */
-export function buildCardTable(catalog, { printed = false } = {}) {
-  const table = {};
-  for (const card of catalog.cards) {
-    const set = card.facets && typeof card.facets.set === "string" ? card.facets.set : null;
-    const row = [card.name, set, card.art ?? null];
-    if (printed) row.push(typeof card.printed === "string" && card.printed ? card.printed : null);
-    table[card.id] = row;
-  }
-  return table;
-}
 
 export function buildSourceFileMaps(catalog, index) {
   const byFile = new Map();
