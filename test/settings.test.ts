@@ -33,9 +33,14 @@ describe("validateSettings", () => {
   it.runIf(IS_KENBUNSHOKU)("accepts Kenbunshoku's bundled default as it ships", () => {
     const { settings, problems } = validateWithHosts(DEFAULT_CONFIG);
     expect(problems).toEqual([]);
-    // cdn/config.json mirrors the live settings file, so its date and release pointer move with each
-    // publish: the pointer may be absent or must be one the extension accepts, geometric part included.
-    const { release, ...rest } = settings!;
+    // cdn/config.json mirrors the live settings file, so its date, update notice and release pointer
+    // move with each publish: the notice may be absent or must name a version and the releases page;
+    // the pointer may be absent or must be one the extension accepts, geometric part included.
+    const { release, update, ...rest } = settings!;
+    if (update !== null) {
+      expect(update.latest).toMatch(/^\d+\.\d+\.\d+$/);
+      expect(update.url.startsWith("https://github.com/ryangswe/kenbunshoku/releases")).toBe(true);
+    }
     if (release !== null && release !== undefined) {
       expect(parsePointer(release).kind).toBe("pointer");
       expect(parseGeometricPointer(release).kind).not.toBe("malformed");
@@ -46,7 +51,6 @@ describe("validateSettings", () => {
       namesOnly: false,
       primary: { id: "cdn", template: "https://cdn.kenbunshoku.com/art/{art}" },
       fallbacks: [{ id: "optcgapi", template: "https://optcgapi.com/media/static/Card_Images/{sourceFile}" }],
-      update: null,
       geometric: true,
     });
   });
