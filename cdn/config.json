@@ -1,10 +1,11 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-16T00:00:00Z",
+  "updatedAt": "2026-10-27T00:00:00Z",
   "namesOnly": false,
   "primary": { "id": "cdn", "template": "https://cdn.kenbunshoku.com/art/{art}" },
   "fallbacks": [
     { "id": "optcgapi", "template": "https://optcgapi.com/media/static/Card_Images/{sourceFile}" }
   ],
-  "cardLink": "https://en.onepiece-cardgame.com/cardlist/?freewords={printedId}"
+  "cardLink": "https://en.onepiece-cardgame.com/cardlist/?freewords={printedId}",
+  "update": { "latest": "0.2.0", "url": "https://github.com/ryangswe/kenbunshoku/releases/tag/v0.2.0" }
 }
