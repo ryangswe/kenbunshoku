@@ -37,7 +37,51 @@ The result is `dist/`, an unpacked extension: load it with **Load unpacked**, as
 `npm run package` zips a release build. A build with the key becomes `kenbunshoku-<version>.zip` for a
 release page, with every file inside one `kenbunshoku-<version>/` folder (the folder a user selects in
 "Load unpacked"). A `--store` build becomes `kenbunshoku-<version>-store.zip` with `manifest.json` at the
-zip's top level, as the Chrome Web Store requires. It refuses a dev build.
+zip's top level, as the Chrome Web Store requires. It refuses a dev build. It also refuses a
+`.json`, `.js`, `.mjs`, `.css` or `.html` file of 4.5 MiB or more (`scripts/package-size.mjs`):
+addons.mozilla.org refuses an add-on with such a file of 5 MiB, and the card data grows with every
+set. The check is per file, and binary files (the WebAssembly, the ONNX models) never count;
+`npm run build` warns about such files, so a dev build still works.
+
+## Firefox
+
+The same sources build for Firefox (desktop; 148 or later):
+
+```
+npm run build -- --target firefox --release <release folder>        # the addons.mozilla.org build
+npm run build -- --target firefox --dev --release <release folder>  # dev: also the local test page
+npm run package                                                    # kenbunshoku-<version>-firefox.zip
+```
+
+Only the manifest differs (`firefoxManifest` in `scripts/manifest.mjs`):
+
+- the background module runs as a background script (Firefox has no service worker);
+- no `key` and no `minimum_chrome_version`;
+- a `gecko` block with the add-on ID (`firefoxAddonId` in `kenbunshoku.config.json`, permanent
+  once listed; a dev build uses `kenbunshoku-dev@kenbunshoku.com`, so it loads beside the listed
+  add-on), the minimum Firefox version and the data declaration (`required: ["none"]`: nothing
+  about the user leaves the browser).
+
+The minimum is 148, the first Firefox with `location.ancestorOrigins`: the compute and tooltip
+frames read it to know the page they are in, and do not start without it. Permissions are the
+Chrome manifest's. The version is the Chrome build's: both stores ship the same number, which the
+settings file's release pointer compares with `minimumExtensionVersion`. The popup never shows the
+"New version available" line in Firefox, which installs only signed add-ons and updates them
+itself (`__TARGET__`, set by the build, is `"chrome"` or `"firefox"`; compare it at the use site).
+
+The geometric stage needs WebGPU; where Firefox has none, the stage reports itself off and the
+other stages work as before.
+
+Code that runs in Firefox uses only `chrome.storage` and `chrome.runtime`. Before using another
+`chrome.*` API, check MDN's compatibility table for Firefox 148. The background is an event page:
+it may stop when idle, so it keeps no state outside storage.
+
+To try a build: `about:debugging` → This Firefox → Load Temporary Add-on → `dist/manifest.json`.
+Before an upload: unzip the package and run `npx web-ext lint --source-dir <folder>` (0 errors),
+then `node scripts/firefox-source-archive.mjs --release <folder> --runtime-repo <toolkit checkout>`
+for the source archive Mozilla's reviewers rebuild from (the bundles are minified). Unzip the
+archive into an empty folder, run `./build-firefox.sh`, and `diff -r` the unzipped
+`out/kenbunshoku-<version>-firefox.zip` against the unzipped upload: every file must match.
 
 ## The runtime
 
