@@ -11,5 +11,4 @@ agent.start();
 void readEnabled(chrome.storage.local).then((enabled) => agent.setEnabled(enabled));
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "local" && ENABLED_KEY in changes) agent.setEnabled(changes[ENABLED_KEY]?.newValue !== false);
-  if (area === "local") agent.onStorageChanged(changes);
 });
