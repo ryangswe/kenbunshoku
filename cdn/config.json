@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-27T00:00:00Z",
+  "updatedAt": "2026-10-28T00:00:00Z",
   "namesOnly": false,
   "primary": {
     "id": "cdn",
@@ -14,8 +14,8 @@
   ],
   "cardLink": "https://en.onepiece-cardgame.com/cardlist/?freewords={printedId}",
   "update": {
-    "latest": "0.2.0",
-    "url": "https://github.com/ryangswe/kenbunshoku/releases/tag/v0.2.0"
+    "latest": "0.3.0",
+    "url": "https://github.com/ryangswe/kenbunshoku/releases/tag/v0.3.0"
   },
   "release": {
     "id": "f80d5b56cd907f03",
