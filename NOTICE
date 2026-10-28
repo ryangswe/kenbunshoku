@@ -10,7 +10,12 @@ Not affiliated
 
 Kenbunshoku is an unofficial fan project. It is not affiliated with, endorsed by or sponsored by
 Bandai, Eiichiro Oda, Shueisha or Toei Animation. The One Piece Card Game, its card names and its
-card art belong to their owners. This repository contains no card images.
+card art belong to their owners. This repository contains no card image files. The store
+images in docs/store/ and the launch reel's videos and footage in media/reel/ (final/,
+public/footage/) show card art and tournament broadcasts as they appear on video; that art and
+footage belong to their owners and are not covered by the Apache License. The reel's soundtrack
+is "Sports" by tatamusic, used under the Pixabay Content License; the audio file itself is not
+in this repository.
 
 ------------------------------------------------------------------------------
 cardvision-browser (vendored in vendor/cardvision-browser/)

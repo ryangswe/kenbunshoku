@@ -1,0 +1,106 @@
+[
+  {
+    "id": "hero",
+    "capture": "s5-hero",
+    "start": -0.641,
+    "frames": 341,
+    "crop": [
+      352,
+      48,
+      1568,
+      882
+    ],
+    "note": "official Bandai regional (physical); click at capture 3.87 s -> reel 4.51 s; Portgas.D.Ace PRB02-018 art at 7.092 s -> reel 7.733 s (frame 232, the mic drop)"
+  },
+  {
+    "id": "hero9",
+    "capture": "s5-hero",
+    "start": -0.641,
+    "frames": 341,
+    "crop": [
+      996,
+      48,
+      920,
+      882
+    ],
+    "note": "9:16 crop of the hero take"
+  },
+  {
+    "id": "m1-kaido",
+    "capture": "s3-hovers",
+    "start": 6.473,
+    "frames": 64,
+    "crop": [
+      540,
+      80,
+      760,
+      640
+    ],
+    "note": "digital; Kaido OP17-042 reveal 6.94 s"
+  },
+  {
+    "id": "m2-sanji",
+    "capture": "s5-hovers",
+    "start": 15.383,
+    "frames": 64,
+    "crop": [
+      440,
+      100,
+      880,
+      620
+    ],
+    "note": "official (physical); Sanji OP06-119 reveal 15.85 s"
+  },
+  {
+    "id": "m3-nami",
+    "capture": "s3-hovers",
+    "start": 15.463,
+    "frames": 64,
+    "crop": [
+      387,
+      413,
+      840,
+      470
+    ],
+    "note": "digital; Nami EB02-017 reveal 15.93 s; board shows released cards only (sim hand panel cropped out)"
+  },
+  {
+    "id": "m4-mihawk",
+    "capture": "s5-hovers",
+    "start": 12.603,
+    "frames": 64,
+    "crop": [
+      620,
+      494,
+      820,
+      584
+    ],
+    "note": "official (physical); Dracule Mihawk OP01-070 reveal 13.07 s"
+  },
+  {
+    "id": "m5-xebec",
+    "capture": "s3-hovers",
+    "start": 3.543,
+    "frames": 64,
+    "crop": [
+      519,
+      90,
+      880,
+      560
+    ],
+    "note": "digital; Rocks.D.Xebec OP17-039 reveal 4.01 s"
+  },
+  {
+    "id": "store-ace",
+    "capture": "s5-hovers",
+    "start": 4.6,
+    "frames": 30,
+    "crop": [
+      362,
+      180,
+      1196,
+      748
+    ],
+    "note": "store screenshot: official (physical); Portgas.D.Ace PRB02-018; mat only, scaled 1196x748 -> 1280x800"
+  }
+]

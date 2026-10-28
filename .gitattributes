@@ -1,0 +1,4 @@
+# Store images and the launch reel are not needed to build the extension: keep them out of
+# `git archive` (the addons.mozilla.org source archive) and GitHub's source downloads.
+docs/store/ export-ignore
+media/ export-ignore
