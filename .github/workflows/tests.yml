@@ -1,0 +1,82 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# The tests (npm test: the type check, then vitest) on every pull request and every push to main,
+# on the oldest Node.js the package supports and a newer one. Then a real build for Chrome and for
+# Firefox, with the model release the extension bundles, and addons.mozilla.org's linter on the
+# Firefox build. The build itself refuses a text file too large for that linter
+# (scripts/package-size.mjs).
+#
+# The release is downloaded from the public model repository on Hugging Face at a pinned commit,
+# and release.json is checked against a pinned SHA-256 (the build then checks every file against
+# release.json). When the bundled release moves (release-legal/NOTICE names it), move both pins.
+#
+# The local headless smoke test (test/smoke/) is not run here: it does not analyze frames in a
+# headless Chrome on a runner.
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  RELEASE_REPO: https://huggingface.co/JuicyKaraageNo1/kenbunshoku-onepiece
+  RELEASE_COMMIT: 5526f531863381745780f4377f1cae767077ca77
+  RELEASE_JSON_SHA256: 843f35d77f7bf3b833713e19372e5f6af95f95fb70d62d068861de142f894f63
+
+jobs:
+  tests:
+    name: Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+  build:
+    name: Build for Chrome and Firefox
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Download the bundled model release
+        run: |
+          set -eu
+          mkdir -p "$RUNNER_TEMP/release"
+          cd "$RUNNER_TEMP/release"
+          for file in release.json catalog.json bank.json bank.identity-groups.json accept.json \
+            detector.onnx recognizer.onnx SHA256SUMS; do
+            curl -sSfL --retry 3 -o "$file" "$RELEASE_REPO/resolve/$RELEASE_COMMIT/$file"
+          done
+          echo "$RELEASE_JSON_SHA256  release.json" | sha256sum -c -
+          sha256sum -c SHA256SUMS
+      - name: Build for Chrome
+        run: npm run build -- --release "$RUNNER_TEMP/release" --out dist
+      - name: Build for Firefox
+        run: npm run build -- --release "$RUNNER_TEMP/release" --target firefox --out dist-firefox
+      - name: Lint the Firefox build as addons.mozilla.org does
+        # Errors fail the job. The warnings (eval and dynamic import) come from ONNX Runtime's
+        # bundled code.
+        run: npx --yes web-ext@8.10.0 lint --source-dir dist-firefox --output text
