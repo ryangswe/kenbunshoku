@@ -99,6 +99,7 @@ Each is separate from every other project's, so it can change hands whole:
   `kenbunshoku.config.json` point at it).
 - **Hugging Face repositories** (the models and labels).
 - **Chrome Web Store listing** (in the publisher's account; a transfer may mean a new listing).
+  Its images are in [docs/store/](docs/store/README.md).
   The settings file's `update` field can point installed copies to a new listing or release page.
 
 Changing hands also means a new extension key pair for unpacked installs (the old private key goes
