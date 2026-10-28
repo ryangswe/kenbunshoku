@@ -1,0 +1,29 @@
+{
+  "name": "kenbunshoku-reel",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Kenbunshoku launch reel (Remotion): 16:9 for X plus a 9:16 cutdown, from screen captures of the real extension on Twitch",
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio",
+    "audio": "node scripts/make-audio.mjs",
+    "render:frames": "remotion render Reel out/reel-16x9-video.mp4 --muted && remotion render Cutdown out/reel-9x16-video.mp4 --muted",
+    "mux": "node scripts/mux.mjs",
+    "render": "npm run audio && npm run render:frames && npm run mux",
+    "typecheck": "tsc --noEmit",
+    "store:still": "remotion still Store out/store-screenshot-1280x800.png --frame=15",
+    "store": "npm run store:still && python3 scripts/make-store-assets.py",
+    "footage": "python3 scripts/build-footage.py"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.529",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "remotion": "4.0.529"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "puppeteer-core": "24.25.0",
+    "typescript": "5.5.4"
+  }
+}

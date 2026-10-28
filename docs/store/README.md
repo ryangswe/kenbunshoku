@@ -4,7 +4,7 @@
 The images uploaded to the store listings, kept here so that a new maintainer or a new listing
 starts from the same files.
 
-*[Back to README](../../README.md)*
+*[Back to README](../../README.md) · [Launch reel](../../media/reel/README.md)*
 
 | File | Size | Used on | What it shows |
 | --- | --- | --- | --- |
@@ -15,7 +15,9 @@ starts from the same files.
 | `promo-marquee-1400x560.png` | 1400×560 | Chrome Web Store (marquee promo tile) | Drawn around a crop of the official broadcast's board during the Portgas.D.Ace hover. |
 | `store-icon-128-padded.png` | 128×128 | Chrome Web Store (store icon) | The extension icon (`icons/icon-128.png`) with the padding the store asks for. |
 
-How they were made:
+How they were made: from the launch reel's captures, with
+`media/reel/scripts/make-store-assets.py`. [media/reel/README.md](../../media/reel/README.md) says how
+to make them again.
 - **Capture.** Past broadcasts on Twitch, viewed signed out with the extension running.
 - **Cropping.** Twitch's page, chat and viewer webcams are cropped out. Each broadcast's own
   overlay (player names and cameras, event branding) is kept.

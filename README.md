@@ -38,6 +38,7 @@ it reaches the store, or your own build): see [docs/install-from-zip.md](docs/in
 | Make the same extension for another card game | [docs/make-it-yours.md](docs/make-it-yours.md) |
 | Publish to the card-art CDN | [cdn/README.md](cdn/README.md) and [cdn/SETTINGS.md](cdn/SETTINGS.md) |
 | Find the images uploaded to the store listings | [docs/store/README.md](docs/store/README.md) |
+| Watch the launch reel, or make it again | [media/reel/README.md](media/reel/README.md) |
 
 ## Privacy
 
