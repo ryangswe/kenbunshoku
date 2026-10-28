@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Permissions
 
-What each Chrome permission Kenbunshoku asks for is used for. What it reads, sends and keeps is in [PRIVACY.md](../PRIVACY.md).
+What each browser permission Kenbunshoku asks for is used for. What it reads, sends and keeps is in [PRIVACY.md](../PRIVACY.md).
 
 *[Back to README](../README.md)*
 

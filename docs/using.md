@@ -26,7 +26,7 @@ video you just watch costs nothing. When the pointer first comes over a video, e
 with no cards, card hovers start there (see [When recognition runs](#when-recognition-runs)). To
 turn card hovers off everywhere, use the switch in Kenbunshoku's toolbar popup; there is no
 per-channel switch. The extension separately checks its settings file when it is installed or
-updated and when Chrome starts, and at most once an hour while you use it.
+updated and when the browser starts, and at most once an hour while you use it.
 
 ## Hovering a card
 
@@ -52,12 +52,12 @@ the pointer leaves the video or the tab goes to the background.
 
 ## Extra accuracy (WebGPU)
 
-On a computer whose Chrome has WebGPU, Kenbunshoku is designed to
+In a browser that has WebGPU, Kenbunshoku is designed to
 also check each card against the card art's shapes, which tells close-looking cards apart
 better. The check runs only when it loads successfully and stays on: it turns itself off when it
 fails or is too slow. For it, Kenbunshoku downloads a card-feature file of about 60 MB from
 `cdn.kenbunshoku.com` once, the first time card hovers start on a video (on YouTube or Twitch,
-even one with no cards), and caches it in Chrome's storage; it is downloaded again if that storage is cleared or the file changes. Without
+even one with no cards), and caches it in the browser's storage; it is downloaded again if that storage is cleared or the file changes. Without
 WebGPU it works without the extra check. Each tab
 in which you have hovered a video holds its own copy of the card features in memory, about
 60–70 MB, until the tab is closed or navigates away.
