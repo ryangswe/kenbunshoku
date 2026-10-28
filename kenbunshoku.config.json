@@ -19,5 +19,6 @@
   "modelUrl": "https://huggingface.co/JuicyKaraageNo1/kenbunshoku-onepiece",
   "runtimeUrl": "https://github.com/ryangswe/kenbunshoku#built-on-cardvision",
   "maintainerContactUrl": "https://github.com/ryangswe/kenbunshoku/issues",
-  "packageName": "kenbunshoku"
+  "packageName": "kenbunshoku",
+  "firefoxAddonId": "kenbunshoku@kenbunshoku.com"
 }

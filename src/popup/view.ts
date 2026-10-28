@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // The popup: one switch (the master on/off), a "New version available" line only when the
-// settings file names a newer version (installs that never update by themselves), and two links
+// settings file names a newer version (installs that never update by themselves; never in
+// Firefox, which installs only signed add-ons and updates them itself), and two links
 // (the project page, and the open-source toolkit it is built on). The logic is
 // apart from the browser globals so that it can be tested.
 
@@ -20,6 +21,8 @@ export interface PopupEnv {
   local: Area;
   onChanged: { addListener(listener: (changes: Record<string, unknown>, area: string) => void): void };
   version: string;
+  /** Whether this build shows the "New version available" line (false in the Firefox build). */
+  updateNotices?: boolean;
 }
 
 /** Fill the popup and keep it current. Adds one storage listener. */
@@ -63,6 +66,7 @@ export function initPopup(env: PopupEnv): { renderUpdate(): Promise<void>; rende
   // An unreadable storage leaves the update line hidden.
   const renderUpdate = (): Promise<void> => showUpdate().catch(() => undefined);
   const showUpdate = async (): Promise<void> => {
+    if (env.updateNotices === false) return;
     const { settings } = await readEffectiveSettings(env.local);
     const dismissed = (await env.local.get(DISMISSED_UPDATE_KEY))[DISMISSED_UPDATE_KEY];
     const notice = updateNotice(settings.update, env.version, typeof dismissed === "string" ? dismissed : null);

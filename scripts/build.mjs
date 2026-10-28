@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Build the unpacked extension into dist/ (not kept in the repository).
 //
-//   npm run build -- --release <release folder> [--images-index <images.jsonl>] [--dev] [--out dist]
+//   npm run build -- --release <release folder> [--images-index <images.jsonl>] [--dev] [--store] [--target chrome|firefox] [--out dist]
 //
 // --release       A release folder as `cardvision build-release` writes it: release.json and the
 //                 files it pins. It is checked with the runtime's own verification (every file
@@ -14,6 +14,9 @@
 // --dev           A development build: also runs on the local test page (http://127.0.0.1, http://localhost).
 // --store         A Chrome Web Store build: the manifest has no `key` (the store assigns the ID).
 //                 Other builds carry the public key that fixes the ID of unpacked installs.
+// --target        chrome (the default; also Edge and Brave) or firefox: the same bundles with
+//                 Firefox's manifest (scripts/manifest.mjs firefoxManifest: no key, the add-on ID).
+//                 A Firefox release build is the addons.mozilla.org upload; --store is Chrome's.
 //
 // Everything that makes this build Kenbunshoku (names, sites, hosts, settings address, the
 // printed-number rule, the geometric stage, links, the zip name) comes from the config, which is
@@ -30,11 +33,12 @@ import { parseArgs } from "node:util";
 
 import { build } from "esbuild";
 
-import { buildManifest } from "./manifest.mjs";
+import { buildManifest, firefoxManifest } from "./manifest.mjs";
 import { buildSourceFileMaps } from "./card-data.mjs";
 import { buildCardTable } from "../src/shared/card-table.mjs";
 import { CONFIG_PATH, geometricIndexProblem, ICON_SIZES, loadForkConfig } from "./fork-config.mjs";
 import { LEGAL_FILES, releaseLegalProblem } from "./release-legal.mjs";
+import { describeOversized, oversizedTextFiles, TEXT_FILE_LIMIT } from "./package-size.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const { values } = parseArgs({
@@ -43,6 +47,7 @@ const { values } = parseArgs({
     "images-index": { type: "string" },
     dev: { type: "boolean", default: false },
     store: { type: "boolean", default: false },
+    target: { type: "string", default: "chrome" },
     "geo-manifest-url": { type: "string" },
     out: { type: "string", default: "dist" },
   },
@@ -57,6 +62,15 @@ if (values["geo-manifest-url"] && !values.dev) {
 }
 if (values.dev && values.store) {
   console.error("--dev and --store do not go together");
+  process.exit(2);
+}
+if (values.target !== "chrome" && values.target !== "firefox") {
+  console.error(`--target is chrome or firefox (got "${values.target}")`);
+  process.exit(2);
+}
+const firefox = values.target === "firefox";
+if (firefox && values.store) {
+  console.error("--store is the Chrome Web Store build; a Firefox build is already the one addons.mozilla.org takes");
   process.exit(2);
 }
 let config;
@@ -139,7 +153,7 @@ const shared = {
   sourcemap: false,
   logLevel: "warning",
   legalComments: "linked",
-  define: { __DEV__: values.dev ? "true" : "false" },
+  define: { __DEV__: values.dev ? "true" : "false", __TARGET__: JSON.stringify(values.target) },
   plugins: [configPlugin],
 };
 await build({ ...shared, format: "iife", entryPoints: { content: join(root, "src/content/index.ts") }, outdir: out });
@@ -213,7 +227,16 @@ if (config.geometric) {
 // ------------------------------------------------------------------ 5. manifest and notices
 mkdirSync(join(out, "icons"), { recursive: true });
 for (const size of ICON_SIZES) copyFileSync(join(root, config.icons, `icon-${size}.png`), join(out, "icons", `icon-${size}.png`));
-const manifest = buildManifest({ version: pkg.version, dev: values.dev, store: values.store, config });
+const chromeManifest = buildManifest({ version: pkg.version, dev: values.dev, store: values.store, config });
+let manifest = chromeManifest;
+if (firefox) {
+  try {
+    manifest = firefoxManifest(chromeManifest, { dev: values.dev, config });
+  } catch (e) {
+    console.error(e.message);
+    process.exit(1);
+  }
+}
 writeFileSync(join(out, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
 copyFileSync(join(root, "LICENSE"), join(out, "LICENSE"));
 copyFileSync(join(root, "NOTICE"), join(out, "NOTICE"));
@@ -226,8 +249,14 @@ try {
   commit = execFileSync("git", ["-C", root, "rev-parse", "--short", "HEAD"], { encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] }).trim();
 } catch {}
 const kb = (p) => `${(statSync(join(out, p)).size / 1024).toFixed(0)} KB`;
-console.log(`dist/ ${values.dev ? "(dev build) " : values.store ? "(Web Store build, no key) " : "(unpacked build, fixed ID) "}${config.name} ${pkg.version} at ${commit}`);
+const kind = firefox
+  ? `(Firefox ${values.dev ? "dev " : ""}build, ${manifest.browser_specific_settings.gecko.id}) `
+  : values.dev ? "(dev build) " : values.store ? "(Web Store build, no key) " : "(unpacked build, fixed ID) ";
+console.log(`dist/ ${kind}${config.name} ${pkg.version} at ${commit}`);
 console.log(`  release ${release.id} (${release.game}, ${release.bank.cardCount} cards in the bank), verified by the runtime`);
 console.log(`  runtime ${vendor.package} ${vendor.version} at ${vendor.commit.slice(0, 7)}, onnxruntime-web ${ortVersion}`);
 console.log(`  content.js ${kb("content.js")}, compute.js ${kb("compute.js")}, tooltip.js ${kb("tooltip.js")}, runtime/worker.js ${kb("runtime/worker.js")}`);
 console.log(`  ${mapSummary}`);
+// A dev build may hold them (a smoke on an unconverted release); `npm run package` refuses them.
+const big = oversizedTextFiles(out);
+if (big.length > 0) console.warn(`  warning: text files of ${TEXT_FILE_LIMIT / 1024 / 1024} MiB or more, which npm run package refuses: ${describeOversized(big)}`);
