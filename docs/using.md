@@ -17,15 +17,16 @@ How card hovers work once the extension is installed, what to expect, and how to
 - Hover only: it shows a card when you point at one, and stays out of the way otherwise. It can
   leave uncertain matches blank. It can also miss cards or show an incorrect match.
 
-## Turning card hovers on
+## Turning card hovers on and off
 
-Open a One Piece Card Game video on YouTube or Twitch and move the pointer over the video. A
-small round Kenbunshoku button appears in the player's top-right corner: click it to turn card
-hovers on for that channel (on YouTube, for that video when no channel is shown, as in an embedded
-player). Kenbunshoku remembers the channels you turned on. Video analysis and the card-feature
-download start only after you turn card hovers on. The extension separately checks its settings
-file when it is installed or updated and when Chrome starts, and at most once an hour while you
-use it. Click the button again to turn card hovers off for that channel; that forgets it.
+Card hovers are on for all supported videos, embedded YouTube players on other websites
+included: open a One Piece Card Game video on YouTube or Twitch and point at a card. Nothing is
+analyzed and nothing is downloaded for card hovers before the pointer comes over a video, so a
+video you just watch costs nothing. When the pointer first comes over a video, even one
+with no cards, card hovers start there (see [When recognition runs](#when-recognition-runs)). To
+turn card hovers off everywhere, use the switch in Kenbunshoku's toolbar popup; there is no
+per-channel switch. The extension separately checks its settings file when it is installed or
+updated and when Chrome starts, and at most once an hour while you use it.
 
 ## Hovering a card
 
@@ -37,14 +38,14 @@ card's name shows instead. Pausing works too, on recorded videos and on live str
 
 ## The toolbar popup
 
-Kenbunshoku's toolbar popup is one switch, the main on/off: turned off, it shows no button in
-the player and analyzes no video, on any page, until you turn it back on. It does not stop the
+Kenbunshoku's toolbar popup is one switch, the main on/off: turned off, it analyzes no video, on
+any page, until you turn it back on. It does not stop the
 settings check above. Below it are two links, to the project page and to the open-source toolkit
 it is built on.
 
 ## When recognition runs
 
-The first time you point at a video with card hovers on in a tab, the recognition model starts, which takes a
+The first time you point at a video in a tab, the recognition model starts, which takes a
 moment. Recognition runs only while the pointer is over the video, and stops by itself 10 seconds after
 you stop moving it, unless a card is showing under the resting pointer. It stops at once when
 the pointer leaves the video or the tab goes to the background.
@@ -55,8 +56,8 @@ On a computer whose Chrome has WebGPU, Kenbunshoku is designed to
 also check each card against the card art's shapes, which tells close-looking cards apart
 better. The check runs only when it loads successfully and stays on: it turns itself off when it
 fails or is too slow. For it, Kenbunshoku downloads a card-feature file of about 60 MB from
-`cdn.kenbunshoku.com` on first use (the first video you turn card hovers on for) and caches it in
-Chrome's storage; it is downloaded again if that storage is cleared or the file changes. Without
+`cdn.kenbunshoku.com` once, the first time card hovers start on a video (on YouTube or Twitch,
+even one with no cards), and caches it in Chrome's storage; it is downloaded again if that storage is cleared or the file changes. Without
 WebGPU it works without the extra check. Each tab
 in which you have hovered a video holds its own copy of the card features in memory, about
 60–70 MB, until the tab is closed or navigates away.
@@ -79,8 +80,7 @@ How often it is right, and what it does not recognize, is in [accuracy.md](accur
 your settings stay. The rest of this section is about installs from a release zip.
 
 Switching from a zip install to the Web Store: the two are separate extensions to Chrome, so
-turn card hovers on again for your channels after you install from the store, then remove the
-zip install.
+remove the zip install after you install from the store.
 
 Every install from a release zip has the same extension ID (`igfdjmpikcbplijnlpkligaafepgoaaa`).
 That alone does not keep settings: they are kept only when you update in place, as below.
@@ -91,5 +91,5 @@ your existing Kenbunshoku folder with the contents of the new one, then click th
 Kenbunshoku's popup says "New version available" with a link.
 
 **To remove it**, click **Remove** on its card in `chrome://extensions`. Removing the extension
-deletes its saved settings (the on/off switch and the channels you turned card hovers on for);
+deletes its saved settings (the on/off switch);
 installing it again starts fresh.

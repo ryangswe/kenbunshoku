@@ -168,7 +168,6 @@ try {
     try {
       const origin = await extensionOrigin(browser);
       await waitForSettings(browser, origin, c.pointer);
-      await turnOn(browser, origin);
       const tab = await browser.newPage();
       // The compute frame's `shown` messages reach the page window: record the ids and release ids.
       await tab.evaluateOnNewDocument(() => {
@@ -253,13 +252,6 @@ async function waitForSettings(browser, origin, want) {
   }
   const s = await storageOf(browser, origin);
   throw new Error(`the background did not store the case's config.json (CDN saw: ${JSON.stringify(state.log)}; stored: ${JSON.stringify(s["settings.lastGood"] ?? null).slice(0, 300)}; last attempt ${s["settings.lastAttemptAt"]})`);
-}
-
-async function turnOn(browser, origin) {
-  const p = await browser.newPage();
-  await p.goto(`${origin}/popup.html`);
-  await p.evaluate(() => chrome.storage.local.set({ "channel:local:/": Date.now() }));
-  await p.close();
 }
 
 async function frameOf(tab, name) {

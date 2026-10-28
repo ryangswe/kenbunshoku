@@ -51,8 +51,8 @@ export const SOURCE_FAILURE_LIMIT = 3;
  * The runtime's geometric stage (extra accuracy, WebGPU only), or null when the config turns it
  * off. Its settings file is copied into the built extension at GEOMETRIC_SETTINGS_PATH; it names
  * the packed card-feature index (about 60 MB) on an image host. The worker downloads the index
- * once, after the release has loaded, which happens on the first hover over a video whose
- * channel the viewer turned card hovers on for, never at install. The settings file's
+ * once, after the release has loaded, which happens on the first pointer move over a video's
+ * picture (card hovers are on for every video), never at install. The settings file's
  * `geometric: false` turns the stage off without a release.
  */
 export const GEOMETRIC = CONFIG.geometric;

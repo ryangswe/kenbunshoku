@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // The extension's manifest, made from kenbunshoku.config.json. Permissions are the least the
 // extension needs:
-//   - `storage`: the on/off switch, the channels turned on, the last good settings file, a
-//     dismissed update notice;
+//   - `storage`: the on/off switch, the last good settings file, a dismissed update notice;
 //   - `unlimitedStorage`, only with the geometric stage: keeps its card-feature file (about
 //     60 MB) from being evicted (no install warning);
 //   - the video sites the config turns on (where the content script runs);

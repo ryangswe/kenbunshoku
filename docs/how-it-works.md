@@ -37,8 +37,7 @@ nothing when the match is not clear.
 flowchart TD
     subgraph PAGE["YouTube or Twitch page"]
         VID["Video element"]
-        CS["Content script:<br/>channel, pointer, capture"]
-        BTN["In-player button"]
+        CS["Content script:<br/>pointer, capture"]
         OUT["Outline host"]
         subgraph CF["Compute iframe, extension origin"]
             HS["Host session:<br/>when to analyze, hover rule"]
@@ -54,7 +53,7 @@ flowchart TD
     CDN["cdn.kenbunshoku.com"]
     OPT["optcgapi.com"]
 
-    BTN -- "on or off,<br/>per channel" --> CS
+    POP -- "on or off,<br/>everywhere" --> CS
     VID -- "drawn to a canvas<br/>at analysis size" --> CS
     CS -- "pointer, seeks;<br/>frame as ImageBitmap" --> HS
     HS -- "capture request;<br/>card id, name, box" --> CS
@@ -77,9 +76,10 @@ flowchart TD
 the rest is the base pipeline. An arrow into `cdn.kenbunshoku.com` or
 `optcgapi.com` is a request, with its contents and its timing as in [PRIVACY.md](../PRIVACY.md).
 
-- **The content script** works out the page's channel from its address or channel link, and
-  shows the in-player button. Until the viewer turns card hovers on for that channel, it makes
-  no frame and loads no model. After that it reports the pointer and seeks to the compute frame,
+- **The content script** is on for all supported videos (the popup's switch is the sole
+  control), but makes no frame and loads no model before the pointer comes over the video's
+  picture, so a video nobody points at costs nothing. From then on it reports the pointer and
+  seeks to the compute frame,
   and, when asked and the pointer is active over the player, draws the video to a canvas at
   analysis size and transfers it as an `ImageBitmap`.
 - **The compute frame** decides when to analyze and runs the hover rule; its worker runs the

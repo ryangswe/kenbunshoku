@@ -45,13 +45,10 @@ minutes, and a zip install does not update itself.
 
    <img src="install/step-7b-pin.png" alt="To keep it in view, click the puzzle piece, then the pin beside Kenbunshoku." width="600">
 
-8. Open a One Piece Card Game video on Twitch or YouTube, point at the player and click the round
-   eye button in its top-right corner to turn card hovers on for that channel. Then rest the
-   pointer on a card: its picture appears beside it (see [Using Kenbunshoku](using.md)).
+8. Open a One Piece Card Game video on Twitch or YouTube and rest the pointer on a card: its
+   picture appears beside it (see [Using Kenbunshoku](using.md)).
 
-   <img src="install/step-8-eye-button.png" alt="On a Twitch or YouTube video, point at the player and click the eye button." width="600">
-
-   <img src="install/step-8b-hover.png" alt="Then rest the pointer on a card: its picture appears beside it." width="600">
+   <img src="install/step-8b-hover.png" alt="On a Twitch or YouTube video, rest the pointer on a card: its picture appears beside it." width="600">
 
 Chrome may show a notice about extensions in developer mode when it starts. That is normal for
 an extension installed this way; choose to keep it.
