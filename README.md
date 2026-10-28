@@ -11,8 +11,6 @@ Twitch or YouTube video/stream and a larger, high resolution picture appears.
 **Kenbunshoku is an unofficial fan project, not affiliated with Bandai.** The One Piece Card
 Game, its card names and its card art belong to their owners.
 
-**[Add to Chrome from the Chrome Web Store](https://chromewebstore.google.com/detail/kenbunshoku/gndfmgcngfebiiiioddngmifddjiiabf)** · free · one click
-
 ## Install
 
 **[Add Kenbunshoku to Chrome from the Chrome Web Store](https://chromewebstore.google.com/detail/kenbunshoku/gndfmgcngfebiiiioddngmifddjiiabf)**: one click, and Chrome keeps it
