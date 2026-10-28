@@ -5,7 +5,7 @@
 
 <img src="docs/banner.webp" alt="Kenbunshoku: hover a card in a Twitch or YouTube stream to see it. Free and open source. Unofficial fan project, not affiliated with Bandai." width="100%">
 
-A Chrome extension for watching One Piece Card Game videos and streams. Hover a card in a
+A browser extension for watching One Piece Card Game videos and streams. Hover a card in a
 Twitch or YouTube video/stream and a larger, high resolution picture appears.
 
 **Kenbunshoku is an unofficial fan project, not affiliated with Bandai.** The One Piece Card
@@ -44,7 +44,7 @@ it reaches the store, or your own build): see [docs/install-from-zip.md](docs/in
 - **Video frames are never uploaded.** Pictures of the video are analyzed inside your browser,
   by the extension itself, temporarily in memory; they are not saved to storage.
 - **Two hosts.** The extension makes requests to `cdn.kenbunshoku.com` and `optcgapi.com`, for
-  a settings file, card pictures and, where Chrome has WebGPU, a card-feature file of about 60 MB,
+  a settings file, card pictures and, where the browser has WebGPU, a card-feature file of about 60 MB,
   downloaded once, the first time card hovers start on a YouTube or Twitch video (it may be one with
   no cards), and cached. These
   requests carry no cookies, no account ID or per-user tracking identifier, and not the address
