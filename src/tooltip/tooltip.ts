@@ -6,6 +6,9 @@
 // not the video site's. The logic is in controller.ts.
 
 import { loadImage } from "../images/chain.js";
+import { localizedChoice } from "../l10n/language.js";
+import { loadLocalizedPictures } from "../l10n/list.js";
+import type { Settings } from "../settings/schema.js";
 import { LAST_GOOD_KEY, readEffectiveSettings } from "../settings/store.js";
 import { type CardTable, parseSourceFileMaps } from "./card-data.js";
 import { connectTooltipFrame, TooltipController } from "./controller.js";
@@ -27,6 +30,20 @@ const decode = async (blob: Blob): Promise<void> => {
 };
 
 let post: ((message: TooltipOut) => void) | null = null;
+
+/** Pictures in the browser's language, when the settings offer it. With `namesOnly` on, or no
+ *  language offered, nothing is downloaded and cards show their usual pictures. */
+function applyLocalized(controller: TooltipController, settings: Settings): void {
+  const choice = localizedChoice(settings, navigator.languages);
+  if (!choice) {
+    controller.setLocalized(null);
+    return;
+  }
+  void loadLocalizedPictures(choice.lang, choice.art, (...args) => fetch(...args)).then(
+    (pictures) => controller.setLocalized(pictures),
+    () => controller.setLocalized(null),
+  );
+}
 
 void (async () => {
   const framed = window.parent !== window;
@@ -52,6 +69,7 @@ void (async () => {
     frameFits: (size) => frameHasShape(size, window as unknown as ShapeWindow),
   });
   controller.setSettings(effective.settings);
+  applyLocalized(controller, effective.settings);
   // Facts of a remote release's cards come from a compute frame over this channel, never through
   // the page (the page can post `card` messages to this frame, not here).
   factsChannel.onmessage = (event: MessageEvent) => {
@@ -62,7 +80,10 @@ void (async () => {
   if (!post) return;
   const send = post;
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === "local" && LAST_GOOD_KEY in changes) void readEffectiveSettings(chrome.storage.local).then((e) => controller.setSettings(e.settings));
+    if (area === "local" && LAST_GOOD_KEY in changes) void readEffectiveSettings(chrome.storage.local).then((e) => {
+      controller.setSettings(e.settings);
+      applyLocalized(controller, e.settings);
+    });
   });
   // The pill's size follows its text's layout (fonts can arrive late).
   const pill = $("pill");

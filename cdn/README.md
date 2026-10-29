@@ -23,6 +23,7 @@ come from.
 | `vision/geo/<source-16>/` | the geometric stage's packed card-feature index (below) | `public, max-age=31536000, immutable` |
 | `vision/releases/<id>/` | a card-recognition release installs may run instead of their bundled one (below) | `public, max-age=31536000, immutable` |
 | `vision/releases/index.json` | the tool's record of published releases | `no-cache` |
+| `l10n/<lang>/` | card pictures in another language and their card list (below) | `public, max-age=31536000, immutable` |
 
 Uploads are additive: the tool never deletes. Order is images → `art/index.json` →
 `config.json` (only with `--config`, and only if every image landed).
@@ -198,6 +199,33 @@ its art and its index, and the pointer moves last:
 - `--sessions` also starts both ONNX Runtime sessions in Node; it is required when the models
   differ from what installs run.
 - `publish --config` refuses a `release` that does not verify live, so a rollback is checked too.
+
+## Card pictures in other languages (`l10n/`)
+
+Official pictures from Bandai's card list in another language (French today), for the cards the
+extension knows, shown to viewers whose browser's first language it is ([SETTINGS.md](SETTINGS.md),
+"Card pictures in the viewer's language"). The maintainer builds a folder with `list.json`
+(`{ "<card id>": "<file>" }`) and the pictures it names, each `<official id>.<first 8 hex of its
+sha256>.<ext>`. Each catalog printing takes the printing with the same card number when its
+artwork is nearly identical, and otherwise the one whose artwork clearly matches best (alternate-art
+numbers don't always line up across languages); a printing whose match is uncertain is left off
+and keeps its English picture.
+
+```bash
+.venv/bin/python opcdn.py publish-l10n --env-file .env --lang fr --dir <folder> --dry-run
+.venv/bin/python opcdn.py publish-l10n --env-file .env --lang fr --dir <folder>
+```
+
+It uploads the pictures, checks each one, and uploads the list last as `list.<16 hex>.json`; it
+never overwrites a file with other bytes. It prints the `localizedArt` entry: put it in
+`config.json` and publish that (`publish --config`, which refuses a list that is not live). Then:
+
+```bash
+.venv/bin/python opcdn.py verify-l10n --env-file .env --lang fr
+```
+
+A new set adds its pictures the same way: a new list (new name), the new pictures, and the new
+`localizedArt` entry. Without that step the set's cards show their English pictures.
 
 ## Guards
 

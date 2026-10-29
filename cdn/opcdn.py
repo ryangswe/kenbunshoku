@@ -15,6 +15,8 @@ project's. See README.md (setup, usage) and SETTINGS.md (the config.json contrac
                    [--geometric FILE --geo-manifest-sha256 SHA] [--config F [--set-pointer]]
                    [--sessions] [--fix-metadata] [--dry-run]
   opcdn.py verify-release-live [--candidate ID | --config-url U] [--expect-id ID] [--sessions]
+  opcdn.py publish-l10n --lang L --dir DIR [--dry-run] [--fix-metadata]   # card pictures in language L
+  opcdn.py verify-l10n  --lang L [--samples N]                            # as the live config.json names them
   opcdn.py publish-webp --catalog C --images DIR --generation N [--quality Q] [--dry-run] [--fix-metadata]
   opcdn.py verify-webp  --generation N [--samples N]
   opcdn.py selftest
@@ -69,6 +71,12 @@ GEO_PREFIX = "vision/geo/"
 GEO_CACHE = "public, max-age=31536000, immutable"
 GEO_SHARD = re.compile(r"shard-[0-9]+\.bin")
 HEX64 = re.compile(r"[0-9a-f]{64}")
+L10N_PREFIX = "l10n/"
+L10N_LANG = re.compile(r"[a-z]{2,3}")
+# A picture in another language is named <official id>.<first 8 of its sha256>.<ext>: a new
+# picture always gets a new name, so a published one is never overwritten (SETTINGS.md).
+L10N_FILE = re.compile(r"([A-Za-z0-9][A-Za-z0-9_-]{0,100})\.([0-9a-f]{8})\.(webp|png|jpg)")
+L10N_LIST = re.compile(r"list\.[0-9a-f]{16}\.json")
 ENV_KEYS = ("OPCDN_R2_ACCOUNT_ID", "OPCDN_R2_ACCESS_KEY_ID", "OPCDN_R2_SECRET_ACCESS_KEY", "OPCDN_BUCKET", "OPCDN_PUBLIC_BASE")
 
 
@@ -323,7 +331,44 @@ def validate_config(cfg: object, public_base: Optional[str], warnings: Optional[
         for e in link_errs:
             (errs if "another project" in e else warn).append(e)
     errs += release_pointer_problems(cfg.get("release"))
+    errs += localized_art_problems(cfg.get("localizedArt"), public_base)
     return errs
+
+
+def localized_art_problems(value: object, public_base: Optional[str]) -> list[str]:
+    """Errors in `localizedArt` (SETTINGS.md, "Card pictures in the viewer's language"). The extension
+    drops a malformed language and keeps the rest; this tool refuses to publish one."""
+    if value is None:
+        return []
+    if not isinstance(value, dict):
+        return ["config: localizedArt must be an object of languages (or absent)"]
+    out = []
+    for lang, entry in value.items():
+        label = f"config: localizedArt.{lang}"
+        if not isinstance(lang, str) or not L10N_LANG.fullmatch(lang) or lang == "en":
+            out.append(f"{label}: the key must be a lowercase language code other than en")
+            continue
+        if not isinstance(entry, dict) or set(entry) != {"template", "list", "listSha256"}:
+            out.append(f"{label} must be exactly {{template, list, listSha256}}")
+            continue
+        tpl, lst, sha = entry["template"], entry["list"], entry["listSha256"]
+        if not isinstance(tpl, str) or not isinstance(lst, str) or not isinstance(sha, str):
+            out.append(f"{label}: template, list and listSha256 must be strings")
+            continue
+        if any(w in (tpl + lst).lower() for w in FORBIDDEN_WORDS):
+            out.append(f"{label} points at another project")
+            continue
+        folder = f"{public_base.rstrip('/')}/{L10N_PREFIX}{lang}/" if public_base else None
+        if tpl != (folder or tpl.split(L10N_PREFIX)[0] + f"{L10N_PREFIX}{lang}/") + "{sourceFile}" or not tpl.startswith("https://"):
+            out.append(f"{label}.template must be <public base>/{L10N_PREFIX}{lang}/{{sourceFile}}")
+        name = lst.rsplit("/", 1)[-1]
+        if not lst.startswith("https://") or (folder and not lst.startswith(folder)) or not L10N_LIST.fullmatch(name):
+            out.append(f"{label}.list must be <public base>/{L10N_PREFIX}{lang}/list.<16 hex>.json")
+        if not HEX64.fullmatch(sha):
+            out.append(f"{label}.listSha256 must be 64 lowercase hex digits")
+        elif L10N_LIST.fullmatch(name) and name[5:21] != sha[:16]:
+            out.append(f"{label}: the list's name does not carry the first 16 hex of listSha256")
+    return out
 
 
 def load_config(path: Path, public_base: Optional[str]) -> bytes:
@@ -1374,6 +1419,158 @@ def verify_geo(public_base: str, folder: str, files: list[GeoFile], get=http_get
     return bad
 
 
+def l10n_plan(folder: Path, lang: str) -> tuple[str, list[GeoFile], str]:
+    """A language's pictures in `folder`: list.json (`{ "<card id>": "<file>" }`) and every file it
+    names, each <official id>.<first 8 of its sha256>.<ext> with image bytes of that type. Returns
+    the CDN folder (`l10n/<lang>/`), the files to upload (pictures first, the list last, renamed
+    list.<first 16 of its sha256>.json) and the list's SHA-256."""
+    if not L10N_LANG.fullmatch(lang or "") or lang == "en":
+        raise Refused("--lang must be a lowercase language code other than en (fr, ja…)")
+    lpath = folder / "list.json"
+    if not lpath.is_file():
+        raise Refused(f"{lpath}: missing")
+    lbytes = lpath.read_bytes()
+    try:
+        cards = json.loads(lbytes)
+    except json.JSONDecodeError as e:
+        raise Refused(f"list.json is not JSON ({e})")
+    if not isinstance(cards, dict) or not cards:
+        raise Refused("list.json must be a non-empty object { card id: file }")
+    files: dict[str, GeoFile] = {}
+    want = {"webp": "image/webp", "png": "image/png", "jpg": "image/jpeg"}
+    for card_id, name in cards.items():
+        m = L10N_FILE.fullmatch(name) if isinstance(name, str) else None
+        if not isinstance(card_id, str) or not card_id or not m:
+            raise Refused(f"list.json: {card_id!r} -> {name!r} is not <official id>.<8 hex>.<webp|png|jpg>")
+        if name in files:
+            continue
+        p = folder / name
+        if not p.is_file():
+            raise Refused(f"{p}: missing")
+        data = p.read_bytes()
+        sha = hashlib.sha256(data).hexdigest()
+        if sha[:8] != m.group(2):
+            raise Refused(f"{name}: its SHA-256 starts {sha[:8]}, not {m.group(2)}")
+        ctype = sniff_type(data)
+        if ctype != want[m.group(3)]:
+            raise Refused(f"{name}: the bytes are {ctype or 'not an image'}, not {want[m.group(3)]}")
+        files[name] = GeoFile(name, data, sha, ctype)
+    lsha = hashlib.sha256(lbytes).hexdigest()
+    out = sorted(files.values(), key=lambda f: f.name)
+    out.append(GeoFile(f"list.{lsha[:16]}.json", lbytes, lsha, "application/json"))
+    return f"{L10N_PREFIX}{lang}/", out, lsha
+
+
+def publish_l10n(s3, bucket: str, folder: str, files: list[GeoFile], dry_run: bool = False,
+                 fix_metadata: bool = False, log: Callable[[str], None] = print) -> int:
+    """Upload a language's pictures, then its list once every picture is checked. A name already on
+    the CDN with other bytes refuses the run before anything is uploaded (names carry the
+    SHA-256, so it never should). Returns the number of failures."""
+    todo, to_fix, wrong = [], [], []
+    for f in files:
+        key = folder + f.name
+        head = _remote(s3, bucket, key)
+        if head is None:
+            todo.append(f)
+            continue
+        if head.get("ContentLength") != len(f.data) or _remote_sha(s3, bucket, key, head) != f.sha256:
+            raise Refused(f"{key} is already on the CDN with other bytes; nothing written")
+        problems = _metadata_problems(head, f)
+        if problems:
+            wrong.append(f"{key}: {'; '.join(problems)}")
+            to_fix.append(f)
+    if wrong and not fix_metadata:
+        raise Refused("already on the CDN with the right bytes but wrong metadata (re-run with --fix-metadata): " + " | ".join(wrong[:5]))
+    log(f"{folder}: {len(todo)} to upload, {len(to_fix)} to fix, {len(files) - len(todo) - len(to_fix)} already there")
+    if dry_run:
+        for f in todo[:10]:
+            log(f"would upload {folder + f.name} ({len(f.data)} bytes)")
+        if len(todo) > 10:
+            log(f"… and {len(todo) - 10} more")
+        log("dry run: nothing changed")
+        return 0
+
+    def put(f: GeoFile) -> Optional[str]:
+        key = folder + f.name
+        try:
+            if f in to_fix:
+                s3.copy_object(Bucket=bucket, Key=key, CopySource={"Bucket": bucket, "Key": key}, MetadataDirective="REPLACE",
+                               ContentType=f.content_type, CacheControl=GEO_CACHE, Metadata={"sha256": f.sha256})
+            else:
+                s3.put_object(Bucket=bucket, Key=key, Body=f.data, ContentType=f.content_type,
+                              CacheControl=GEO_CACHE, Metadata={"sha256": f.sha256})
+        except Exception as e:
+            return f"upload failed: {e}"
+        return _check(s3, bucket, key, f)
+
+    pictures = [f for f in todo + to_fix if not f.name.startswith("list.")]
+    lists = [f for f in todo + to_fix if f.name.startswith("list.")]
+    bad = 0
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        for f, problem in zip(pictures, pool.map(put, pictures)):
+            if problem:
+                bad += 1
+                log(f"FAILED {folder + f.name}: {problem}")
+    if bad:
+        log(f"{bad} picture(s) failed; the list was NOT uploaded. Re-run to retry.")
+        return bad
+    for f in lists:
+        problem = put(f)
+        if problem:
+            bad += 1
+            log(f"FAILED {folder + f.name}: {problem}")
+    log(f"{'ok' if not bad else 'FAILED'}: {len(pictures)} picture(s) uploaded" + ("" if bad else ", list last"))
+    return bad
+
+
+def localized_block(public_base: str, lang: str, list_sha: str) -> dict:
+    folder = f"{public_base.rstrip('/')}/{L10N_PREFIX}{lang}/"
+    return {lang: {"template": folder + "{sourceFile}", "list": f"{folder}list.{list_sha[:16]}.json", "listSha256": list_sha}}
+
+
+def l10n_gate(cfg: dict, get=None) -> Optional[str]:
+    """A config.json only names a language's list once that list is live with its SHA-256."""
+    get = get or http_get
+    for lang, entry in (cfg.get("localizedArt") or {}).items():
+        status, _, body = get(entry["list"])
+        if status != 200:
+            return f"localizedArt.{lang}: the list is not live (HTTP {status} for {entry['list']})"
+        if hashlib.sha256(body).hexdigest() != entry["listSha256"]:
+            return f"localizedArt.{lang}: the live list has other bytes than listSha256"
+    return None
+
+
+def verify_l10n(public_base: str, lang: str, samples: int, get=http_get) -> int:
+    """Read a language's pictures back as the live config.json names them: the list (SHA-256), and
+    `samples` pictures (bytes, type, caching, CORS). Returns the number of problems."""
+    bad = 0
+    status, _, body = get(f"{public_base.rstrip('/')}/config.json")
+    entry = (json.loads(body).get("localizedArt") or {}).get(lang) if status == 200 else None
+    if not entry:
+        print(f"FAIL the live config.json offers no pictures in {lang}")
+        return 1
+    status, _, lbytes = get(entry["list"])
+    if status != 200 or hashlib.sha256(lbytes).hexdigest() != entry["listSha256"]:
+        print(f"FAIL list {entry['list']}: HTTP {status} or other bytes")
+        return 1
+    cards = json.loads(lbytes)
+    print(f"ok   list: {len(cards)} cards, {len(set(cards.values()))} pictures")
+    names = sorted(set(cards.values()))
+    step = max(1, len(names) // max(1, samples))
+    for name in names[::step][:samples]:
+        url = entry["template"].replace("{sourceFile}", name)
+        status, h, data = get(url, origin="chrome-extension://verify")
+        sha_ok = hashlib.sha256(data).hexdigest().startswith(name.rsplit(".", 2)[1])
+        h = {k.lower(): v for k, v in h.items()}
+        problems = [p for p, ok in (
+            (f"HTTP {status}", status == 200), ("other bytes", sha_ok), (f"type {h.get('content-type')}", h.get("content-type") == sniff_type(data)),
+            (f"cache-control {h.get('cache-control')}", h.get("cache-control") == GEO_CACHE),
+            ("no CORS", h.get("access-control-allow-origin") == "*")) if not ok]
+        print(("ok   " if not problems else "FAIL ") + url + ("" if not problems else ": " + "; ".join(problems)))
+        bad += bool(problems)
+    return bad
+
+
 # ---------------------------------------------------------------------------- WebP copies of the art (`art/webp<N>/`)
 #
 # The catalog's English pictures are mostly PNG (about 310 KB on average). A generation folder holds a
@@ -1654,7 +1851,8 @@ def build(args, public_base: Optional[str]) -> tuple[list[LocalFile], int, int, 
 def main(argv: Optional[list[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("command", choices=("plan", "publish", "verify", "publish-geo", "verify-geo", "selftest", "publish-release", "verify-release-live",
-                                        "publish-webp", "verify-webp"))
+                                        "publish-l10n", "verify-l10n", "publish-webp", "verify-webp"))
+    ap.add_argument("--lang", help="publish-l10n/verify-l10n: the language code (fr, ja…)")
     ap.add_argument("--catalog", help="catalog JSON (entries with an id and an `art` path or null)")
     ap.add_argument("--images", help="directory the `art` paths are relative to")
     ap.add_argument("--config", help="config.json to publish (SETTINGS.md); uploaded last")
@@ -1692,6 +1890,19 @@ def main(argv: Optional[list[str]] = None) -> int:
             base = target_from_env(need_secrets=False).public_base
             return 1 if verify_release_live(base, candidate=args.candidate, expect_id=args.expect_id, sessions=args.sessions,
                                             config_url=args.config_url) else 0
+        if args.command == "verify-l10n":
+            return 1 if verify_l10n(target_from_env(need_secrets=False).public_base, args.lang or "", args.samples) else 0
+        if args.command == "publish-l10n":
+            if not args.dir:
+                raise Refused("publish-l10n needs --dir (list.json and its pictures)")
+            folder, files, lsha = l10n_plan(Path(args.dir), args.lang or "")
+            t = target_from_env()
+            print(f"target: bucket {t.bucket}, served at {t.public_base}; folder {folder}")
+            bad = publish_l10n(r2_client(t), t.bucket, folder, files, dry_run=args.dry_run, fix_metadata=args.fix_metadata)
+            if not bad:
+                print("config.json entry (add it under \"localizedArt\", then publish --config):")
+                print(json.dumps(localized_block(t.public_base, args.lang, lsha), indent=2))
+            return 1 if bad else 0
         if args.command in ("publish-webp", "verify-webp"):
             if not args.generation or not WEBP_FOLDER.fullmatch(f"webp{args.generation}"):
                 raise Refused(f"{args.command} needs --generation N (1 to 999)")
@@ -1732,6 +1943,11 @@ def main(argv: Optional[list[str]] = None) -> int:
         rel = json.loads(config).get("release") if config is not None else None
         if rel and args.command == "publish":  # a dry run checks it too
             problem = pointer_gate(t.public_base, rel)
+            if problem:
+                raise Refused(problem + "; nothing written")
+        # Likewise a language's list is named only once it is live with its SHA-256.
+        if config is not None and args.command == "publish":
+            problem = l10n_gate(json.loads(config))
             if problem:
                 raise Refused(problem + "; nothing written")
         # The primary only moves to WebP copies that cover every picture on the CDN.
@@ -2081,6 +2297,73 @@ def selftest() -> int:
             assert verify_geo(base, folder, gfiles, get=lambda u, origin=None: geo_get(u, origin, ctype="text/plain")) == 3
             assert verify_geo(base, folder, gfiles, get=lambda u, origin=None: geo_get(u, origin, extra={"nel": '{"report_to":"cf-nel"}'})) == 3
             assert verify_geo(base, folder, gfiles, get=lambda u, origin=None: geo_get(u, origin, extra={"report-to": "{}"})) == 3
+
+    # pictures in other languages: plan, publish (fake R2), config checks and the live-list gate
+    with tempfile.TemporaryDirectory() as tmp:
+        d = Path(tmp) / "fr"
+        d.mkdir()
+        webp = b"RIFF\x00\x00\x00\x00WEBPVP8 " + b"z" * 40
+        wname = f"OP17-040.{hashlib.sha256(webp).hexdigest()[:8]}.webp"
+        (d / wname).write_bytes(webp)
+        listing = json.dumps({"OP17-040": wname, "OP17-040_r1": wname}).encode()
+        (d / "list.json").write_bytes(listing)
+        lsha = hashlib.sha256(listing).hexdigest()
+        folder, lfiles, got = l10n_plan(d, "fr")
+        assert folder == "l10n/fr/" and got == lsha
+        assert [f.name for f in lfiles] == [wname, f"list.{lsha[:16]}.json"], "pictures once each, the list last"
+        assert refused(lambda: l10n_plan(d, "en")) and refused(lambda: l10n_plan(d, "FR")), "en and odd codes refused"
+        (d / "list.json").write_bytes(json.dumps({"OP17-040": "OP17-040.00000000.webp"}).encode())
+        assert refused(lambda: l10n_plan(d, "fr")), "a missing picture refuses"
+        (d / "OP17-040.00000000.webp").write_bytes(webp)
+        assert refused(lambda: l10n_plan(d, "fr")), "a name must carry its own sha256"
+        bad = f"OP17-041.{hashlib.sha256(png).hexdigest()[:8]}.webp"
+        (d / bad).write_bytes(png)
+        (d / "list.json").write_bytes(json.dumps({"OP17-041": bad}).encode())
+        assert refused(lambda: l10n_plan(d, "fr")), "PNG bytes under a .webp name refuse"
+        (d / "list.json").write_bytes(json.dumps({"OP17-040": "../x.webp"}).encode())
+        assert refused(lambda: l10n_plan(d, "fr")), "a path refuses"
+        (d / "list.json").write_bytes(listing)
+        quiet = lambda _m: None
+        s3 = FakeS3()
+        assert publish_l10n(s3, "b", folder, lfiles, dry_run=True, log=quiet) == 0 and s3.puts == []
+        assert publish_l10n(s3, "b", folder, lfiles, log=quiet) == 0
+        assert s3.puts == [folder + wname, folder + f"list.{lsha[:16]}.json"], "the list goes up last"
+        assert publish_l10n(s3, "b", folder, lfiles, log=quiet) == 0 and len(s3.puts) == 2, "a re-run uploads nothing"
+        s3.objects[folder + wname]["Body"] = b"other"
+        s3.objects[folder + wname]["Metadata"] = {}
+        assert refused(lambda: publish_l10n(s3, "b", folder, lfiles, log=quiet)), "never overwrites other bytes"
+        broken = FakeS3(fail_on=wname)
+        assert publish_l10n(broken, "b", folder, lfiles, log=quiet) == 1 and broken.puts == [], "no list when a picture fails"
+
+        base = "https://cdn.example.org"
+        block = localized_block(base, "fr", lsha)
+        assert block == {"fr": {"template": base + "/l10n/fr/{sourceFile}", "list": f"{base}/l10n/fr/list.{lsha[:16]}.json", "listSha256": lsha}}
+        cfg = good_cfg | {"localizedArt": block}
+        assert localized_art_problems(block, base) == [] and localized_art_problems(None, base) == []
+        assert validate_config(cfg, None) == [], validate_config(cfg, None)
+        for mutate in ({"en": block["fr"]}, {"fr": block["fr"] | {"listSha256": "x"}}, {"fr": block["fr"] | {"extra": 1}},
+                       {"fr": block["fr"] | {"template": base + "/l10n/ja/{sourceFile}"}},
+                       {"fr": block["fr"] | {"list": base + "/l10n/fr/list.json"}},
+                       {"fr": block["fr"] | {"list": f"{base}/l10n/fr/list.{'0' * 16}.json"}},
+                       {"fr": block["fr"] | {"template": "https://assets.riftsight.gg/l10n/fr/{sourceFile}"}}, "fr"):
+            assert localized_art_problems(mutate, base), mutate
+        assert localized_art_problems(block, "https://other.example.org"), "must be on our base"
+        assert l10n_gate(cfg, get=lambda u: (200, {}, listing)) is None
+        assert l10n_gate(cfg, get=lambda u: (404, {}, b"")), "a list that is not live refuses the config"
+        assert l10n_gate(cfg, get=lambda u: (200, {}, b"{}")), "a live list with other bytes refuses the config"
+        assert l10n_gate(good_cfg, get=lambda u: (404, {}, b"")) is None, "no localizedArt: nothing to check"
+
+        def l10n_get(u, origin=None, cfg_body=None, ctype="image/webp"):
+            if u == base + "/config.json":
+                return 200, {}, json.dumps(cfg if cfg_body is None else cfg_body).encode()
+            if u.endswith(".json"):
+                return 200, {}, listing
+            return 200, {"Content-Type": ctype, "Cache-Control": GEO_CACHE, "Access-Control-Allow-Origin": "*"}, webp
+        import contextlib, io
+        with contextlib.redirect_stdout(io.StringIO()):
+            assert verify_l10n(base, "fr", 4, get=l10n_get) == 0
+            assert verify_l10n(base, "ja", 4, get=l10n_get) == 1, "a language the live config does not offer"
+            assert verify_l10n(base, "fr", 4, get=lambda u, origin=None: l10n_get(u, origin, ctype="image/png")) == 1
 
     selftest_releases(refused)
     selftest_webp(refused)

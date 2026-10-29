@@ -14,7 +14,8 @@
 // unpacked installs) is read when it is well formed and ignored otherwise. The optional `release` field
 // (the remote release pointer, SETTINGS.md) is kept as written: src/release/pointer.ts and
 // src/release/geometric.ts judge it where it is used, and a malformed one never makes the file
-// unusable.
+// unusable. The optional `localizedArt` field (card pictures in the viewer's language) keeps each
+// well-formed language and drops the rest; it never makes the file unusable either.
 
 import { IMAGE_HOSTS, UPDATE_URL_PREFIX } from "../constants.js";
 import { templateProblem } from "./templates.js";
@@ -31,6 +32,17 @@ export interface UpdateNotice {
   url: string;
 }
 
+/** Card pictures in one language (SETTINGS.md, "Card pictures in the viewer's language"). */
+export interface LocalizedArt {
+  /** The picture address: an https:// template on an image host that uses {sourceFile}. */
+  template: string;
+  /** The address of the card list, `{ "<card id>": "<file>" }`: the cards that have a picture
+   *  in this language. A card not on it shows the usual picture. */
+  list: string;
+  /** The list's SHA-256 (lowercase hex): a list with other bytes is not used. */
+  listSha256: string;
+}
+
 export interface Settings {
   schemaVersion: 1;
   updatedAt: string;
@@ -43,6 +55,8 @@ export interface Settings {
   geometric: boolean;
   /** The `release` field as written (null when absent); see src/release/pointer.ts. */
   release?: unknown;
+  /** Card pictures by language (`fr`, `ja`…); empty when the file offers none. */
+  localizedArt?: Record<string, LocalizedArt>;
 }
 
 export interface Validation {
@@ -117,6 +131,56 @@ function geometricField(value: unknown, problems: string[]): boolean {
   return true;
 }
 
+/** A language key: a lowercase base subtag (`fr`, `ja`), never `en` (English is the usual picture). */
+const LANGUAGE = /^[a-z]{2,3}$/;
+const SHA256 = /^[0-9a-f]{64}$/;
+
+function localizedArtField(value: unknown, allowedHosts: readonly string[], problems: string[]): Record<string, LocalizedArt> {
+  const out: Record<string, LocalizedArt> = {};
+  if (value === undefined || value === null) return out;
+  if (!isObject(value)) {
+    problems.push("localizedArt: ignored (not an object)");
+    return out;
+  }
+  for (const [lang, entry] of Object.entries(value)) {
+    const drop = (why: string): void => void problems.push(`localizedArt.${lang} dropped: ${why}`);
+    if (!LANGUAGE.test(lang) || lang === "en") {
+      drop("not a lowercase language code other than en");
+      continue;
+    }
+    if (!isObject(entry) || typeof entry.template !== "string" || typeof entry.list !== "string" || typeof entry.listSha256 !== "string") {
+      drop("not { template, list, listSha256 }");
+      continue;
+    }
+    const problem = imageSourceProblem({ id: `l10n-${lang}`, template: entry.template }, allowedHosts);
+    if (problem) {
+      drop(problem);
+      continue;
+    }
+    if (!entry.template.includes("{sourceFile}")) {
+      drop("the template does not use {sourceFile}");
+      continue;
+    }
+    let list: URL;
+    try {
+      list = new URL(entry.list);
+    } catch {
+      drop("list is not an address");
+      continue;
+    }
+    if (list.protocol !== "https:" || !allowedHosts.includes(list.hostname)) {
+      drop("list is not https:// on an image host");
+      continue;
+    }
+    if (!SHA256.test(entry.listSha256)) {
+      drop("listSha256 is not 64 lowercase hex characters");
+      continue;
+    }
+    out[lang] = { template: entry.template, list: list.href, listSha256: entry.listSha256 };
+  }
+  return out;
+}
+
 /** Validate a parsed settings file. */
 export function validateSettings(raw: unknown, allowedHosts: readonly string[] = IMAGE_HOSTS): Validation {
   const fail = (problem: string): Validation => ({ settings: null, problems: [problem] });
@@ -162,6 +226,7 @@ export function validateSettings(raw: unknown, allowedHosts: readonly string[] =
       update: updateField(raw.update, problems),
       geometric: geometricField(raw.geometric, problems),
       release: raw.release === undefined ? null : raw.release,
+      localizedArt: localizedArtField(raw.localizedArt, allowedHosts, problems),
     },
     problems,
   };
