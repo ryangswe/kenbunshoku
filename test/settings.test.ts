@@ -55,6 +55,21 @@ describe("validateSettings", () => {
     });
   });
 
+  it("keeps a primary on the WebP copies, with the originals as the first fallback (cdn/README.md)", () => {
+    const raw = {
+      ...base(),
+      primary: { id: "cdn", template: "https://cdn.kenbunshoku.com/art/webp1/{art}.webp" },
+      fallbacks: [
+        { id: "cdn-original", template: "https://cdn.kenbunshoku.com/art/{art}" },
+        { id: "optcgapi", template: "https://optcgapi.com/media/static/Card_Images/{sourceFile}" },
+      ],
+    };
+    const { settings, problems } = validateSettings(raw);
+    expect(problems).toEqual([]);
+    expect(settings?.primary).toEqual(raw.primary);
+    expect(settings?.fallbacks).toEqual(raw.fallbacks);
+  });
+
   it("ignores unknown extra fields", () => {
     const { settings } = validateSettings({ ...base(), somethingNew: { a: 1 }, colour: "red" });
     expect(settings).not.toBeNull();
