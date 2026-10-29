@@ -38,10 +38,16 @@ card's name shows instead. Pausing works too, on recorded videos and on live str
 
 ## The toolbar popup
 
-Kenbunshoku's toolbar popup is one switch, the main on/off: turned off, it analyzes no video, on
-any page, until you turn it back on. It does not stop the
-settings check above. Below it are two links, to the project page and to the open-source toolkit
-it is built on.
+Kenbunshoku's toolbar popup has the main on/off switch, **Card hovers**: turned off, it analyzes
+no video, on any page, until you turn it back on. It does not stop the settings check above.
+
+**Card size** sets how large the card's picture is shown, from 70% to 130% of its usual size
+(100% unless you change it). A card on show changes size at once. The picture still stays inside
+the window and beside the card, so in a small window it can be smaller than the size you set.
+While card hovers are off, card size is grayed out and can't be changed; it keeps your size for
+when you turn them back on.
+
+Below them are two links, to the project page and to the open-source toolkit it is built on.
 
 ## When recognition runs
 
@@ -91,5 +97,5 @@ your existing Kenbunshoku folder with the contents of the new one, then click th
 Kenbunshoku's popup says "New version available" with a link.
 
 **To remove it**, click **Remove** on its card in `chrome://extensions`. Removing the extension
-deletes its saved settings (the on/off switch);
+deletes its saved settings (the on/off switch and the card size);
 installing it again starts fresh.

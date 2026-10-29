@@ -82,6 +82,7 @@ Stored locally by the extension, not synced to your other devices, and never sen
 
 - **In `chrome.storage.local`** (settings):
   - whether it is switched on;
+  - the card size you set in the popup (70% to 130%);
   - the last settings file it fetched, and when;
   - if updated recognition data failed its checks, that release's id and why, so that it is not
     downloaded again for a day (after 24 hours it is ignored, and deleted the next time it is read);
