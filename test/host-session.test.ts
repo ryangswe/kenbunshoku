@@ -508,6 +508,39 @@ describe("HostSession on a paused video when the first analysis is slow", () => 
     expect(lastTen).toBeLessThanOrEqual(15);
   });
 
+  it("looks again when the pointer leaves during the retries and comes back", () => {
+    ready();
+    session.fromContent({ kind: "presented", mediaTime: 3 });
+    // The first picture takes 9 s; the still picture's other looks are answered busy meanwhile.
+    let slow: WorkerRequest | null = null;
+    let busy = 0;
+    for (let i = 0; busy < 2; i += 1) {
+      wiggle(i);
+      const sent = handOver();
+      if (sent && slow === null) slow = sent;
+      else if (sent) {
+        session.fromWorker(reply(sent, { analysis: null as never, error: "busy" }));
+        busy += 1;
+      }
+      clock += 250;
+    }
+    // The slow answer comes late and is dropped; the pointer leaves, then comes back.
+    session.fromWorker(reply(slow!));
+    expect(session.framesAnalyzed).toBe(0);
+    session.fromContent({ kind: "leave" });
+    clock += 3_000;
+    session.tick();
+    let shown = false;
+    for (let i = 0; i < 12 && !shown; i += 1) {
+      wiggle(i);
+      const sent = handOver();
+      if (sent) session.fromWorker(reply(sent));
+      shown = lastShown()?.cardId === "OP01-001";
+      clock += 250;
+    }
+    expect(shown).toBe(true);
+  });
+
   it("stops looking once the pointer has rested past the grace period, and starts again when it moves", () => {
     ready();
     session.fromContent({ kind: "presented", mediaTime: 3 });
@@ -537,5 +570,34 @@ describe("HostSession on a paused video when the first analysis is slow", () => 
     expect(sent).not.toBeNull();
     session.fromWorker(reply(sent!));
     expect(lastShown()).toMatchObject({ cardId: "OP01-001" });
+  });
+
+  it("looks again when the pointer leaves after failed captures and comes back", () => {
+    ready();
+    session.fromContent({ kind: "presented", mediaTime: 3 });
+    // Every capture fails for want of a picture until the pointer leaves.
+    const failed = new Set<number>();
+    for (let i = 0; i < 40; i += 1) {
+      wiggle(i);
+      const c = captures().at(-1);
+      if (c && !failed.has(c.requestId)) {
+        failed.add(c.requestId);
+        session.fromContent({ kind: "capture-failed", requestId: c.requestId, reason: "no picture", retry: true });
+      }
+      clock += 250;
+    }
+    session.fromContent({ kind: "leave" });
+    clock += 3_000;
+    session.tick();
+    const before = captures().length;
+    let shown = false;
+    for (let i = 0; i < 12 && !shown; i += 1) {
+      wiggle(i);
+      const sent = captures().length > before ? handOver() : null;
+      if (sent) session.fromWorker(reply(sent));
+      shown = lastShown()?.cardId === "OP01-001";
+      clock += 250;
+    }
+    expect(shown).toBe(true);
   });
 });

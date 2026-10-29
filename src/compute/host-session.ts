@@ -93,9 +93,11 @@ export class HostSession {
   private pointer: { x: number; y: number } | null = null;
   private mediaTime = 0;
   private lastShownKey = "null";
-  /** Captures that failed in a row, and when to try again. */
+  /** Captures that failed in a row, and when to try again; reset by a picture received, a seek or
+   *  a new source, not by the pointer leaving. */
   private captureFailures = 0;
-  /** Looks in a row that came back with the picture not analyzed (see `retryLook`). */
+  /** Looks in a row that came back with the picture not analyzed (see `retryLook`); reset by an
+   *  analysis, a seek or a new source, not by the pointer leaving. */
   private lookRetries = 0;
   private lastPointerMoveAt = -Infinity;
   private retryAt: number | null = null;
@@ -128,8 +130,8 @@ export class HostSession {
         break;
       case "leave":
         this.pointer = null;
-        this.captureFailures = 0;
-        this.lookRetries = 0;
+        // Failed captures and unanalyzed looks are kept: they still left the still picture's
+        // looks used up, so the pointer coming back must start the retries again.
         this.retryAt = null;
         this.scheduler.pointerLeft(now);
         break;
