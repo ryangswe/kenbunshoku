@@ -17,6 +17,8 @@ project's. See README.md (setup, usage) and SETTINGS.md (the config.json contrac
   opcdn.py verify-release-live [--candidate ID | --config-url U] [--expect-id ID] [--sessions]
   opcdn.py publish-l10n --lang L --dir DIR [--dry-run] [--fix-metadata]   # card pictures in language L
   opcdn.py verify-l10n  --lang L [--samples N]                            # as the live config.json names them
+  opcdn.py publish-webp --catalog C --images DIR --generation N [--quality Q] [--dry-run] [--fix-metadata]
+  opcdn.py verify-webp  --generation N [--samples N]
   opcdn.py selftest
 
 Credentials (environment or --env-file; only OPCDN_* entries are read):
@@ -27,6 +29,8 @@ Credentials (environment or --env-file; only OPCDN_* entries are read):
 --geometric is the release's geometric settings file (the stage's settings with index.path pinned to
 an index already published with publish-geo); without it the pointer has no `geometric` and installs
 run the release with the stage off.
+
+publish-webp needs Pillow (requirements.txt); nothing else does.
 
 --sessions starts both ONNX Runtime sessions of the release in Node (scripts/verify-remote-release.mjs);
 use it whenever the detector or recognizer differs from the live release's. If Node cannot do it on some
@@ -202,6 +206,8 @@ def check_art_path(art: object, card_id: str) -> None:
         raise Refused(f"catalog: {card_id} art path {art!r} is not a clean relative path")
     if p.suffix.lower() not in CONTENT_TYPES:
         raise Refused(f"catalog: {card_id} art {art!r} is not jpg/png/webp")
+    if WEBP_FOLDER.fullmatch(art.split("/")[0]):
+        raise Refused(f"catalog: {card_id} art {art!r} is under webp<N>/, which holds the WebP copies")
 
 
 def sniff_type(data: bytes) -> Optional[str]:
@@ -304,6 +310,9 @@ def validate_config(cfg: object, public_base: Optional[str], warnings: Optional[
             errs.append("config: primary.template cannot use {sourceFile} (our CDN is keyed by {art})")
         if public_base and isinstance(tpl, str) and not tpl.startswith(public_base.rstrip("/") + "/" + ART_PREFIX):
             errs.append(f"config: primary.template must start with {public_base.rstrip('/')}/{ART_PREFIX} (OPCDN_PUBLIC_BASE)")
+        elif public_base and isinstance(tpl, str) and tpl.startswith(public_base.rstrip("/") + "/" + ART_PREFIX + "webp") \
+                and webp_generation_of(tpl, public_base) is None:
+            errs.append(f"config: a primary on the WebP copies must be exactly {webp_template(public_base, 1).replace('webp1', 'webp<N>')}")
     fallbacks = cfg.get("fallbacks")
     if not isinstance(fallbacks, list):
         errs.append("config: fallbacks must be an array (may be empty)")
@@ -597,6 +606,9 @@ def verify(public_base: str, samples: int, get=http_get) -> int:
         if not errs:
             cfg = json.loads(body)
             print(f"ok   config.json: namesOnly={cfg['namesOnly']}, primary={'on' if cfg['primary'] else 'off'}, {len(cfg['fallbacks'])} fallback(s)")
+            generation = webp_generation_of((cfg.get("primary") or {}).get("template"), public_base)
+            if generation is not None:
+                bad += verify_webp(public_base, generation, max(1, samples // 2), get=get)
 
     status, _, body = get(f"{public_base}/{INDEX_KEY}?{bust}")
     if status != 200:
@@ -1066,6 +1078,9 @@ def planned_config(args, lr: LocalRelease, block: dict, public_base: str) -> Opt
     errs = validate_config(cfg, public_base)
     if errs:
         raise Refused("; ".join(errs))
+    problem = webp_gate(cfg, public_base)
+    if problem:
+        raise Refused(problem)
     return (json.dumps(cfg, indent=2) + "\n").encode()
 
 
@@ -1556,6 +1571,272 @@ def verify_l10n(public_base: str, lang: str, samples: int, get=http_get) -> int:
     return bad
 
 
+# ---------------------------------------------------------------------------- WebP copies of the art (`art/webp<N>/`)
+#
+# The catalog's English pictures are mostly PNG (about 310 KB on average). A generation folder holds a
+# WebP copy of each, keyed by the same `art` path plus `.webp`, served immutable: config.json's
+# primary template moves to `<base>/art/webp<N>/{art}.webp` and every installed version follows it,
+# since the template is the only thing that names the folder. A generation never changes a picture:
+# new art is added to it, but a replaced original needs a new generation (N+1).
+
+WEBP_FOLDER = re.compile(r"webp([1-9][0-9]{0,2})")
+WEBP_QUALITY = 75
+WEBP_METHOD = 6
+WEBP_INDEX_NAME = "index.json"
+
+
+def webp_folder(generation: int) -> str:
+    return f"{ART_PREFIX}webp{generation}/"
+
+
+def webp_template(public_base: str, generation: int) -> str:
+    return f"{public_base.rstrip('/')}/{webp_folder(generation)}{{art}}.webp"
+
+
+def webp_generation_of(template: object, public_base: str) -> Optional[int]:
+    """The generation a primary template serves, or None when it is not a WebP generation's."""
+    if not isinstance(template, str):
+        return None
+    m = re.fullmatch(re.escape(public_base.rstrip("/") + "/" + ART_PREFIX) + r"webp([1-9][0-9]{0,2})/\{art\}\.webp", template)
+    return int(m.group(1)) if m else None
+
+
+def encode_webp(path: Path, quality: int) -> bytes:
+    """One picture as WebP, full size: lossy at `quality`, alpha kept only when a pixel uses it, no
+    metadata but the colour profile."""
+    import io
+
+    from PIL import Image  # lazily: only publish-webp needs Pillow
+
+    with Image.open(path) as im:
+        im.load()
+        icc = im.info.get("icc_profile")
+        alpha = im.mode in ("RGBA", "LA", "PA") or (im.mode == "P" and "transparency" in im.info)
+        im = im.convert("RGBA" if alpha else "RGB")
+        if alpha and im.getchannel("A").getextrema() == (255, 255):
+            im = im.convert("RGB")
+        buf = io.BytesIO()
+        im.save(buf, "WEBP", quality=quality, method=WEBP_METHOD, **({"icc_profile": icc} if icc else {}))
+        return buf.getvalue()
+
+
+def read_webp_index(s3, bucket: str, generation: int) -> dict:
+    key = webp_folder(generation) + WEBP_INDEX_NAME
+    try:
+        body = s3.get_object(Bucket=bucket, Key=key)["Body"].read()
+    except Exception as e:
+        code = str(getattr(e, "response", {}).get("Error", {}).get("Code", ""))
+        if code in ("NoSuchKey", "404", "NotFound"):
+            return {}
+        raise
+    idx = json.loads(body)
+    if not isinstance(idx, dict) or idx.get("schemaVersion") != 1 or not isinstance(idx.get("files"), dict):
+        raise Refused(f"live {key} is malformed; refusing to merge into it")
+    return idx
+
+
+@dataclass
+class WebpPlan:
+    todo: list[LocalFile]      # originals with no copy in this generation yet
+    unchanged: int
+    changed: list[str]         # art paths whose original differs from the one the copy was made from
+
+
+def webp_plan(files: list[LocalFile], live: dict) -> WebpPlan:
+    have = live.get("files", {}) if isinstance(live, dict) else {}
+    todo, changed, unchanged = [], [], 0
+    for f in files:
+        rec = have.get(f.path)
+        if rec is None:
+            todo.append(f)
+        elif rec.get("source") != f.sha256:
+            changed.append(f.path)
+        else:
+            unchanged += 1
+    return WebpPlan(todo, unchanged, changed)
+
+
+def publish_webp(s3, bucket: str, generation: int, files: list[LocalFile], quality: int = WEBP_QUALITY,
+                 dry_run: bool = False, fix_metadata: bool = False, encode: Callable[[Path, int], bytes] = encode_webp,
+                 log: Callable[[str], None] = print, workers: int = 8) -> int:
+    """Encode and upload the WebP copy of every catalog picture missing from generation `generation`,
+    check each one (size, SHA-256, type, caching), then write the generation's index of what landed.
+    Never overwrites: an original that changed since its copy was made, or a key already holding a
+    copy of another original, refuses the run before anything is uploaded. Returns failures."""
+    folder = webp_folder(generation)
+    live = read_webp_index(s3, bucket, generation)
+    if live and (live.get("quality"), live.get("method")) != (quality, WEBP_METHOD):
+        raise Refused(f"{folder} was made at quality {live.get('quality')}, method {live.get('method')}; a generation has one "
+                      f"setting: use --quality {live.get('quality')}, or a new generation")
+    plan = webp_plan(files, live)
+    if plan.changed:
+        shown = ", ".join(plan.changed[:10]) + (" …" if len(plan.changed) > 10 else "")
+        raise Refused(f"{len(plan.changed)} original(s) changed since their WebP copy was made ({shown}); copies are "
+                      f"immutable: publish into generation {generation + 1} and point config.json at it; nothing written")
+
+    def head(f: LocalFile) -> tuple[LocalFile, Optional[dict]]:
+        return f, _remote(s3, bucket, folder + f.path + ".webp")
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        heads = list(pool.map(head, plan.todo))
+    upload, adopt, to_fix, wrong = [], [], [], []
+    for f, h in heads:
+        if h is None:
+            upload.append(f)
+            continue
+        meta = {k.lower(): v for k, v in (h.get("Metadata") or {}).items()}
+        if meta.get("source-sha256") != f.sha256 or not HEX64.fullmatch(meta.get("sha256", "")):
+            raise Refused(f"{folder}{f.path}.webp is already on the CDN, made from another original; nothing written")
+        problems = _metadata_problems(h, GeoFile(f.path, b"", meta["sha256"], "image/webp"))
+        if problems:
+            wrong.append(f"{f.path}: {'; '.join(problems)}")
+            to_fix.append((f, h, meta))
+        else:
+            adopt.append((f, h, meta))
+    if wrong and not fix_metadata:
+        raise Refused("already on the CDN with the right bytes but wrong metadata (re-run with --fix-metadata): " + " | ".join(wrong[:5]))
+    mb = sum(f.bytes for f in upload) / 1e6
+    log(f"{folder}: {len(upload)} to encode and upload ({mb:.1f} MB of originals), {len(adopt)} already uploaded but not "
+        f"indexed, {len(to_fix)} to fix, {plan.unchanged} unchanged; quality {quality}, method {WEBP_METHOD}")
+    if dry_run:
+        for f in upload[:10]:
+            log(f"would encode {f.path} -> {folder}{f.path}.webp")
+        if len(upload) > 10:
+            log(f"… and {len(upload) - 10} more")
+        log("dry run: nothing changed")
+        return 0
+
+    landed: dict[str, dict] = {}
+    for f, h, meta in adopt:
+        landed[f.path] = {"sha256": meta["sha256"], "bytes": h.get("ContentLength"), "source": f.sha256}
+
+    def fix(item) -> Optional[str]:
+        f, h, meta = item
+        key = folder + f.path + ".webp"
+        try:
+            s3.copy_object(Bucket=bucket, Key=key, CopySource={"Bucket": bucket, "Key": key}, MetadataDirective="REPLACE",
+                           ContentType="image/webp", CacheControl=GEO_CACHE, Metadata=meta)
+        except Exception as e:
+            return f"metadata fix failed: {e}"
+        landed[f.path] = {"sha256": meta["sha256"], "bytes": h.get("ContentLength"), "source": f.sha256}
+        return None
+
+    def put(f: LocalFile) -> Optional[str]:
+        key = folder + f.path + ".webp"
+        try:
+            data = encode(f.file, quality)
+        except Exception as e:
+            return f"encode failed: {e}"
+        if sniff_type(data) != "image/webp" or len(data) > MAX_IMAGE_BYTES:
+            return "the encoder did not return a WebP picture under the size limit"
+        sha = hashlib.sha256(data).hexdigest()
+        g = GeoFile(f.path, data, sha, "image/webp")
+        try:
+            s3.put_object(Bucket=bucket, Key=key, Body=data, ContentType="image/webp", CacheControl=GEO_CACHE,
+                          Metadata={"sha256": sha, "source-sha256": f.sha256, "quality": str(quality)})
+        except Exception as e:
+            return f"upload failed: {e}"
+        problem = _check(s3, bucket, key, g)
+        if problem is None:
+            landed[f.path] = {"sha256": sha, "bytes": len(data), "source": f.sha256}
+        return problem
+
+    bad = 0
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        jobs = [(item[0].path, pool.submit(fix, item)) for item in to_fix] + [(f.path, pool.submit(put, f)) for f in upload]
+        for n, (path, fut) in enumerate(jobs, 1):
+            problem = fut.result()
+            if problem:
+                bad += 1
+                log(f"FAILED {folder}{path}.webp: {problem}")
+            if n % 250 == 0 or n == len(jobs):
+                log(f"webp: {n}/{len(jobs)}")
+    merged = dict(live.get("files", {})) if live else {}
+    merged.update(landed)
+    sizes = [r["bytes"] for r in landed.values() if isinstance(r.get("bytes"), int)]
+    index = {"schemaVersion": 1, "updatedAt": utc_now(), "quality": quality, "method": WEBP_METHOD,
+             "files": dict(sorted(merged.items()))}
+    s3.put_object(Bucket=bucket, Key=folder + WEBP_INDEX_NAME, Body=json.dumps(index, indent=1).encode(),
+                  ContentType="application/json", CacheControl=INDEX_CACHE)
+    log(f"index: {folder}{WEBP_INDEX_NAME} written ({len(merged)} paths)"
+        + (f"; this run {sum(sizes) / 1e6:.1f} MB, {sum(sizes) / max(1, len(sizes)) / 1e3:.0f} KB a picture" if sizes else ""))
+    if bad:
+        log(f"{bad} picture(s) failed; they are not in the index. Re-run to retry.")
+    else:
+        log(f"primary template for config.json: {{\"id\": \"cdn\", \"template\": \"<OPCDN_PUBLIC_BASE>/{folder}{{art}}.webp\"}}")
+    return bad
+
+
+def webp_coverage_problem(public_base: str, generation: int, get=http_get) -> Optional[str]:
+    """Why config.json may not name generation `generation` yet: every picture in art/index.json
+    must have a copy there made from the same original."""
+    bust = f"cb={random.getrandbits(32):x}"
+    s1, _, art = get(f"{public_base}/{INDEX_KEY}?{bust}")
+    s2, _, web = get(f"{public_base}/{webp_folder(generation)}{WEBP_INDEX_NAME}?{bust}")
+    if s1 != 200 or s2 != 200:
+        return f"WebP generation {generation}: cannot read {INDEX_KEY} (HTTP {s1}) or its index (HTTP {s2}); publish-webp first"
+    originals = json.loads(art).get("files", {})
+    copies = json.loads(web).get("files", {})
+    missing = sorted(p for p, r in originals.items() if (copies.get(p) or {}).get("source") != r.get("sha256"))
+    if missing:
+        shown = ", ".join(missing[:5]) + (" …" if len(missing) > 5 else "")
+        return f"WebP generation {generation} lacks a current copy of {len(missing)} picture(s) ({shown}); run publish-webp first"
+    return None
+
+
+def webp_gate(cfg: object, public_base: str, get=None) -> Optional[str]:
+    """`publish --config` and `publish-release --config`: a primary on a WebP generation only goes out
+    once that generation covers every picture on the CDN. A `namesOnly` file (the kill switch) is never
+    held back."""
+    if isinstance(cfg, dict) and cfg.get("namesOnly") is True:
+        return None
+    tpl = (cfg.get("primary") or {}).get("template") if isinstance(cfg, dict) and isinstance(cfg.get("primary"), dict) else None
+    generation = webp_generation_of(tpl, public_base)
+    return None if generation is None else webp_coverage_problem(public_base, generation, get or http_get)
+
+
+def verify_webp(public_base: str, generation: int, samples: int, get=http_get) -> int:
+    """Read a generation back over HTTPS: its coverage of art/index.json, and `samples` copies (bytes
+    against the index, type, caching, CORS for an extension origin, no NEL). Returns failures."""
+    bad = 0
+    problem = webp_coverage_problem(public_base, generation, get)
+    if problem:
+        print(f"FAIL {problem}")
+        bad += 1
+    folder = webp_folder(generation)
+    status, _, body = get(f"{public_base}/{folder}{WEBP_INDEX_NAME}?cb={random.getrandbits(32):x}")
+    if status != 200:
+        print(f"FAIL {folder}{WEBP_INDEX_NAME}: HTTP {status}")
+        return bad + 1
+    idx = json.loads(body)
+    files = idx.get("files", {})
+    total = sum(r.get("bytes") or 0 for r in files.values())
+    print(f"ok   {folder}{WEBP_INDEX_NAME}: {len(files)} pictures, {total / 1e6:.0f} MB, quality {idx.get('quality')}")
+    for path in random.sample(sorted(files), min(samples, len(files))):
+        url = f"{public_base}/{folder}{urllib.parse.quote(path)}.webp"
+        status, h, data = get(url, origin="chrome-extension://kenbunshoku")
+        problems = []
+        if status != 200:
+            problems.append(f"HTTP {status}")
+        else:
+            if hashlib.sha256(data).hexdigest() != files[path].get("sha256"):
+                problems.append("sha256 differs from the index")
+            if (h.get("content-type") or "").split(";")[0].strip() != "image/webp":
+                problems.append(f"content-type {h.get('content-type')!r}, want 'image/webp'")
+            if h.get("cache-control") != GEO_CACHE:
+                problems.append(f"cache-control {h.get('cache-control')!r}, want {GEO_CACHE!r}")
+            if h.get("access-control-allow-origin") not in ("*", "chrome-extension://kenbunshoku"):
+                problems.append("no CORS header for an extension origin")
+            if nel_problem(h):
+                problems.append(nel_problem(h))
+        if problems:
+            bad += 1
+            print(f"FAIL {url}: {'; '.join(problems)}")
+        else:
+            print(f"ok   {url} ({len(data)} bytes)")
+    return bad
+
+
 def build(args, public_base: Optional[str]) -> tuple[list[LocalFile], int, int, Optional[bytes]]:
     config = load_config(Path(args.config), public_base) if args.config else None
     if not args.catalog:
@@ -1570,7 +1851,7 @@ def build(args, public_base: Optional[str]) -> tuple[list[LocalFile], int, int, 
 def main(argv: Optional[list[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("command", choices=("plan", "publish", "verify", "publish-geo", "verify-geo", "selftest", "publish-release", "verify-release-live",
-                                        "publish-l10n", "verify-l10n"))
+                                        "publish-l10n", "verify-l10n", "publish-webp", "verify-webp"))
     ap.add_argument("--lang", help="publish-l10n/verify-l10n: the language code (fr, ja…)")
     ap.add_argument("--catalog", help="catalog JSON (entries with an id and an `art` path or null)")
     ap.add_argument("--images", help="directory the `art` paths are relative to")
@@ -1594,6 +1875,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap.add_argument("--candidate", help="verify-release-live: a release id on the CDN, without a pointer")
     ap.add_argument("--config-url", help="verify-release-live: read the pointer from this config.json")
     ap.add_argument("--expect-id", help="verify-release-live: the id the pointer must name")
+    ap.add_argument("--generation", type=int, help="publish-webp/verify-webp: the WebP generation (art/webp<N>/), 1 or more")
+    ap.add_argument("--quality", type=int, default=WEBP_QUALITY, help=f"publish-webp: WebP quality (default {WEBP_QUALITY}); one per generation")
     args = ap.parse_args(argv)
 
     if args.command == "selftest":
@@ -1620,6 +1903,20 @@ def main(argv: Optional[list[str]] = None) -> int:
                 print("config.json entry (add it under \"localizedArt\", then publish --config):")
                 print(json.dumps(localized_block(t.public_base, args.lang, lsha), indent=2))
             return 1 if bad else 0
+        if args.command in ("publish-webp", "verify-webp"):
+            if not args.generation or not WEBP_FOLDER.fullmatch(f"webp{args.generation}"):
+                raise Refused(f"{args.command} needs --generation N (1 to 999)")
+            if args.command == "verify-webp":
+                return 1 if verify_webp(target_from_env(need_secrets=False).public_base, args.generation, args.samples) else 0
+            if not (1 <= args.quality <= 100):
+                raise Refused("--quality must be 1 to 100")
+            if not args.catalog or not args.images:
+                raise Refused("publish-webp needs --catalog and --images (the same as publish)")
+            t = target_from_env()
+            files, _, _, _ = build(argparse.Namespace(config=None, catalog=args.catalog, images=args.images), t.public_base)
+            print(f"target: bucket {t.bucket}, served at {t.public_base}; folder {webp_folder(args.generation)}")
+            return 1 if publish_webp(r2_client(t), t.bucket, args.generation, files, quality=args.quality,
+                                     dry_run=args.dry_run, fix_metadata=args.fix_metadata) else 0
         if args.command == "publish-release":
             if not args.release:
                 raise Refused("publish-release needs --release DIR")
@@ -1653,6 +1950,10 @@ def main(argv: Optional[list[str]] = None) -> int:
             problem = l10n_gate(json.loads(config))
             if problem:
                 raise Refused(problem + "; nothing written")
+        # The primary only moves to WebP copies that cover every picture on the CDN.
+        problem = webp_gate(json.loads(config), t.public_base) if config is not None and args.command == "publish" else None
+        if problem:
+            raise Refused(problem + "; nothing written")
         s3 = r2_client(t)
         live = read_live_index(s3, t.bucket)
         plan = make_plan(files, live, artless, cards) if args.catalog else None
@@ -2065,8 +2366,167 @@ def selftest() -> int:
             assert verify_l10n(base, "fr", 4, get=lambda u, origin=None: l10n_get(u, origin, ctype="image/png")) == 1
 
     selftest_releases(refused)
+    selftest_webp(refused)
     print("selftest: ok")
     return 0
+
+
+def selftest_webp(refused) -> None:
+    """publish-webp, the coverage gate and verify-webp, with a fake bucket, a fake encoder and a fake CDN."""
+    import contextlib
+    import io
+    import tempfile
+
+    base = "https://cdn.example.org"
+    assert webp_generation_of(f"{base}/art/webp1/{{art}}.webp", base) == 1
+    assert webp_generation_of(f"{base}/art/webp12/{{art}}.webp", base) == 12
+    for tpl in (f"{base}/art/{{art}}", f"{base}/art/webp0/{{art}}.webp", f"{base}/art/webp1/{{art}}",
+                f"https://other.example.org/art/webp1/{{art}}.webp", None):
+        assert webp_generation_of(tpl, base) is None, tpl
+    assert refused(lambda: check_art_path("webp1/OP01-001.png", "OP01-001")), "webp<N>/ is reserved for the copies"
+    check_art_path("webpx/OP01-001.png", "OP01-001")
+    cfg = json.loads(Path(__file__).with_name("config.example.json").read_text())
+    for tpl, ok in ((f"{base}/art/webp1/{{art}}.webp", True), (f"{base}/art/{{art}}", True),
+                    (f"{base}/art/webp1/{{art}}", False), (f"{base}/art/webp0/{{art}}.webp", False)):
+        errs = validate_config(cfg | {"primary": {"id": "cdn", "template": tpl}}, base)
+        assert (not errs) == ok, (tpl, errs)
+
+    def fake_webp(path: Path, quality: int) -> bytes:
+        body = path.read_bytes() + b"q" + str(quality).encode()
+        return b"RIFF" + len(body).to_bytes(4, "little") + b"WEBP" + body
+
+    class Bucket:
+        def __init__(self):
+            self.objects: dict[str, dict] = {}
+            self.fail_on: Optional[str] = None
+
+        def _404(self):
+            e = Exception("404")
+            e.response = {"Error": {"Code": "404"}}
+            return e
+
+        def head_object(self, Bucket, Key):
+            o = self.objects.get(Key)
+            if o is None:
+                raise self._404()
+            return {"ContentLength": len(o["Body"]), "Metadata": dict(o["Metadata"]), "ContentType": o["ContentType"],
+                    "CacheControl": o["CacheControl"]}
+
+        def get_object(self, Bucket, Key):
+            if Key not in self.objects:
+                raise self._404()
+            return {"Body": io.BytesIO(self.objects[Key]["Body"])}
+
+        def put_object(self, Bucket, Key, Body, ContentType, CacheControl, Metadata=None):
+            if self.fail_on and Key.endswith(self.fail_on):
+                raise OSError("connection reset")
+            self.objects[Key] = {"Body": Body, "ContentType": ContentType, "CacheControl": CacheControl, "Metadata": Metadata or {}}
+
+        def copy_object(self, Bucket, Key, CopySource, MetadataDirective, ContentType, CacheControl, Metadata):
+            assert CopySource == {"Bucket": Bucket, "Key": Key} and MetadataDirective == "REPLACE"
+            self.objects[Key].update(ContentType=ContentType, CacheControl=CacheControl, Metadata=Metadata)
+
+    quiet = contextlib.redirect_stdout(io.StringIO())
+    with tempfile.TemporaryDirectory() as tmp, quiet:
+        root = Path(tmp)
+        (root / "jp").mkdir()
+        sources = {"OP01-001.jpg": b"\x89PNG\r\n\x1a\n" + b"a" * 50, "OP01-002.jpg": b"\xff\xd8\xff" + b"b" * 50,
+                   "jp/P-001_p1.png": b"\x89PNG\r\n\x1a\n" + b"c" * 50}
+        for name, data in sources.items():
+            (root / name).write_bytes(data)
+        files = scan_images({k: ["x"] for k in sources}, root)
+        b = Bucket()
+        log: list[str] = []
+        pub = lambda **kw: publish_webp(b, "op-art", 1, files, encode=fake_webp, log=log.append, workers=2, **kw)
+
+        assert pub(dry_run=True) == 0 and not b.objects, "a dry run writes nothing"
+        assert pub() == 0
+        idx = json.loads(b.objects["art/webp1/index.json"]["Body"])
+        assert idx["quality"] == WEBP_QUALITY and idx["method"] == WEBP_METHOD and len(idx["files"]) == 3
+        o = b.objects["art/webp1/jp/P-001_p1.png.webp"]
+        assert o["ContentType"] == "image/webp" and o["CacheControl"] == GEO_CACHE
+        assert o["Metadata"]["source-sha256"] == idx["files"]["jp/P-001_p1.png"]["source"] == hashlib.sha256(sources["jp/P-001_p1.png"]).hexdigest()
+        assert o["Metadata"]["sha256"] == hashlib.sha256(o["Body"]).hexdigest() == idx["files"]["jp/P-001_p1.png"]["sha256"]
+        assert b.objects["art/webp1/index.json"]["CacheControl"] == INDEX_CACHE
+        before = {k: v["Body"] for k, v in b.objects.items() if k.endswith(".webp")}
+        assert pub() == 0 and {k: v["Body"] for k, v in b.objects.items() if k.endswith(".webp")} == before, "a re-run uploads nothing"
+
+        assert refused(lambda: publish_webp(b, "op-art", 1, files, quality=90, encode=fake_webp, log=log.append)), "one quality per generation"
+        (root / "OP01-001.jpg").write_bytes(sources["OP01-001.jpg"] + b"better scan")
+        changed = scan_images({k: ["x"] for k in sources}, root)
+        assert refused(lambda: publish_webp(b, "op-art", 1, changed, encode=fake_webp, log=log.append)), "a changed original needs a new generation"
+        assert publish_webp(b, "op-art", 2, changed, encode=fake_webp, log=log.append) == 0, "a new generation takes it"
+        assert b.objects["art/webp1/OP01-001.jpg.webp"]["Body"] == before["art/webp1/OP01-001.jpg.webp"], "generation 1 never changes"
+        (root / "OP01-001.jpg").write_bytes(sources["OP01-001.jpg"])
+
+        # A copy uploaded by a run that died before its index: adopted when made from the same original,
+        # refused when made from another one; wrong metadata needs --fix-metadata.
+        b2 = Bucket()
+        b2.objects = {k: dict(v, Metadata=dict(v["Metadata"])) for k, v in b.objects.items() if k.startswith("art/webp1/") and k.endswith(".webp")}
+        assert publish_webp(b2, "op-art", 1, files, encode=lambda p, q: (_ for _ in ()).throw(AssertionError("no encode")), log=log.append) == 0
+        assert len(json.loads(b2.objects["art/webp1/index.json"]["Body"])["files"]) == 3
+        b3 = Bucket()
+        b3.objects = {k: dict(v, Metadata=dict(v["Metadata"])) for k, v in b2.objects.items() if k.endswith(".webp")}
+        b3.objects["art/webp1/OP01-002.jpg.webp"]["Metadata"]["source-sha256"] = "f" * 64
+        assert refused(lambda: publish_webp(b3, "op-art", 1, files, encode=fake_webp, log=log.append)), "made from another original"
+        b3.objects["art/webp1/OP01-002.jpg.webp"]["Metadata"]["source-sha256"] = hashlib.sha256(sources["OP01-002.jpg"]).hexdigest()
+        b3.objects["art/webp1/OP01-002.jpg.webp"]["CacheControl"] = ART_CACHE
+        assert refused(lambda: publish_webp(b3, "op-art", 1, files, encode=fake_webp, log=log.append)), "wrong metadata"
+        assert publish_webp(b3, "op-art", 1, files, encode=fake_webp, log=log.append, fix_metadata=True) == 0
+        assert b3.objects["art/webp1/OP01-002.jpg.webp"]["CacheControl"] == GEO_CACHE
+
+        # A failed upload stays out of the index; a re-run retries it.
+        b4 = Bucket()
+        b4.fail_on = "OP01-002.jpg.webp"
+        assert publish_webp(b4, "op-art", 1, files, encode=fake_webp, log=log.append) == 1
+        assert sorted(json.loads(b4.objects["art/webp1/index.json"]["Body"])["files"]) == ["OP01-001.jpg", "jp/P-001_p1.png"]
+        b4.fail_on = None
+        assert publish_webp(b4, "op-art", 1, files, encode=fake_webp, log=log.append) == 0
+        assert len(json.loads(b4.objects["art/webp1/index.json"]["Body"])["files"]) == 3
+        assert publish_webp(Bucket(), "op-art", 1, files, encode=lambda p, q: b"not webp", log=log.append) == 3, "the encoder's output is checked"
+
+        # The coverage gate and verify-webp, over a fake CDN serving bucket b.
+        art_index = {"schemaVersion": 1, "files": {f.path: {"sha256": f.sha256, "bytes": f.bytes, "contentType": f.content_type} for f in files}}
+
+        def cdn(url, origin=None, cache=GEO_CACHE, cors="*", drop=None):
+            path = urllib.parse.unquote(url.split("?")[0][len(base) + 1:])
+            if path == INDEX_KEY:
+                return 200, {}, json.dumps(art_index).encode()
+            o = b.objects.get(path)
+            if o is None or path == drop:
+                return 404, {}, b""
+            return 200, {"content-type": o["ContentType"], "cache-control": cache if path.endswith(".webp") else o["CacheControl"],
+                         "access-control-allow-origin": cors}, o["Body"]
+
+        webp_cfg = cfg | {"primary": {"id": "cdn", "template": webp_template(base, 1)}}
+        assert webp_gate(webp_cfg, base, get=cdn) is None
+        assert webp_gate(cfg, base, get=lambda *a, **k: (_ for _ in ()).throw(AssertionError("no request"))) is None
+        art_index["files"]["OP01-003.jpg"] = {"sha256": "e" * 64, "bytes": 1, "contentType": "image/png"}
+        assert "lacks a current copy of 1" in (webp_gate(webp_cfg, base, get=cdn) or "")
+        assert webp_gate(webp_cfg | {"namesOnly": True}, base, get=cdn) is None, "the kill switch is never held back"
+        del art_index["files"]["OP01-003.jpg"]
+        assert webp_gate(webp_cfg, base, get=lambda u, origin=None: cdn(u, drop="art/webp1/index.json")) is not None
+        assert verify_webp(base, 1, 3, get=cdn) == 0
+        assert verify_webp(base, 1, 3, get=lambda u, origin=None: cdn(u, cache=ART_CACHE)) == 3
+        assert verify_webp(base, 1, 3, get=lambda u, origin=None: cdn(u, cors="")) == 3
+
+    # The real encoder, when Pillow is installed (publish-webp needs it; the rest of the tool does not).
+    try:
+        from PIL import Image
+    except ImportError:
+        print("selftest: Pillow is not installed; the real WebP encoder was not exercised")
+        return
+    with tempfile.TemporaryDirectory() as tmp:
+        opaque, clear = Path(tmp) / "a.png", Path(tmp) / "b.png"
+        Image.new("RGBA", (60, 84), (200, 30, 30, 255)).save(opaque)
+        im = Image.new("RGBA", (60, 84), (200, 30, 30, 255))
+        im.putpixel((0, 0), (0, 0, 0, 0))
+        im.save(clear)
+        for path, mode in ((opaque, "RGB"), (clear, "RGBA")):
+            data = encode_webp(path, WEBP_QUALITY)
+            assert sniff_type(data) == "image/webp"
+            with Image.open(io.BytesIO(data)) as out:
+                assert out.size == (60, 84) and out.mode == mode, (path.name, out.mode)
 
 
 def selftest_releases(refused) -> None:

@@ -373,3 +373,9 @@ read and write) and on the maintainer's machine.
   within a day; purge the URL in the Cloudflare dashboard to make it immediate.
 - `art/index.json` lists every uploaded path with its sha256 and size. It is the tool's record,
   not part of this contract; the extension does not need it.
+- WebP copies: `art/webp<N>/<art path>.webp`, generation N, served `Cache-Control: public,
+  max-age=31536000, immutable` and never changed (a replaced original goes into generation N+1).
+  The primary template names a generation, `https://cdn.kenbunshoku.com/art/webp<N>/{art}.webp`, and
+  the originals' template (`…/art/{art}`) stays as the first fallback. Nothing in the extension
+  changes: it takes a picture's type from its bytes. Published with `opcdn.py publish-webp`
+  ([README.md](README.md), "WebP copies").

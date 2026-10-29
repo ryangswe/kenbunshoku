@@ -37,6 +37,8 @@ English list does not show is not added, and cards revealed before the list are 
    names it; `PROVENANCE.md` says what was added). They are published beside the release's files.
 7. **Publish**, art first and the pointer last:
    - the new art: `cdn/opcdn.py publish --catalog <release folder>/catalog.json --images <card mirror>`;
+   - its WebP copies, when `config.json`'s primary names a generation (`art/webp<N>/`): `cdn/opcdn.py
+     publish-webp` with the same catalog and images and that `--generation`;
    - the index: `cdn/opcdn.py publish-geo --dir <packed folder> --expect-sha256 <manifest sha256>`;
    - the release: `cdn/opcdn.py publish-release --release <folder> --min-version 0.2.0 --geometric
      <geometric settings file> --geo-manifest-sha256 <manifest sha256> --config cdn/config.json
