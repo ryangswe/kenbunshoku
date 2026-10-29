@@ -164,8 +164,10 @@ Official pictures from Bandai's card list in another language (French today), fo
 extension knows, shown to viewers whose browser's first language it is ([SETTINGS.md](SETTINGS.md),
 "Card pictures in the viewer's language"). The maintainer builds a folder with `list.json`
 (`{ "<card id>": "<file>" }`) and the pictures it names, each `<official id>.<first 8 hex of its
-sha256>.<ext>`, matching the catalog's printings to that language's printings by their artwork; a
-printing whose match is uncertain is left off and keeps its English picture.
+sha256>.<ext>`. Each catalog printing takes the printing with the same card number when its
+artwork is nearly identical, and otherwise the one whose artwork clearly matches best (alternate-art
+numbers don't always line up across languages); a printing whose match is uncertain is left off
+and keeps its English picture.
 
 ```bash
 .venv/bin/python opcdn.py publish-l10n --env-file .env --lang fr --dir <folder> --dry-run

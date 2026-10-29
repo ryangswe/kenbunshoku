@@ -132,8 +132,9 @@ re-try it after a fresh `config.json` read.
 - **Kill switch:** with `namesOnly` on, no picture in any language is shown and the card list is not
   downloaded.
 - **Only official pictures:** the card list names pictures from Bandai's card list in that language,
-  matched to the catalog's printings by their artwork. A printing whose match is uncertain is left
-  off and shows its usual picture.
+  matched to the catalog's printings: the same card number when its artwork is nearly identical,
+  otherwise by the artwork alone. A printing whose match is uncertain is left off and shows its
+  usual picture.
 - The picture's address names the language (`/l10n/fr/…`), so the CDN can see it, as it can already
   see the `Accept-Language` header browsers send with every request.
 
