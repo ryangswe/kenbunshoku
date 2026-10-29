@@ -39,8 +39,11 @@ nothing beyond the local server.
    `scripts/fork-config.mjs`. In short:
    - `name`, `shortName`, `description`: your extension's names (manifest, popup, store);
      `packageName`: the release zip's name.
-   - `icons`: a folder holding `icon-16.png`, `icon-32.png`, `icon-48.png` and `icon-128.png`
-     (`node scripts/icons.mjs` redraws Kenbunshoku's).
+   - `icons`: a folder holding `icon-16.png`, `icon-32.png`, `icon-48.png` and `icon-128.png`.
+     Chrome shows the same toolbar icon on light and dark themes, so pick colors that read on
+     both. Optionally add `icon-on-dark-16.png` and `icon-on-dark-32.png`, a lighter version for
+     dark surfaces: Firefox's toolbar then switches with its theme, and the popup header with
+     the color scheme. Kenbunshoku's are drawn from the SVGs in `icons/source/`.
    - `videoSites`: `{ "youtube": true|false, "twitch": true|false }`. The manifest's sites
      and the pages the extension's frames accept follow it.
    - `imageHosts`: every host the extension may request (card pictures, the settings file,

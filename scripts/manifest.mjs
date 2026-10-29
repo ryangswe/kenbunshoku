@@ -14,7 +14,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
-import { imageHostPatterns, loadForkConfig, videoSitePatterns } from "./fork-config.mjs";
+import { imageHostPatterns, loadForkConfig, ON_DARK_ICON_SIZES, videoSitePatterns } from "./fork-config.mjs";
 
 /**
  * The public key that fixes the extension's ID for unpacked installs (from a release zip):
@@ -100,16 +100,27 @@ export const FIREFOX_MIN_VERSION = "148.0";
 export const FIREFOX_DATA_COLLECTION = { required: ["none"] };
 
 /**
+ * Firefox's toolbar icon follows its theme (Chrome's does not: it keeps `default_icon`). In
+ * `theme_icons`, `light` is the icon for a theme with light text, a dark toolbar: the icon for dark
+ * surfaces. `dark` is the one for a theme with dark text, a light toolbar: the usual icon.
+ */
+export function firefoxThemeIcons() {
+  return ON_DARK_ICON_SIZES.map((size) => ({ light: `icons/icon-on-dark-${size}.png`, dark: `icons/icon-${size}.png`, size }));
+}
+
+/**
  * The Firefox form of a finished manifest. Firefox has no background service worker: the same
  * module runs as a background script (an event page). It has no `key` (an add-on's ID is the
- * gecko `id`) and no `minimum_chrome_version`. Permissions are the Chrome manifest's.
+ * gecko `id`) and no `minimum_chrome_version`. Permissions are the Chrome manifest's. With
+ * `onDarkIcons` (the icon folder has them), its toolbar icon follows the theme.
  */
-export function firefoxManifest(manifest, { dev, config = loadForkConfig() }) {
+export function firefoxManifest(manifest, { dev, config = loadForkConfig(), onDarkIcons = false }) {
   const id = firefoxAddonId(config, dev);
   if (id === null) throw new Error("kenbunshoku.config.json has no firefoxAddonId: there is no Firefox build");
   const { key: _key, minimum_chrome_version: _min, background, ...rest } = manifest;
   return {
     ...rest,
+    ...(onDarkIcons ? { action: { ...rest.action, theme_icons: firefoxThemeIcons() } } : {}),
     background: { scripts: [background.service_worker], type: background.type },
     browser_specific_settings: {
       gecko: {

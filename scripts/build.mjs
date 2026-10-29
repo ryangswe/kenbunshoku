@@ -36,7 +36,7 @@ import { build } from "esbuild";
 import { buildManifest, firefoxManifest } from "./manifest.mjs";
 import { buildSourceFileMaps } from "./card-data.mjs";
 import { buildCardTable } from "../src/shared/card-table.mjs";
-import { CONFIG_PATH, geometricIndexProblem, ICON_SIZES, loadForkConfig } from "./fork-config.mjs";
+import { CONFIG_PATH, geometricIndexProblem, hasOnDarkIcons, ICON_SIZES, loadForkConfig, ON_DARK_ICON_SIZES } from "./fork-config.mjs";
 import { LEGAL_FILES, releaseLegalProblem } from "./release-legal.mjs";
 import { describeOversized, oversizedTextFiles, TEXT_FILE_LIMIT } from "./package-size.mjs";
 
@@ -171,9 +171,15 @@ await build({
 // compute.js bundles the runtime's module; its license comments are in the runtime's LEGAL file.
 copyFileSync(join(vendorDir, "cardvision.js.LEGAL.txt"), join(out, "cardvision.js.LEGAL.txt"));
 for (const name of ["compute.html", "tooltip.html", "tooltip.css", "popup.css"]) copyFileSync(join(root, "static", name), join(out, name));
-// The popup carries the extension's name from the config.
+// The popup carries the extension's name from the config, and its icon for dark surfaces when the
+// icon folder has one (shown while the popup is dark).
 const escapeHtml = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-writeFileSync(join(out, "popup.html"), readFileSync(join(root, "static", "popup.html"), "utf-8").replaceAll("{{name}}", escapeHtml(config.name)));
+const onDarkIcons = hasOnDarkIcons(config, root);
+const onDarkSource = onDarkIcons ? '<source srcset="icons/icon-on-dark-32.png" media="(prefers-color-scheme: dark)">' : "";
+writeFileSync(
+  join(out, "popup.html"),
+  readFileSync(join(root, "static", "popup.html"), "utf-8").replaceAll("{{name}}", escapeHtml(config.name)).replace("{{onDarkIcon}}", onDarkSource),
+);
 
 // The runtime's worker, and the one pair of ONNX Runtime files it loads, from beside it.
 // OpenCV.js for the geometric stage sits beside the worker, which imports it from its own folder.
@@ -227,11 +233,12 @@ if (config.geometric) {
 // ------------------------------------------------------------------ 5. manifest and notices
 mkdirSync(join(out, "icons"), { recursive: true });
 for (const size of ICON_SIZES) copyFileSync(join(root, config.icons, `icon-${size}.png`), join(out, "icons", `icon-${size}.png`));
+if (onDarkIcons) for (const size of ON_DARK_ICON_SIZES) copyFileSync(join(root, config.icons, `icon-on-dark-${size}.png`), join(out, "icons", `icon-on-dark-${size}.png`));
 const chromeManifest = buildManifest({ version: pkg.version, dev: values.dev, store: values.store, config });
 let manifest = chromeManifest;
 if (firefox) {
   try {
-    manifest = firefoxManifest(chromeManifest, { dev: values.dev, config });
+    manifest = firefoxManifest(chromeManifest, { dev: values.dev, config, onDarkIcons });
   } catch (e) {
     console.error(e.message);
     process.exit(1);
