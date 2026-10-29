@@ -2,7 +2,8 @@
 // Which picture a tooltip shows (SETTINGS.md, "Resolution per hover").
 //
 //   1. `namesOnly` → no picture: name, number and link only.
-//   2. The primary (when set), then each fallback in order: build the address; skip the source
+//   2. A picture in the viewer's language, when one is offered for this card (src/l10n/); then
+//      the primary (when set), then each fallback in order: build the address; skip the source
 //      when a placeholder it needs is unavailable for this card; load the picture. A failure
 //      (network error, non-2xx, a body that does not decode as an image, or no picture within
 //      5 s) moves to the next source.
@@ -15,6 +16,7 @@
 // session; `SourceHealth.reset` (fresh settings) tries it again.
 
 import { IMAGE_TIMEOUT_MS, SOURCE_FAILURE_LIMIT } from "../constants.js";
+import type { LocalizedPictures } from "../l10n/list.js";
 import type { ImageSource, Settings } from "../settings/schema.js";
 import { type CardRef, expandTemplate, type SourceFileMaps } from "../settings/templates.js";
 
@@ -108,10 +110,17 @@ export async function resolveCardImage(
   maps: SourceFileMaps,
   health: SourceHealth,
   load: (url: string) => Promise<Blob>,
+  localized: LocalizedPictures | null = null,
 ): Promise<Resolution> {
   const attempts: Attempt[] = [];
   if (settings.namesOnly) return { kind: "names", reason: "names only", attempts };
   const sources = [...(settings.primary ? [settings.primary] : []), ...settings.fallbacks];
+  // A card not on the language's list cannot fill {sourceFile}: the source is skipped for it,
+  // which never counts as a failure, so missing pictures never turn the language off.
+  if (localized) {
+    sources.unshift(localized.source);
+    maps = { ...maps, [localized.source.id]: localized.files };
+  }
   for (const source of sources) {
     if (health.skipped(source)) {
       attempts.push({ sourceId: source.id, url: null, failure: "skipped after repeated failures" });

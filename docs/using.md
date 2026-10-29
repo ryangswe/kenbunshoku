@@ -36,6 +36,10 @@ window is short). Move to another card to see that one, even one under the pictu
 pointer passes through it, and nothing on it can be clicked. When there is no picture, the
 card's name shows instead. Pausing works too, on recorded videos and on live streams.
 
+The picture is Bandai's official one, in your browser's language when Bandai publishes the card in
+it (French today, from version 0.4.0) and in English otherwise. It follows the first language in
+your browser's language settings; there is no separate setting.
+
 ## The toolbar popup
 
 Kenbunshoku's toolbar popup is one switch, the main on/off: turned off, it analyzes no video, on

@@ -48,6 +48,10 @@ English list does not show is not added, and cards revealed before the list are 
    once the owner has published the opening two pointer moves.
 8. **Confirm** after about an hour (`cdn/opcdn.py verify-release-live`; a hover on a new card).
    Rolling back is publishing the previous `release` block, or removing it.
+9. **Pictures in other languages** (optional; the set's cards show English pictures without it):
+   when the set is on Bandai's card list in that language, add its pictures with
+   `cdn/opcdn.py publish-l10n` and publish the new `localizedArt` entry ([cdn/README.md](cdn/README.md),
+   "Card pictures in other languages").
 
 Then update the set line in the "New sets" bullet of [docs/accuracy.md](docs/accuracy.md) when a
 store release bundles the set. The next store release bundles the release the pointer names then,

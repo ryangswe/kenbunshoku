@@ -12,6 +12,7 @@
 //     at most once an hour, so a long-open tab still picks up `namesOnly` within the hour.
 
 import { resolveCardImage, type Resolution, SourceHealth } from "../images/chain.js";
+import type { LocalizedPictures } from "../l10n/list.js";
 import type { Settings } from "../settings/schema.js";
 import type { SourceFileMaps } from "../settings/templates.js";
 import { allowedParentOrigin, parseTooltipIn, tag, type TooltipOut, type TooltipSize } from "../shared/messages.js";
@@ -83,6 +84,8 @@ export function knownCard(table: CardTable, id: string): CardFacts | null {
 
 export class TooltipController {
   private settings: Settings | null = null;
+  /** Pictures in the viewer's language, when the settings offer them (src/l10n/). */
+  private localized: LocalizedPictures | null = null;
   private readonly health = new SourceHealth();
   private readonly cache = new Map<string, Promise<Resolution>>();
   private readonly objectUrls = new Map<string, string>();
@@ -109,6 +112,21 @@ export class TooltipController {
     this.cache.clear();
     for (const url of this.objectUrls.values()) this.deps.revokeObjectURL(url);
     this.objectUrls.clear();
+  }
+
+  /** Pictures in the viewer's language, or null for the usual ones. Pictures already kept were
+   *  chosen without them, so they are let go. */
+  setLocalized(localized: LocalizedPictures | null): void {
+    if (this.localized?.listSha256 === localized?.listSha256 && this.localized?.source.template === localized?.source.template) return;
+    this.localized = localized;
+    this.cache.clear();
+    for (const url of this.objectUrls.values()) this.deps.revokeObjectURL(url);
+    this.objectUrls.clear();
+  }
+
+  /** The language of the pictures in use, or null. */
+  get pictureLanguage(): string | null {
+    return this.localized?.lang ?? null;
   }
 
   /** Facts for a card of a remote release, from the compute frame (the facts channel only). */
@@ -254,7 +272,7 @@ export class TooltipController {
       // skips that fallback for it (the primary CDN serves the new art).
       const bundled = knownCard(this.deps.table, card.id);
       const maps = bundled && bundled.art === card.art ? this.deps.maps : {};
-      entry = resolveCardImage(card, settings, maps, this.health, this.deps.load);
+      entry = resolveCardImage(card, settings, maps, this.health, this.deps.load, this.localized);
       this.cache.set(key, entry);
       // A card that showed names only is tried again next time.
       void entry.then((r) => {

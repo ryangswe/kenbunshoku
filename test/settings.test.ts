@@ -36,7 +36,12 @@ describe("validateSettings", () => {
     // cdn/config.json mirrors the live settings file, so its date, update notice and release pointer
     // move with each publish: the notice may be absent or must name a version and the releases page;
     // the pointer may be absent or must be one the extension accepts, geometric part included.
-    const { release, update, ...rest } = settings!;
+    const { release, update, localizedArt, ...rest } = settings!;
+    // Pictures in other languages, when published, come from our CDN only.
+    for (const art of Object.values(localizedArt ?? {})) {
+      expect(art.template.startsWith("https://cdn.kenbunshoku.com/l10n/")).toBe(true);
+      expect(art.list.startsWith("https://cdn.kenbunshoku.com/l10n/")).toBe(true);
+    }
     if (update !== null) {
       expect(update.latest).toMatch(/^\d+\.\d+\.\d+$/);
       expect(update.url.startsWith("https://github.com/ryangswe/kenbunshoku/releases")).toBe(true);

@@ -39,6 +39,7 @@ file that `opcdn.py` accepts can still have parts the extension drops.
 | `cardLink` | any | **Obsolete: ignored by 0.1.0 and later**, whatever it holds, and no longer required (the tooltip is the card's picture alone and has no link). Earlier development builds required it (a template string or `null`), so the published file keeps it for now. |
 | `geometric` | boolean, optional | The extension's extra-accuracy stage (the runtime's geometric stage, WebGPU only, with a card-feature index of about 60 MB on this CDN). Absent or `null`: on. `false`: off, without a release; the index is not downloaded, from the next page a video is hovered on. Any other value is ignored (on), and the rest of the file is still used. |
 | `release` | object, optional | The card-recognition release installs run instead of their bundled one; see "The release pointer". Absent, `null` or malformed: the bundled release (a malformed one never makes the file unusable). It does not bump `schemaVersion`; an older extension ignores it. |
+| `localizedArt` | object, optional | Card pictures in the viewer's language; see "Card pictures in the viewer's language". Read by 0.4.0 and later; older versions ignore it. Absent or `null`: cards show their usual pictures. A malformed language is dropped and the rest of the file is still used. It does not bump `schemaVersion`. |
 | `update` | object, optional | For installs that never update by themselves (an unpacked folder from a release zip). `{ "latest": "x.y.z", "url": "https://…" }`: when the running extension's version is lower than `latest`, the popup shows one dismissible "New version available" line linking to `url`. Dismissed per version; a later `latest` shows it again. `latest` must be three dot-separated integers, and `url` must be the project's releases page or an address below it (`https://github.com/ryangswe/kenbunshoku/releases`, `…/releases/…`). Absent, `null` or malformed: the field is ignored and the rest of the file is still used. It does not bump `schemaVersion`. |
 
 A **source object** is `{ "id": string, "template": string }`, `id` not empty. An object of
@@ -98,13 +99,43 @@ for earlier development builds, which required the field.
 ## Resolution per hover
 
 1. `namesOnly` is `true` → the card's name. Stop.
-2. For `primary` (if not `null`), then each `fallbacks` entry in order: build the URL; skip it
+2. When the viewer's language has pictures and the card is on that language's card list: its
+   picture first (below). Then `primary` (if not `null`), then each `fallbacks` entry in order: build the URL; skip it
    if a placeholder it needs is unavailable; load the image; on success show it and stop. A
    load failure (network error, non-2xx, decode error, or 5 s timeout) moves to the next.
 3. Nothing loaded → the card's name.
 
 A source that failed may be skipped for the rest of the session after 3 consecutive failures;
 re-try it after a fresh `config.json` read.
+
+## Card pictures in the viewer's language (`localizedArt`)
+
+```json
+"localizedArt": {
+  "fr": {
+    "template": "https://cdn.kenbunshoku.com/l10n/fr/{sourceFile}",
+    "list": "https://cdn.kenbunshoku.com/l10n/fr/list.<first 16 of its sha256>.json",
+    "listSha256": "<64 lowercase hex>"
+  }
+}
+```
+
+- **Which language:** the browser's first preferred language, by its base subtag (`fr-CA` → `fr`).
+  There is no setting. A language the file does not offer, and English, show the usual pictures.
+- **Keys** are lowercase language codes (`fr`, `ja`), never `en`. A key of another shape is dropped.
+- **`template`** must use `{sourceFile}` and name an image host; the value of `{sourceFile}` comes
+  from the card list, not from the bundled map.
+- **`list`** is an https:// address on an image host: a JSON object `{ "<card id>": "<file>" }`, each
+  file a plain name (letters, digits, `.`, `_`, `-`). Its bytes must have the SHA-256
+  `listSha256`, or the language is not used. A card not on the list shows its usual picture at
+  once; that never counts as a failure of the language's source.
+- **Kill switch:** with `namesOnly` on, no picture in any language is shown and the card list is not
+  downloaded.
+- **Only official pictures:** the card list names pictures from Bandai's card list in that language,
+  matched to the catalog's printings by their artwork. A printing whose match is uncertain is left
+  off and shows its usual picture.
+- The picture's address names the language (`/l10n/fr/…`), so the CDN can see it, as it can already
+  see the `Accept-Language` header browsers send with every request.
 
 ## Failure rules
 
@@ -328,6 +359,11 @@ the package. Card names are shown as text. Keep the CDN tokens narrowly scoped (
 read and write) and on the maintainer's machine.
 
 ## Images on our CDN
+
+- Pictures in other languages: `l10n/<lang>/<file>`, each file named `<official id>.<first 8 of its
+  sha256>.<ext>` so that a replaced picture gets a new name; the card list is
+  `l10n/<lang>/list.<first 16 of its sha256>.json`. Both `Cache-Control: public, max-age=31536000, immutable`.
+  Published with `opcdn.py publish-l10n`, which prints the `localizedArt` entry to put in `config.json`.
 
 - Key: `art/<art path>`, exactly the catalog's `art` value (original bytes, as mirrored). The
   `Content-Type` comes from the bytes, not the name: some `.jpg` files hold PNG or WebP bytes.
