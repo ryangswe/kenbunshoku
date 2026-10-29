@@ -165,3 +165,58 @@ describe("resolveCardImage", () => {
     expect(health.skipped(source)).toBe(false);
   });
 });
+
+describe("WebP copies of the art (cdn/README.md, \"WebP copies\")", () => {
+  // The settings file moves the primary to a generation of WebP copies and keeps the originals as the
+  // first fallback; nothing in the extension changes, so every installed version follows it.
+  const webpSettings = (): Settings => ({
+    ...defaultSettings(),
+    primary: { id: "cdn", template: "https://cdn.kenbunshoku.com/art/webp1/{art}.webp" },
+    fallbacks: [
+      { id: "cdn-original", template: "https://cdn.kenbunshoku.com/art/{art}" },
+      { id: "optcgapi", template: "https://optcgapi.com/media/static/Card_Images/{sourceFile}" },
+    ],
+  });
+  const WEBP = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0x10, 0, 0, 0, 0x57, 0x45, 0x42, 0x50]);
+  const webp = () => new Response(WEBP, { status: 200, headers: { "content-type": "image/webp" } });
+  const decodeEither = async (blob: Blob): Promise<void> => {
+    const head = new Uint8Array(await blob.arrayBuffer()).slice(0, 12);
+    const isPng = PNG.every((b, i) => head[i] === b);
+    const isWebp = [0, 1, 2, 3, 8, 9, 10, 11].every((i) => head[i] === WEBP[i]);
+    if (!isPng && !isWebp) throw new Error("not a picture");
+  };
+  const loaderOf = (f: typeof fetch) => (url: string) => loadImage(url, { fetch: f, decode: decodeEither, timeoutMs: 50 });
+  const card = { id: "P-001_p1", art: "jp/P-001_p1.png" };
+  const copy = "https://cdn.kenbunshoku.com/art/webp1/jp/P-001_p1.png.webp";
+  const original = "https://cdn.kenbunshoku.com/art/jp/P-001_p1.png";
+
+  it("asks for the copy under the art path plus .webp, and shows it", async () => {
+    const f = fetchOf({ [copy]: webp(), [original]: png() });
+    const r = await resolveCardImage(card, webpSettings(), {}, new SourceHealth(), loaderOf(f));
+    expect(r.kind === "image" && r.sourceId).toBe("cdn");
+    expect(f.calls).toEqual([copy]);
+  });
+
+  it("shows the original when a copy is missing", async () => {
+    const f = fetchOf({ [copy]: new Response("", { status: 404 }), [original]: png() });
+    const r = await resolveCardImage(card, webpSettings(), {}, new SourceHealth(), loaderOf(f));
+    expect(r.kind === "image" && r.sourceId).toBe("cdn-original");
+  });
+
+  it("keeps showing originals once the copies are skipped for the session", async () => {
+    const health = new SourceHealth();
+    const f = fetchOf({ [copy]: "throw", [original]: png() });
+    for (let i = 0; i < SOURCE_FAILURE_LIMIT; i++) await resolveCardImage(card, webpSettings(), {}, health, loaderOf(f));
+    const before = f.calls.length;
+    const r = await resolveCardImage(card, webpSettings(), {}, health, loaderOf(f));
+    expect(r.kind === "image" && r.sourceId).toBe("cdn-original");
+    expect(f.calls.slice(before)).toEqual([original]);
+  });
+
+  it("asks nothing of either for a card without art", async () => {
+    const f = fetchOf({});
+    const r = await resolveCardImage({ id: "don_8", art: null }, webpSettings(), {}, new SourceHealth(), loaderOf(f));
+    expect(r.kind).toBe("names");
+    expect(f.calls).toEqual([]);
+  });
+});

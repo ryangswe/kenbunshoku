@@ -17,6 +17,8 @@ come from.
 |---|---|---|
 | `art/<art path>` | the image, original bytes, path = the catalog's `art` value (e.g. `OP01-001.png`, `jp/…png`) | `public, max-age=86400` |
 | `art/index.json` | every uploaded path with sha256 and size: the tool's record of what is live | `no-cache` |
+| `art/webp<N>/<art path>.webp` | a WebP copy of each image, generation N (below) | `public, max-age=31536000, immutable` |
+| `art/webp<N>/index.json` | each copy's sha256 and size, and the original it was made from | `no-cache` |
 | `config.json` | the extension's settings ([SETTINGS.md](SETTINGS.md)) | `public, max-age=300` |
 | `vision/geo/<source-16>/` | the geometric stage's packed card-feature index (below) | `public, max-age=31536000, immutable` |
 | `vision/releases/<id>/` | a card-recognition release installs may run instead of their bundled one (below) | `public, max-age=31536000, immutable` |
@@ -92,6 +94,46 @@ IMAGES=<the card mirror's image folder>    # the `art` paths are relative to it
 - **Exit codes:** 0 ok; 1 failed uploads or verify failures; 3 refused by a guard (nothing
   uploaded).
 
+## WebP copies (`art/webp<N>/`)
+
+Most originals are PNG (about 310 KB on average; 1.7 GB for 5,489 pictures). A generation folder
+holds a WebP copy of each at quality 75: about a third of the bytes, with no difference visible at the
+largest card size. Copies never change, so they are served immutable and a browser that has shown a
+card once never asks for it again. `config.json` switches to them by its primary template alone,
+which every installed version follows:
+
+```json
+"primary": { "id": "cdn", "template": "https://cdn.kenbunshoku.com/art/webp1/{art}.webp" },
+"fallbacks": [
+  { "id": "cdn-original", "template": "https://cdn.kenbunshoku.com/art/{art}" },
+  { "id": "optcgapi", "template": "https://optcgapi.com/media/static/Card_Images/{sourceFile}" }
+]
+```
+
+The originals stay where they are, as the first fallback: installs still on an older `config.json`
+(at most an hour) and the default bundled in each version keep loading them.
+
+```bash
+# needs Pillow (requirements.txt). What would be encoded, against the live bucket (uploads nothing)
+.venv/bin/python opcdn.py publish-webp --env-file .env --catalog $CATALOG --images $IMAGES --generation 1 --dry-run
+
+# Encode and upload the missing copies (8 at a time, each checked), then art/webp1/index.json
+.venv/bin/python opcdn.py publish-webp --env-file .env --catalog $CATALOG --images $IMAGES --generation 1
+
+# Read them back over HTTPS: every original covered, sampled copies' bytes, type, caching, CORS
+.venv/bin/python opcdn.py verify-webp --env-file .env --generation 1
+```
+
+- **A new set:** after `publish`, run `publish-webp` with the same catalog and generation; only the new
+  pictures are encoded. `publish --config` and `publish-release --config` refuse a `config.json` whose
+  primary names a generation that lacks a copy of any picture in `art/index.json` (a `namesOnly` file
+  is never held back), and `verify` checks the generation the live primary names.
+- **A replaced original** (a better scan): a generation never changes a copy, so `publish-webp` refuses
+  it. Publish every copy into the next generation (`--generation 2`), then point the primary at
+  `art/webp2/`. Viewers download each card once more; the old generation can stay.
+- A generation has one quality: a run at another `--quality` is refused (start a new generation).
+- A copy keeps its original's colour profile and transparency (the card's rounded corners).
+
 ## The geometric index (`vision/geo/`)
 
 The extension's extra-accuracy stage downloads a packed card-feature index (`cardvision
@@ -163,7 +205,8 @@ its art and its index, and the pointer moves last:
   equals another project's `R2_*` values found in the environment, or if the bucket or public
   base names one of the other projects in the tool's `FORBIDDEN_WORDS` list.
 - Every catalog `art` path must be a clean relative path to a jpg/png/webp under `--images`
-  (no `..`, no symlink escapes), at most 5 MB, whose bytes match its type.
+  (no `..`, no symlink escapes), at most 5 MB, whose bytes match its type, and outside `webp<N>/`
+  (the copies' folders).
 - `config.json` must pass the SETTINGS.md schema; its `primary` must be on `OPCDN_PUBLIC_BASE`;
   no template may point at those other projects.
 - A failed image upload leaves it out of `art/index.json` (a re-run retries it) and blocks
