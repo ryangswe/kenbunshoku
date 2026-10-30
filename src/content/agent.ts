@@ -471,7 +471,8 @@ export class Agent {
   }
 
   private readonly onMessage = (event: MessageEvent): void => {
-    if (event.origin !== this.extensionOrigin) return;
+    // A page script can make a message that looks like it came from our frames; the browser's own are trusted.
+    if (!this.trusted(event) || event.origin !== this.extensionOrigin) return;
     if (this.compute && event.source === this.compute.contentWindow) {
       const message = parseComputeOut(event.data);
       if (!message) return;

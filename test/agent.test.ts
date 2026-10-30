@@ -348,6 +348,23 @@ describe("Agent", () => {
     expect(tooltip()!.style.visibility).toBe("hidden");
   });
 
+  it("ignores messages a page script made, even with the right origin and source", async () => {
+    let trusted = true;
+    agent = new Agent({ dev: true, isTrusted: () => trusted });
+    agent.start();
+    agent.setEnabled(true);
+    await settle();
+    move(100, 100);
+    const sent = spyOn(compute());
+    fromFrame(compute(), { kind: "ready" });
+    trusted = false;
+    showCard({ cardId: "X-1", name: "x", box: { x: 0.1, y: 0.1, width: 0.1, height: 0.2 } });
+    fromFrame(compute(), { kind: "capture", requestId: 9, analysisWidth: { min: 720, max: 1920 } });
+    await settle();
+    expect(tooltip()!.style.visibility).toBe("hidden");
+    expect(sent.filter((m) => m.requestId === 9)).toEqual([]);
+  });
+
   it("is on for every video with nothing stored: no button, no per-channel switch", async () => {
     // No opt-in entry anywhere: the first move over the picture starts the session.
     agent = await startAgent();
