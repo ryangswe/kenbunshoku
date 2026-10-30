@@ -1,6 +1,6 @@
 {
   "name": "kenbunshoku",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Hover a One Piece Card Game card in a YouTube or Twitch video to see which card it is.",
   "license": "Apache-2.0",
   "private": true,
