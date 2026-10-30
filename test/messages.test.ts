@@ -1,13 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { allowedParentOrigin, MAX_FRAME_SIDE, parseComputeIn, parseFactsRequest, parseComputeOut, parseTooltipIn, parseTooltipOut, tag } from "../src/shared/messages.js";
+import { allowedParentOrigin, parseFactsRequest, parseTooltipIn, parseTooltipOut, TAG, tag } from "../src/shared/messages.js";
+import { computeProtocol, MAX_FRAME_SIDE } from "../vendor/cardvision-browser/compute-session.js";
+
+// The compute frame's messages are the toolkit's contract under our tag: our `tag()` and the
+// protocol's agree on the wire.
+const { parseComputeIn, parseComputeOut } = computeProtocol(TAG);
 
 /** Both sites on, whatever the build's config turns on (the config's own sites: build-data.test.ts). */
 const BOTH_SITES = { youtube: true, twitch: true };
 
 describe("message checks", () => {
-  it("round-trips every compute message the content script sends (bitmap aside)", () => {
+  it("round-trips every compute message the content script sends under our tag (bitmap aside)", () => {
     for (const m of [
       { kind: "pointer", x: 0.1, y: 1, mediaTime: 3.2, touch: false },
       { kind: "leave" },

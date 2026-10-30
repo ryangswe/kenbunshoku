@@ -11,7 +11,7 @@ import { describe, expect, it } from "vitest";
 import { releaseLegalProblem } from "../scripts/release-legal.mjs";
 // @ts-expect-error plain JavaScript build scripts
 import { buildSourceFileMaps } from "../scripts/card-data.mjs";
-import { buildCardTable } from "../src/shared/card-table.mjs";
+import { buildCardTable } from "../vendor/cardvision-browser/remote-release.js";
 // @ts-expect-error plain JavaScript build scripts
 import { buildManifest, UNPACKED_EXTENSION_ID } from "../scripts/manifest.mjs";
 // @ts-expect-error plain JavaScript build scripts

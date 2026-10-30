@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 // SPDX-License-Identifier: Apache-2.0
 // The content script in a page: trusted pointer events only, the frames it makes and remakes,
-// the capture gate, the tooltip's hide timer, leaving on a hidden tab, and teardown.
+// the toolkit's capture control as wired here (the gate, the handshake, trusted frame messages),
+// the tooltip's hide timer, leaving on a hidden tab, and teardown.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Agent, HIDE_DELAY_MS } from "../src/content/agent.js";
@@ -34,8 +35,17 @@ const compute = () => frames().find((f) => f.src.endsWith("/compute.html"));
 const tooltip = () => frames().find((f) => f.src.endsWith("/tooltip.html"));
 const outline = () => document.querySelector<HTMLElement>("[data-kenbunshoku=outline]");
 
+/** Whether the stand-in pointer events are the viewer's own (the browser's isTrusted). */
+let trustedEvents = true;
+
+function pointer(type: string, x: number, y: number, init: PointerEventInit = {}): void {
+  const event = new PointerEvent(type, { clientX: x, clientY: y, bubbles: true, ...init });
+  Object.defineProperty(event, "isTrusted", { value: trustedEvents });
+  document.dispatchEvent(event);
+}
+
 function move(x: number, y: number): void {
-  document.dispatchEvent(new PointerEvent("pointermove", { clientX: x, clientY: y, bubbles: true }));
+  pointer("pointermove", x, y);
 }
 
 /** Each frame's window, as a stand-in: nothing is loaded into the frames here. */
@@ -51,9 +61,9 @@ Object.defineProperty(HTMLIFrameElement.prototype, "contentWindow", {
   },
 });
 
-function message(data: unknown, origin: string, source: unknown): Event {
+function message(data: unknown, origin: string, source: unknown, isTrusted = true): Event {
   const event = new Event("message");
-  Object.defineProperties(event, { data: { value: data }, origin: { value: origin }, source: { value: source } });
+  Object.defineProperties(event, { data: { value: data }, origin: { value: origin }, source: { value: source }, isTrusted: { value: isTrusted } });
   return event;
 }
 
@@ -62,9 +72,17 @@ function fromFrame(frame: HTMLIFrameElement | undefined, data: object): void {
   window.dispatchEvent(message(tag(data), EXT, frame!.contentWindow));
 }
 
+const INSTANCE = "0123456789abcdef";
+
+/** The compute frame says ready (contract version 1); the same instance again changes nothing. */
+function computeReady(instance = INSTANCE): void {
+  fromFrame(compute(), { kind: "ready", version: 1, instance });
+}
+
 /** The compute frame names a card, and the tooltip frame answers with its size for it (the
  *  frame is shown only once that size has come). */
 function showCard(card: { cardId: string; name: string; box: { x: number; y: number; width: number; height: number } }): void {
+  computeReady();
   fromFrame(compute(), { kind: "shown", card });
   fromFrame(tooltip(), { kind: "size", width: 320, height: 448, shape: "card", cardId: card.cardId });
 }
@@ -94,7 +112,8 @@ const settle = async () => {
 };
 
 async function startAgent(trusted = true): Promise<Agent> {
-  const a = new Agent({ dev: true, isTrusted: () => trusted });
+  trustedEvents = trusted;
+  const a = new Agent({ dev: true });
   a.start();
   a.setEnabled(true);
   await settle();
@@ -103,10 +122,7 @@ async function startAgent(trusted = true): Promise<Agent> {
 
 describe("Agent", () => {
   it("ignores pointer events a page script made", async () => {
-    agent = new Agent({ dev: true });
-    agent.start();
-    agent.setEnabled(true);
-    await settle();
+    agent = await startAgent(false);
     move(100, 100);
     expect(frames()).toEqual([]);
   });
@@ -134,17 +150,17 @@ describe("Agent", () => {
     agent = await startAgent();
     move(100, 100);
     const sent = spyOn(compute());
-    fromFrame(compute(), { kind: "ready" });
+    computeReady();
     move(100, 600);
     fromFrame(compute(), { kind: "capture", requestId: 7, analysisWidth: { min: 720, max: 1920 } });
-    expect(sent.at(-1)).toMatchObject({ kind: "capture-failed", requestId: 7, reason: "no pointer over the player" });
+    expect(sent.at(-1)).toMatchObject({ kind: "capture-failed", requestId: 7, reason: "not pointing at the video" });
   });
 
   it("tells the compute frame the pointer left when the tab is hidden", async () => {
     agent = await startAgent();
     move(100, 100);
     const sent = spyOn(compute());
-    fromFrame(compute(), { kind: "ready" });
+    computeReady();
     Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
     document.dispatchEvent(new Event("visibilitychange"));
     expect(sent.at(-1)).toMatchObject({ kind: "leave" });
@@ -174,7 +190,7 @@ describe("Agent", () => {
     agent = await startAgent();
     move(100, 100);
     fromFrame(tooltip(), { kind: "ready" });
-    fromFrame(compute(), { kind: "ready" });
+    computeReady();
     showCard({ cardId: "OP01-001", name: "Zoro", box: { x: 0.1, y: 0.1, width: 0.1, height: 0.2 } });
     expect(tooltip()!.style.visibility).toBe("visible");
     expect(document.querySelector("[data-kenbunshoku=link]")).toBeNull();
@@ -261,7 +277,7 @@ describe("Agent", () => {
     agent = await startAgent();
     move(100, 100);
     const sent = spyOn(compute());
-    fromFrame(compute(), { kind: "ready" });
+    computeReady();
     video.dispatchEvent(new Event("timeupdate"));
     Object.assign(media, { paused: true, readyState: 1, currentTime: 0 });
     move(120, 100);
@@ -288,7 +304,7 @@ describe("Agent", () => {
     agent = await startAgent();
     move(100, 100);
     const sent = spyOn(compute());
-    fromFrame(compute(), { kind: "ready" });
+    computeReady();
     video.dispatchEvent(new Event("timeupdate"));
     video.dispatchEvent(new Event("emptied"));
     Object.assign(media, { paused: true, readyState: 1, currentTime: 0 });
@@ -309,7 +325,7 @@ describe("Agent", () => {
       agent = await startAgent();
       move(100, 100);
       const sent = spyOn(compute());
-      fromFrame(compute(), { kind: "ready" });
+      computeReady();
       video.dispatchEvent(new Event("timeupdate"));
       Object.assign(media, { paused: true, readyState: 1, currentTime: 0 });
       move(120, 100);
@@ -321,22 +337,17 @@ describe("Agent", () => {
     }
   });
 
-  it("sends the pointer even when the browser holds back animation frames", async () => {
-    vi.useFakeTimers();
+  it("sends one pointer message per trusted move, with no animation-frame throttle (owner, 10-29)", async () => {
     vi.stubGlobal("requestAnimationFrame", () => 7);
-    vi.stubGlobal("cancelAnimationFrame", () => undefined);
     agent = await startAgent();
     move(100, 100);
-    void compute()!.contentWindow;
     const sent = spyOn(compute());
-    fromFrame(compute(), { kind: "ready" });
+    computeReady();
+    sent.length = 0;
     move(130, 120);
-    expect(sent.filter((m) => m.kind === "pointer")).toEqual([]);
-    vi.advanceTimersByTime(60);
-    expect(sent.filter((m) => m.kind === "pointer")).toHaveLength(1);
     move(140, 120);
-    vi.advanceTimersByTime(60);
-    expect(sent.filter((m) => m.kind === "pointer")).toHaveLength(2);
+    move(150, 120);
+    expect(sent.filter((m) => m.kind === "pointer")).toHaveLength(3);
   });
 
   it("ignores messages that do not come from its own frames", async () => {
@@ -367,7 +378,7 @@ describe("Agent", () => {
     agent = await startAgent();
     move(100, 100);
     const sent = spyOn(compute());
-    fromFrame(compute(), { kind: "ready" });
+    computeReady();
     vi.stubGlobal("location", new URL("http://127.0.0.1:8770/other"));
     window.dispatchEvent(new Event("popstate"));
     fromFrame(compute(), { kind: "capture", requestId: 9, analysisWidth: { min: 720, max: 1920 } });
@@ -544,6 +555,7 @@ describe("Agent", () => {
     agent = await startAgent();
     move(100, 100);
     fromFrame(tooltip(), { kind: "ready" });
+    computeReady();
     fromFrame(compute(), { kind: "shown", card: { cardId: "OP01-001", name: "x", box: { x: 0.1, y: 0.1, width: 0.1, height: 0.2 } } });
     expect(tooltip()!.style.visibility).toBe("hidden");
     expect(outline()!.style.display).toBe("none");
@@ -665,6 +677,7 @@ describe("Agent", () => {
     agent = await startAgent();
     move(100, 100);
     fromFrame(tooltip(), { kind: "ready" });
+    computeReady();
     const card = { cardId: "OP01-001", name: "x", box: { x: 0.1, y: 0.1, width: 0.1, height: 0.2 } };
     const sent = spyOn(tooltip());
     fromFrame(compute(), { kind: "shown", card });
@@ -714,5 +727,166 @@ describe("Agent", () => {
     expect(frames()).toHaveLength(0);
     move(100, 100);
     expect(frames()).toHaveLength(0);
+  });
+});
+
+// The toolkit's capture control (page-capture.js) as this content script wires it: the checks
+// from the toolkit 0.6.0 outside review, at the level a page's DOM allows. Each capture asked
+// here is refused or tried; a refusal is a `capture-failed` with `retry: false`.
+describe("Agent and the toolkit's capture control", () => {
+  let clock = 1_000;
+  const capture = (requestId: number) => fromFrame(compute(), { kind: "capture", requestId, analysisWidth: { min: 720, max: 1920 } });
+  const answer = (sent: Array<Record<string, unknown>>, requestId: number) => sent.filter((m) => m.requestId === requestId).at(-1);
+  /** True when the gate refused; false when the capture was tried (it answered something else). */
+  const refused = (sent: Array<Record<string, unknown>>, requestId: number) => {
+    const m = answer(sent, requestId);
+    if (!m) throw new Error(`capture ${requestId} was not answered`);
+    return m.kind === "capture-failed" && m.retry === false && m.reason === "not pointing at the video";
+  };
+
+  beforeEach(() => {
+    clock = 1_000;
+    vi.spyOn(performance, "now").mockImplementation(() => clock);
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it("1: ignores a made-up message from the page that names the compute frame as its source", async () => {
+    agent = await startAgent();
+    move(100, 100);
+    computeReady();
+    fromFrame(tooltip(), { kind: "ready" });
+    const card = { cardId: "OP01-001", name: "Forged", box: { x: 0.1, y: 0.1, width: 0.1, height: 0.2 } };
+    const sent = spyOn(compute());
+    // Source and origin are both right; the browser did not make the event.
+    window.dispatchEvent(message(tag({ kind: "shown", card }), EXT, compute()!.contentWindow, false));
+    window.dispatchEvent(message(tag({ kind: "capture", requestId: 41, analysisWidth: { min: 720, max: 1920 } }), EXT, compute()!.contentWindow, false));
+    window.dispatchEvent(message(tag({ kind: "size", width: 900, height: 900, shape: "card", cardId: "OP01-001" }), EXT, tooltip()!.contentWindow, false));
+    expect(spyOn(tooltip()).filter((m) => m.kind === "card")).toEqual([]);
+    expect(answer(sent, 41)).toBeUndefined();
+    expect(tooltip()!.style.width).not.toBe("900px");
+  });
+
+  it("2: refuses before any hover, after the pointer leaves, in a background tab, and after another video", async () => {
+    agent = await startAgent();
+    move(100, 100);
+    computeReady();
+    const sent = spyOn(compute());
+    // A move off the picture ends the hover.
+    move(100, 600);
+    capture(1);
+    expect(refused(sent, 1)).toBe(true);
+    // Back over it: allowed (tried; the stand-in canvas has no 2D context).
+    move(100, 100);
+    capture(2);
+    await settle();
+    expect(refused(sent, 2)).toBe(false);
+    // The tab goes to the background.
+    Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+    capture(3);
+    expect(refused(sent, 3)).toBe(true);
+    Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+    // The pointer leaves the document.
+    move(100, 100);
+    const leave = new PointerEvent("pointerleave", { pointerType: "mouse" });
+    Object.defineProperty(leave, "isTrusted", { value: true });
+    document.documentElement.dispatchEvent(leave);
+    capture(4);
+    expect(refused(sent, 4)).toBe(true);
+  });
+
+  it("2: a video that moved away under a resting pointer (a keyboard scroll) is refused", async () => {
+    agent = await startAgent();
+    move(100, 100);
+    computeReady();
+    const sent = spyOn(compute());
+    video.getBoundingClientRect = () => ({ left: 0, top: -800, width: 960, height: 540, right: 960, bottom: -260, x: 0, y: -800, toJSON() {} }) as DOMRect;
+    capture(5);
+    expect(refused(sent, 5)).toBe(true);
+  });
+
+  it("switching to another video tells the compute frame of a new source and clears the gate", async () => {
+    agent = await startAgent();
+    move(100, 100);
+    computeReady();
+    const sent = spyOn(compute());
+    sent.length = 0;
+    // A larger video appears; the next pick (after the 1 s recheck) takes it.
+    const other = makeVideo();
+    other.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1280, height: 720, right: 1280, bottom: 720, x: 0, y: 0, toJSON() {} }) as DOMRect;
+    clock += 1_500;
+    move(100, 100);
+    expect(sent.filter((m) => m.kind === "discontinuity")).toContainEqual(expect.objectContaining({ kind: "discontinuity", newSource: true }));
+    // The move that picked it is over its picture: a hover on the new video.
+    capture(6);
+    await settle();
+    expect(refused(sent, 6)).toBe(false);
+  });
+
+  it("rest cap: a card showing under a resting pointer keeps pictures coming for at most 60 s", async () => {
+    agent = await startAgent();
+    move(100, 100);
+    computeReady();
+    const sent = spyOn(compute());
+    // Past the 10 s grace, a card showing keeps the authority.
+    fromFrame(compute(), { kind: "shown", card: { cardId: "OP01-001", name: "Zoro", box: { x: 0.05, y: 0.1, width: 0.1, height: 0.3 } } });
+    clock += 30_000;
+    fromFrame(compute(), { kind: "shown", card: { cardId: "OP01-001", name: "Zoro", box: { x: 0.05, y: 0.1, width: 0.1, height: 0.3 } } });
+    capture(7);
+    await settle();
+    expect(refused(sent, 7)).toBe(false);
+    // 60 s after the last movement: no more, card or not.
+    clock += 30_000;
+    capture(8);
+    expect(refused(sent, 8)).toBe(true);
+    // A fresh move starts it again.
+    move(102, 100);
+    capture(9);
+    await settle();
+    expect(refused(sent, 9)).toBe(false);
+  });
+
+  it("3: a tap allows a picture after the finger lifts, for 10 s, and a card showing does not stretch it", async () => {
+    agent = await startAgent();
+    pointer("pointerdown", 100, 100, { pointerType: "touch", pointerId: 5 });
+    computeReady();
+    const sent = spyOn(compute());
+    pointer("pointerup", 100, 100, { pointerType: "touch", pointerId: 5 });
+    capture(10);
+    await settle();
+    expect(refused(sent, 10)).toBe(false);
+    fromFrame(compute(), { kind: "shown", card: { cardId: "OP01-001", name: "Zoro", box: { x: 0.05, y: 0.1, width: 0.1, height: 0.3 } } });
+    clock += 10_000;
+    capture(11);
+    expect(refused(sent, 11)).toBe(true);
+  });
+
+  it("4: another contract version never captures; the same frame saying ready twice changes nothing", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    agent = await startAgent();
+    move(100, 100);
+    const sent = spyOn(compute());
+    fromFrame(compute(), { kind: "ready", version: 2, instance: INSTANCE });
+    capture(12);
+    expect(answer(sent, 12)).toBeUndefined();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("reload the page"));
+    computeReady();
+    move(101, 100);
+    sent.length = 0;
+    computeReady();
+    // An answer to a repeated hello: no new presented, no pointer resent.
+    expect(sent).toEqual([]);
+  });
+
+  it("4: a compute frame the page removed is made again, says hello, and is told the picture's time and the pointer", async () => {
+    agent = await startAgent();
+    move(100, 100);
+    computeReady();
+    compute()!.remove();
+    move(110, 100);
+    const sent = spyOn(compute());
+    expect(sent.filter((m) => m.kind === "hello")).toHaveLength(1);
+    computeReady("fedcba9876543210");
+    expect(sent.map((m) => m.kind)).toEqual(expect.arrayContaining(["presented", "pointer"]));
   });
 });

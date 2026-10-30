@@ -57,7 +57,8 @@ Below them are two links, to the project page and to the open-source toolkit it 
 
 The first time you point at a video in a tab, the recognition model starts, which takes a
 moment. Recognition runs only while the pointer is over the video, and stops by itself 10 seconds after
-you stop moving it, unless a card is showing under the resting pointer. It stops at once when
+you stop moving it, unless a card is showing under the resting pointer, and always 60 seconds after
+you last moved it. It stops at once when
 the pointer leaves the video or the tab goes to the background.
 
 ## Extra accuracy (WebGPU)
