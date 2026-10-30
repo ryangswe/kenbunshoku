@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 // The content script's work in a video page.
 //
-//   - It follows the page's main video (the largest one on show) and the pointer over its
-//     picture, and reports both to the compute frame. Nothing is analyzed until the pointer
-//     first comes over a picture: that is when the two frames are created and the model loads.
-//   - When the compute frame asks, it draws the current picture at analysis size and transfers
-//     it there. Pictures go only to that frame, which is the extension's own; nothing is sent
-//     over the network.
+//   - It follows the page's main video (the largest one on show) and hands it to the toolkit's
+//     capture control (vendored page-capture.js, createCaptureControl; its contract is the
+//     toolkit's docs/extension-session.md). The control reports the video and the pointer to the
+//     compute frame, and takes a picture when the frame asks, only on the authority of the
+//     viewer's own (trusted) pointer events: a hover over the picture, for 10 seconds after the
+//     pointer last moved there, then while a card shows under the resting pointer (until 5
+//     seconds after it stops showing), and never more than 60 seconds after the last movement;
+//     a tap, for 10 seconds. Pictures go only to that frame, which is the extension's own;
+//     nothing is sent over the network.
+//   - Nothing is analyzed until the pointer first comes over a picture: that is when the two
+//     frames are created and the model loads.
 //   - It shows the tooltip frame (the card's picture alone, or its name) beside the card the
 //     compute frame names, placed off the cards around it and scaled down when the page has no
 //     room for it, and hides it shortly after. Nothing it shows takes the pointer: hovering goes
@@ -17,15 +22,15 @@
 //     the only control), but dormant until the pointer first comes over a picture: until then no
 //     frame is made, no model loads and nothing is downloaded, so a video nobody points at costs
 //     nothing. The popup's switch turned off removes the frames again.
-//   - A paused live Twitch stream resets its <video> (no current frame, time 0) but keeps the
-//     last frame on screen, and that frame can still be drawn. While a video is paused that way
-//     ("frozen"), pictures are taken from it anyway, at the time it showed before the pause.
+//   - Messages from its frames are taken only when the browser marks them as trusted and they
+//     come from that frame and the extension's origin (fromExtensionFrame): a page cannot make up
+//     a card for the tooltip or a capture request.
 
 import { CONFIG } from "../config.js";
 import { MIN_VIDEO_WIDTH } from "../constants.js";
-import { type ComputeIn, parseComputeOut, parseTooltipOut, type ShownCard, tag, type TooltipIn, type TooltipSize } from "../shared/messages.js";
-import { captureAllowed } from "./gate.js";
-import { analysisSize, availableSpace, fitBesideCard, fitTooltipSize, fractionIn, pictureRect, placeTooltipAvoiding, type Rect, scaleTooltipSize, tooltipRadius } from "./geometry.js";
+import { parseTooltipOut, TAG, tag, type TooltipIn, type TooltipSize } from "../shared/messages.js";
+import { type CaptureControl, computeProtocol, createCaptureControl, fromExtensionFrame, type ShownCard } from "../../vendor/cardvision-browser/page-capture.js";
+import { availableSpace, fitBesideCard, fitTooltipSize, fractionIn, pictureRect, placeTooltipAvoiding, type Rect, scaleTooltipSize, tooltipRadius } from "./geometry.js";
 import { isActivePage } from "./site.js";
 import { CardOutline, outlineRect } from "./outline.js";
 
@@ -37,29 +42,6 @@ function sameSize(a: { width: number; height: number }, b: { width: number; heig
 const SIZE_HYSTERESIS_PX = 8;
 /** The tooltip goes this long after the card is no longer under the pointer. */
 export const HIDE_DELAY_MS = 120;
-/** A pointer position waits at most this long for an animation frame before it is sent. */
-const POINTER_FLUSH_MS = 50;
-
-/** Whether a drawn picture is empty: a 16 x 16 reduction of it with almost no variation. */
-function blank(ctx: CanvasRenderingContext2D, _width: number, _height: number): boolean {
-  const n = 16;
-  const small = document.createElement("canvas");
-  small.width = n;
-  small.height = n;
-  const s = small.getContext("2d");
-  if (!s) return false;
-  s.drawImage(ctx.canvas, 0, 0, n, n);
-  const d = s.getImageData(0, 0, n, n).data;
-  let sum = 0;
-  let sum2 = 0;
-  for (let i = 0; i < d.length; i += 4) {
-    const l = (d[i]! + d[i + 1]! + d[i + 2]!) / 3;
-    sum += l;
-    sum2 += l * l;
-  }
-  const mean = sum / (n * n);
-  return sum2 / (n * n) - mean * mean < 9;
-}
 const VIDEO_RECHECK_MS = 1_000;
 /** The extension's frames in the page: `all:initial` first, so none of the page's styles for
  *  iframes reach them. */
@@ -67,8 +49,6 @@ const FRAME_STYLE = "all:initial;position:fixed;display:block;border:0;margin:0;
 
 export interface AgentOptions {
   dev: boolean;
-  /** Whether an event came from the user; replaceable for tests. Default: `event.isTrusted`. */
-  isTrusted?: (event: Event) => boolean;
 }
 
 export class Agent {
@@ -76,12 +56,10 @@ export class Agent {
   private video: HTMLVideoElement | null = null;
   private videoPickedAt = -Infinity;
   private detachVideo: (() => void) | null = null;
-  private canvas: HTMLCanvasElement | null = null;
-  /** Whether the current canvas was shown to be readable (checked once per canvas). */
-  private canvasReadable = false;
+  /** The toolkit's capture control: the gate, the handshake, the video's events and the pictures. */
+  private control: CaptureControl | null = null;
 
   private compute: HTMLIFrameElement | null = null;
-  private computeReady = false;
   private tooltip: HTMLIFrameElement | null = null;
   private tooltipReady = false;
   /** The tooltip's own size (tooltip.ts), before it is fitted into the page. */
@@ -92,13 +70,6 @@ export class Agent {
   private cardScale = 1;
   private pendingTooltip: TooltipIn | null = null;
 
-  private inside = false;
-  private lastTrustedPointerAt = -Infinity;
-  private lastTooltipAt = -Infinity;
-  private pendingPointer: ComputeIn | null = null;
-  private pointerFlush = 0;
-  private pointerFlushTimer: ReturnType<typeof setTimeout> | undefined;
-  private pointerFlushPending = false;
   private shown: ShownCard | null = null;
   private displayedCardId: string | null = null;
   /** The card the tooltip shows (also while it is held for the quick hide), for re-placing it. */
@@ -116,28 +87,49 @@ export class Agent {
   private loadError: string | null = null;
   /** The outline around the card the tooltip names (a shadow root in the page). */
   private outline: CardOutline | null = null;
-  /** The video's time while it last played; what a frozen (paused live) picture is dated. */
-  private lastPlayingTime: number | null = null;
+  private stopListening: (() => void) | null = null;
 
   /** `chrome-extension://<id>`: the extension's base address without its trailing slash. */
   private readonly extensionOrigin = chrome.runtime.getURL("").replace(/\/$/, "");
 
   constructor(private readonly options: AgentOptions) {}
 
-  private trusted(event: Event): boolean {
-    return (this.options.isTrusted ?? ((e: Event) => e.isTrusted))(event);
-  }
-
   start(): void {
-    document.addEventListener("pointermove", this.onPointer, { capture: true, passive: true });
-    document.addEventListener("pointerdown", this.onPointer, { capture: true, passive: true });
-    document.documentElement.addEventListener("pointerleave", this.onWindowLeave, { passive: true });
+    // Ours first: the same trusted event that first comes over a picture attaches the video and
+    // makes the frames, then reaches the control (both on the window, in the capture phase).
+    window.addEventListener("pointermove", this.onPointer, { capture: true, passive: true });
+    window.addEventListener("pointerdown", this.onPointer, { capture: true, passive: true });
+    this.control = createCaptureControl({
+      protocol: computeProtocol(TAG),
+      frame: () => this.compute?.contentWindow ?? null,
+      frameOrigin: this.extensionOrigin,
+      onShown: (card) => {
+        this.shown = card;
+        this.updateTooltip();
+      },
+      onStatus: (status) => {
+        if (status.state === "failed" && status.error !== this.loadError) {
+          this.loadError = status.error;
+          // The page's own console only; nothing is reported anywhere.
+          console.warn(`${CONFIG.name}: the card recognition model did not load (${status.error ?? "unknown reason"}).`);
+        }
+      },
+      onProblem: (problem) => {
+        // A compute frame of another version (an update half applied): nothing is captured.
+        if (problem.kind === "version") console.warn(`${CONFIG.name}: reload the page to finish updating the extension.`);
+      },
+    });
+    this.stopListening = this.control.listen(window, document);
     window.addEventListener("message", this.onMessage);
     document.addEventListener("fullscreenchange", this.onFullscreen);
-    document.addEventListener("visibilitychange", this.onVisibility);
     // The page moving under a held card: the tooltip and the outline follow it.
     window.addEventListener("resize", this.onLayout, { passive: true });
     document.addEventListener("scroll", this.onScroll, { capture: true, passive: true });
+  }
+
+  /** Whether the viewer's pointer holds capture authority now (the control's gate). */
+  private pointing(): boolean {
+    return this.control?.gateState().inside ?? false;
   }
 
   /** A scroll that can move the video: the page's own, or a box holding the player. Others (a
@@ -166,23 +158,20 @@ export class Agent {
     });
   };
 
-  /** The tab went to the background: the pointer is gone, so analysis stops. */
-  private readonly onVisibility = (): void => {
-    if (document.visibilityState === "hidden" && this.inside) this.leave();
-  };
-
   /** Stop listening and remove everything the agent added to the page. */
   stop(): void {
-    document.removeEventListener("pointermove", this.onPointer, { capture: true });
-    document.removeEventListener("pointerdown", this.onPointer, { capture: true });
-    document.documentElement.removeEventListener("pointerleave", this.onWindowLeave);
+    window.removeEventListener("pointermove", this.onPointer, { capture: true });
+    window.removeEventListener("pointerdown", this.onPointer, { capture: true });
     window.removeEventListener("message", this.onMessage);
     document.removeEventListener("fullscreenchange", this.onFullscreen);
-    document.removeEventListener("visibilitychange", this.onVisibility);
     window.removeEventListener("resize", this.onLayout);
     document.removeEventListener("scroll", this.onScroll, { capture: true });
     this.enabled = false;
     this.teardown();
+    this.stopListening?.();
+    this.stopListening = null;
+    this.control?.stop();
+    this.control = null;
   }
 
   /** The popup's card size changed (a percentage, already clamped): a card on show is fitted
@@ -201,54 +190,18 @@ export class Agent {
   }
 
   // ------------------------------------------------------------------ the pointer
+  /** Picks the video and makes the frames; the control itself takes the pointer for the gate. */
   private readonly onPointer = (event: PointerEvent): void => {
-    // Only the user's own pointer counts: events a page script makes are ignored.
-    if (!this.trusted(event)) return;
+    // Only the viewer's own pointer counts: events a page script makes are ignored.
+    if (event.isTrusted !== true) return;
     if (!this.enabled || !isActivePage(new URL(location.href), this.options.dev)) {
-      if (this.inside) this.leave();
+      this.attachVideo(null);
       return;
     }
     const video = this.currentVideo();
-    if (!video) {
-      if (this.inside) this.leave();
-      return;
-    }
     // The first trusted move over a picture starts the page's session (the frames, the model).
-    const at = fractionIn(this.pictureOf(video), event.clientX, event.clientY);
-    if (!at) {
-      if (this.inside) this.leave();
-      return;
-    }
-    this.inside = true;
-    this.lastTrustedPointerAt = performance.now();
-    this.ensureFrames();
-    this.pendingPointer = { kind: "pointer", x: at.x, y: at.y, mediaTime: this.mediaTimeOf(video), touch: event.pointerType === "touch" };
-    // One message per frame at most; a timer backs up the animation frame, which a browser may
-    // hold back (a window it thinks is hidden), so that a pointer position is never left unsent.
-    if (!this.pointerFlushPending) {
-      this.pointerFlushPending = true;
-      const flush = (): void => {
-        if (!this.pointerFlushPending) return;
-        this.pointerFlushPending = false;
-        cancelAnimationFrame(this.pointerFlush);
-        clearTimeout(this.pointerFlushTimer);
-        if (this.pendingPointer) this.toCompute(this.pendingPointer);
-        this.pendingPointer = null;
-      };
-      this.pointerFlush = requestAnimationFrame(flush);
-      this.pointerFlushTimer = setTimeout(flush, POINTER_FLUSH_MS);
-    }
+    if (video && fractionIn(this.pictureOf(video), event.clientX, event.clientY)) this.ensureFrames();
   };
-
-  private readonly onWindowLeave = (): void => {
-    if (this.inside) this.leave();
-  };
-
-  private leave(): void {
-    this.inside = false;
-    this.pendingPointer = null;
-    this.toCompute({ kind: "leave" });
-  }
 
   // ------------------------------------------------------------------ the video
   private currentVideo(): HTMLVideoElement | null {
@@ -265,139 +218,33 @@ export class Agent {
         bestArea = area;
       }
     }
-    if (best !== this.video) this.attachVideo(best);
+    this.attachVideo(best);
     return best;
-  }
-
-  /** A paused live stream whose <video> was reset (no current frame) while its last frame stays
-   *  on screen. */
-  private frozen(video: HTMLVideoElement): boolean {
-    return video.paused && video.readyState < 2 && video.videoWidth > 0;
-  }
-
-  /** The time of the picture on screen: for a frozen video, its time when it last played. */
-  private mediaTimeOf(video: HTMLVideoElement): number {
-    return this.frozen(video) && this.lastPlayingTime !== null ? this.lastPlayingTime : video.currentTime;
   }
 
   private pictureOf(video: HTMLVideoElement): Rect {
     return pictureRect(video.getBoundingClientRect(), { width: video.videoWidth, height: video.videoHeight }, getComputedStyle(video).objectFit);
   }
 
+  /** Hand the video to the control (another video clears the gate and is a new source to the
+   *  frame), and follow its box for the tooltip. */
   private attachVideo(video: HTMLVideoElement | null): void {
+    if (video === this.video) return;
     this.detachVideo?.();
     this.detachVideo = null;
     this.video = video;
-    this.lastPlayingTime = null;
-    // A canvas that once read a picture it may not read stays unreadable: a new one per video.
-    this.canvas = null;
-    this.toCompute({ kind: "discontinuity", newSource: true });
+    this.control?.attach(video);
     if (!video) return;
-    const seeking = (): void => this.toCompute({ kind: "discontinuity", newSource: false });
-    // A video that becomes ready re-arms analysis (a paused one presents no other frame).
-    const ready = (): void => this.toCompute({ kind: "presented", mediaTime: this.mediaTimeOf(video) });
-    video.addEventListener("canplay", ready);
-    video.addEventListener("playing", ready);
-    const newSource = (): void => {
-      this.canvas = null;
-      // Another source: the time it last played is not this picture's.
-      this.lastPlayingTime = null;
-      this.toCompute({ kind: "discontinuity", newSource: true });
-    };
-    const presented = (): void => {
-      if (!video.paused && video.readyState >= 2) this.lastPlayingTime = video.currentTime;
-      this.toCompute({ kind: "presented", mediaTime: this.mediaTimeOf(video) });
-    };
-    video.addEventListener("seeking", seeking);
-    video.addEventListener("emptied", newSource);
-    video.addEventListener("loadeddata", newSource);
-    video.addEventListener("timeupdate", presented);
-    video.addEventListener("seeked", presented);
     // The player resized (theater mode, the site's own layout): see onLayout.
     const observer = typeof ResizeObserver === "function" ? new ResizeObserver(() => this.onLayout()) : null;
     observer?.observe(video);
-    this.detachVideo = () => {
-      observer?.disconnect();
-      video.removeEventListener("seeking", seeking);
-      video.removeEventListener("emptied", newSource);
-      video.removeEventListener("loadeddata", newSource);
-      video.removeEventListener("timeupdate", presented);
-      video.removeEventListener("seeked", presented);
-      video.removeEventListener("canplay", ready);
-      video.removeEventListener("playing", ready);
-    };
-  }
-
-  /** Draw the current picture at analysis size and transfer it to the compute frame. */
-  private async capture(requestId: number, range: { min: number; max: number }): Promise<void> {
-    const video = this.video;
-    // `retry`: the picture itself could not be had (not ready yet, or blank): worth asking again.
-    const fail = (reason: string, retry = false): void => this.toCompute({ kind: "capture-failed", requestId, reason, retry });
-    const gate = {
-      inside: this.inside,
-      lastTrustedPointerAt: this.lastTrustedPointerAt,
-      tooltipShowing: this.displayedCardId !== null,
-      lastTooltipAt: this.lastTooltipAt,
-    };
-    if (!captureAllowed(gate, performance.now())) {
-      fail("no pointer over the player");
-      return;
-    }
-    if (!video || !video.isConnected || video.videoWidth === 0) {
-      fail("no picture", true);
-      return;
-    }
-    const frozen = this.frozen(video);
-    if (video.readyState < 2 && !frozen) {
-      fail("no picture", true);
-      return;
-    }
-    const size = analysisSize(video.videoWidth, video.videoHeight, range);
-    if (!this.canvas) {
-      this.canvas = document.createElement("canvas");
-      this.canvasReadable = false;
-    }
-    const canvas = this.canvas;
-    canvas.width = size.width;
-    canvas.height = size.height;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      fail("no 2d context");
-      return;
-    }
-    const mediaTime = this.mediaTimeOf(video);
-    try {
-      ctx.drawImage(video, 0, 0, size.width, size.height);
-      // A frozen video may draw nothing (black or one colour): then there is no picture.
-      if (frozen && blank(ctx, size.width, size.height)) {
-        this.canvasReadable = true;
-        fail("no picture (the paused video draws nothing)", true);
-        return;
-      }
-      // Throws when the picture may not be read (a video from another origin): say so rather
-      // than send a picture the worker cannot read. Once per canvas: a read-back is not free.
-      if (!this.canvasReadable) {
-        ctx.getImageData(0, 0, 1, 1);
-        this.canvasReadable = true;
-      }
-      const bitmap = await createImageBitmap(canvas);
-      if (!this.compute?.contentWindow) {
-        bitmap.close();
-        return;
-      }
-      this.compute.contentWindow.postMessage(tag({ kind: "frame", requestId, bitmap, mediaTime }), this.extensionOrigin, [bitmap]);
-    } catch (error) {
-      fail(error instanceof DOMException && error.name === "SecurityError" ? "the video may not be read" : String(error));
-    }
+    this.detachVideo = () => observer?.disconnect();
   }
 
   // ------------------------------------------------------------------ the frames
   private ensureFrames(): void {
     // A frame the page removed is made again.
-    if (this.compute && !this.compute.isConnected) {
-      this.compute = null;
-      this.computeReady = false;
-    }
+    if (this.compute && !this.compute.isConnected) this.compute = null;
     if (this.tooltip && !this.tooltip.isConnected) {
       this.tooltip = null;
       this.tooltipReady = false;
@@ -412,9 +259,11 @@ export class Agent {
       // not rendered.
       frame.style.cssText = `${FRAME_STYLE}width:1px;height:1px;left:-10px;top:-10px;opacity:0;pointer-events:none;`;
       frame.src = chrome.runtime.getURL("compute.html");
-      this.computeReady = false;
       document.documentElement.appendChild(frame);
       this.compute = frame;
+      // Hello until the new frame says ready; the control then tells it the picture's time and
+      // the pointer that started it.
+      this.control?.connect();
     }
     if (!this.tooltip) this.createTooltip();
   }
@@ -457,11 +306,6 @@ export class Agent {
     if (held && this.video) this.showTooltip(held, this.video);
   };
 
-  private toCompute(message: ComputeIn): void {
-    if (!this.compute?.contentWindow || !this.computeReady) return;
-    this.compute.contentWindow.postMessage(tag(message), this.extensionOrigin);
-  }
-
   private toTooltip(message: TooltipIn): void {
     if (!this.tooltip?.contentWindow || !this.tooltipReady) {
       this.pendingTooltip = message;
@@ -471,55 +315,30 @@ export class Agent {
   }
 
   private readonly onMessage = (event: MessageEvent): void => {
-    if (event.origin !== this.extensionOrigin) return;
-    if (this.compute && event.source === this.compute.contentWindow) {
-      const message = parseComputeOut(event.data);
-      if (!message) return;
-      switch (message.kind) {
-        case "ready":
-          this.computeReady = true;
-          if (this.video) this.toCompute({ kind: "presented", mediaTime: this.mediaTimeOf(this.video) });
-          break;
-        case "status":
-          if (message.state === "failed" && message.error !== this.loadError) {
-            this.loadError = message.error;
-            // The page's own console only; nothing is reported anywhere.
-            console.warn(`${CONFIG.name}: the card recognition model did not load (${message.error ?? "unknown reason"}).`);
-          }
-          break;
-        case "capture":
-          void this.capture(message.requestId, message.analysisWidth);
-          break;
-        case "shown":
-          this.shown = message.card;
-          this.updateTooltip();
-          break;
-      }
-      return;
-    }
-    if (this.tooltip && event.source === this.tooltip.contentWindow) {
-      const message = parseTooltipOut(event.data);
-      if (!message) return;
-      if (message.kind === "ready") {
-        this.tooltipReady = true;
-        if (this.pendingTooltip) this.toTooltip(this.pendingTooltip);
-        this.pendingTooltip = null;
-      } else {
-        // A size for another card than the one shown now is stale.
-        if (message.cardId !== undefined && message.cardId !== this.displayedCardId) return;
-        // A size from an earlier showing of the same card (hidden and shown again) is stale too.
-        if (message.seq !== undefined && message.seq !== this.cardSeq) return;
-        this.tooltipSize = { width: Math.ceil(message.width), height: Math.ceil(message.height), shape: message.shape };
-        if (message.cardId !== undefined) this.sizedCardId = message.cardId;
-        this.updateTooltip();
-      }
+    // The compute frame's messages are the control's (checked: trusted, that frame, our origin).
+    if (this.control?.onMessage(event)) return;
+    if (!this.tooltip || !fromExtensionFrame(event, this.tooltip.contentWindow, this.extensionOrigin)) return;
+    const message = parseTooltipOut(event.data);
+    if (!message) return;
+    if (message.kind === "ready") {
+      this.tooltipReady = true;
+      if (this.pendingTooltip) this.toTooltip(this.pendingTooltip);
+      this.pendingTooltip = null;
+    } else {
+      // A size for another card than the one shown now is stale.
+      if (message.cardId !== undefined && message.cardId !== this.displayedCardId) return;
+      // A size from an earlier showing of the same card (hidden and shown again) is stale too.
+      if (message.seq !== undefined && message.seq !== this.cardSeq) return;
+      this.tooltipSize = { width: Math.ceil(message.width), height: Math.ceil(message.height), shape: message.shape };
+      if (message.cardId !== undefined) this.sizedCardId = message.cardId;
+      this.updateTooltip();
     }
   };
 
   // ------------------------------------------------------------------ the tooltip
   private updateTooltip(): void {
     const card = this.shown;
-    if (card && this.video && this.inside) {
+    if (card && this.video && this.pointing()) {
       if (this.hideTimer) clearTimeout(this.hideTimer);
       this.hideTimer = null;
       this.showTooltip(card, this.video);
@@ -528,7 +347,7 @@ export class Agent {
     if (this.displayedCardId === null || this.hideTimer) return;
     this.hideTimer = setTimeout(() => {
       this.hideTimer = null;
-      if (this.shown && this.inside) return;
+      if (this.shown && this.pointing()) return;
       this.hideTooltip();
     }, HIDE_DELAY_MS);
   }
@@ -620,11 +439,9 @@ export class Agent {
     }
     // The same box, on the same picture; nothing when the picture's size is not known.
     this.outline?.show(ready ? outlineRect(picture, card.box, video.videoWidth > 0 && video.videoHeight > 0) : null);
-    this.lastTooltipAt = performance.now();
   }
 
   private hideTooltip(): void {
-    if (this.displayedCardId !== null) this.lastTooltipAt = performance.now();
     if (this.tooltip) this.tooltip.style.visibility = "hidden";
     if (this.displayedCardId !== null) this.toTooltip({ kind: "clear" });
     this.displayedCardId = null;
@@ -634,26 +451,20 @@ export class Agent {
   }
 
   private teardown(): void {
-    this.inside = false;
-    this.lastTrustedPointerAt = -Infinity;
-    this.lastTooltipAt = -Infinity;
     this.shown = null;
     this.displayedCardId = null;
     this.sizedCardId = null;
     if (this.hideTimer) clearTimeout(this.hideTimer);
     this.hideTimer = null;
+    // No video: the gate is cleared, and the frame (going) hears nothing more.
+    this.attachVideo(null);
     this.compute?.remove();
     this.compute = null;
-    this.computeReady = false;
     this.tooltip?.remove();
     this.tooltip = null;
     this.tooltipReady = false;
     this.pendingTooltip = null;
     this.outline?.remove();
     this.outline = null;
-    this.detachVideo?.();
-    this.detachVideo = null;
-    this.video = null;
-    this.canvas = null;
   }
 }

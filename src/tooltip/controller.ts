@@ -5,7 +5,7 @@
 //     that page's window, from that origin.
 //   - It shows only cards of the release's catalog, with the catalog's name: an id it does not
 //     know (which only a page posting to the frame itself could send) shows nothing. A card of a
-//     remote release (src/release/) comes with that release's id; its facts arrive from the compute
+//     remote release (the vendored remote-release.js) comes with that release's id; its facts arrive from the compute
 //     frame over the extension-only facts channel (`addFacts`), which the page cannot reach, and win
 //     over the bundled table. An id in neither is waited for FACTS_WAIT_MS, then shows nothing.
 //   - Each newly shown card asks the background for a settings refresh. The background fetches
