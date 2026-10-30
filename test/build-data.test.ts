@@ -15,7 +15,7 @@ import { buildCardTable } from "../src/shared/card-table.mjs";
 // @ts-expect-error plain JavaScript build scripts
 import { buildManifest, UNPACKED_EXTENSION_ID } from "../scripts/manifest.mjs";
 // @ts-expect-error plain JavaScript build scripts
-import { configProblems, geometricIndexProblem, loadForkConfig, videoSitePatterns } from "../scripts/fork-config.mjs";
+import { configProblems, geometricIndexProblem, hasOnDarkIcons, loadForkConfig, videoSitePatterns } from "../scripts/fork-config.mjs";
 import { GEOMETRIC_MANIFEST_SHA256, IMAGE_HOSTS, SETTINGS_URL, UPDATE_URL_PREFIX } from "../src/constants.js";
 import { isActivePage } from "../src/content/site.js";
 import { allowedParentOrigin } from "../src/shared/messages.js";
@@ -121,6 +121,23 @@ describe("the config (kenbunshoku.config.json)", () => {
 
   it("checks its files on disk", () => {
     expect(configProblems({ ...CONFIG, icons: "no-such-folder" }).some((p: string) => p.startsWith("icons:"))).toBe(true);
+  });
+
+  it("takes the icons for dark surfaces all or none", () => {
+    const dir = mkdtempSync(join(tmpdir(), "icons-"));
+    try {
+      for (const s of [16, 32, 48, 128]) writeFileSync(join(dir, `icon-${s}.png`), "");
+      const config = { ...CONFIG, icons: "." };
+      expect(configProblems(config, dir).filter((p: string) => p.startsWith("icons:"))).toEqual([]);
+      expect(hasOnDarkIcons(config, dir)).toBe(false);
+      writeFileSync(join(dir, "icon-on-dark-16.png"), "");
+      expect(configProblems(config, dir).filter((p: string) => p.startsWith("icons:"))).toEqual(["icons: ./icon-on-dark-32.png is missing"]);
+      writeFileSync(join(dir, "icon-on-dark-32.png"), "");
+      expect(configProblems(config, dir).filter((p: string) => p.startsWith("icons:"))).toEqual([]);
+      expect(hasOnDarkIcons(config, dir)).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
