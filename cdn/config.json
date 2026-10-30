@@ -25,14 +25,14 @@
     "url": "https://github.com/ryangswe/kenbunshoku/releases/tag/v0.3.0"
   },
   "release": {
-    "id": "f80d5b56cd907f03",
-    "path": "vision/releases/f80d5b56cd907f03/release.json",
-    "sha256": "843f35d77f7bf3b833713e19372e5f6af95f95fb70d62d068861de142f894f63",
+    "id": "4e22c3209b2ecca7",
+    "path": "vision/releases/4e22c3209b2ecca7/release.json",
+    "sha256": "d8477453431445c87d73b37dbdc3960297f827f2a0a18ab8d41792a0260b88c2",
     "minimumExtensionVersion": "0.2.0",
     "geometric": {
-      "path": "vision/releases/f80d5b56cd907f03/geometric.json",
-      "sha256": "b8e7760594856716ee6e972e928d2cdd20d2e03a0e53d0be5b568c6004be6427",
-      "manifestSha256": "7b9a96f636611e34183b1a845db93846cb92e5d12ad0d273dd14d1e2c60cef19"
+      "path": "vision/releases/4e22c3209b2ecca7/geometric.json",
+      "sha256": "3ab6dbaf5c4d5739f86db9887ddff25fc73accbb5e97e6a9c856846d6785164d",
+      "manifestSha256": "9cf25b2605bc3d136a18d258265cbff96093b7f3cdaf3a4a06f4283ef8cf4baf"
     }
   }
 }
