@@ -35,7 +35,7 @@ import { build } from "esbuild";
 
 import { buildManifest, firefoxManifest } from "./manifest.mjs";
 import { buildSourceFileMaps } from "./card-data.mjs";
-import { buildCardTable } from "../src/shared/card-table.mjs";
+import { buildCardTable } from "../vendor/cardvision-browser/remote-release.js";
 import { CONFIG_PATH, geometricIndexProblem, ICON_SIZES, loadForkConfig } from "./fork-config.mjs";
 import { LEGAL_FILES, releaseLegalProblem } from "./release-legal.mjs";
 import { describeOversized, oversizedTextFiles, TEXT_FILE_LIMIT } from "./package-size.mjs";
@@ -168,8 +168,9 @@ await build({
   },
   outdir: out,
 });
-// compute.js bundles the runtime's module; its license comments are in the runtime's LEGAL file.
-copyFileSync(join(vendorDir, "cardvision.js.LEGAL.txt"), join(out, "cardvision.js.LEGAL.txt"));
+// compute.js and content.js bundle the toolkit's extension entries (compute-session.js,
+// remote-release.js, page-capture.js), which hold no third-party code: the runtime and its license
+// comments are in runtime/worker.js and its LEGAL file.
 for (const name of ["compute.html", "tooltip.html", "tooltip.css", "popup.css"]) copyFileSync(join(root, "static", name), join(out, name));
 // The popup carries the extension's name from the config.
 const escapeHtml = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");

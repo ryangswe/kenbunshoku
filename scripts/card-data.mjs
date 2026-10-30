@@ -2,8 +2,8 @@
 // The card data the build writes into dist/data/ (see src/tooltip/card-data.ts):
 //
 //   cards.json         { "<card id>": [name, set, art path or null] } from the release's catalog,
-//                      by src/shared/card-table.mjs (the compute frame uses the same rule for a
-//                      remote release's catalog)
+//                      by the vendored remote-release.js's buildCardTable (the compute frame uses
+//                      the same rule for a remote release's catalog)
 //   source-files.json  { "optcgapi": { "<card id>": "<file name on optcgapi.com>" } }, built here
 //
 // The `{sourceFile}` map is built from the card mirror's image index. A card is mapped only

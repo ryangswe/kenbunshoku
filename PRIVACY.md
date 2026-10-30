@@ -23,7 +23,8 @@ videos. This page says what it reads, what it sends, and what it keeps.
   picture of the video. Nothing is read from a video before the pointer comes over it. It reads
   the picture only around your pointer activity over the video: for 10 seconds after the pointer last moved there, and after that
   only while a card is showing under the resting pointer (until 5 seconds after it stops
-  showing). It stops when the pointer leaves the video or the tab goes to the background.
+  showing), and never more than 60 seconds after the pointer last moved. It stops when the pointer
+  leaves the video or the tab goes to the background.
 - It does not access the browser's saved browsing history, and does not read comments, chat messages
   or account information. It does not read the website around an embedded player. The picture it analyzes is the whole
   video frame, so anything drawn into the video itself (such as an overlay showing chat) is part

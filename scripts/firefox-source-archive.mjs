@@ -120,10 +120,10 @@ done
 cp "$vendored/opencv.mjs" "$vendored/opencv_js.wasm" "$vendored/opencv.mjs.LEGAL.txt" vendor/opencv/
 npm ci
 npm run build
-for f in cardvision.js worker.js; do
+for f in cardvision.js worker.js compute-session.js page-capture.js remote-release.js; do
   cmp "dist/$f" "$vendored/$f"
 done
-echo "    dist/cardvision.js and dist/worker.js are byte for byte the vendored copies"
+echo "    dist/cardvision.js, worker.js, compute-session.js, page-capture.js and remote-release.js are byte for byte the vendored copies"
 
 echo "2/3 the add-on"
 cd "$here/${dir}"
@@ -159,7 +159,8 @@ This archive rebuilds \`${packageZip}\`, the package uploaded to addons.mozilla.
 It does three things:
 
 1. Builds the recognition runtime from \`cardvision-browser/browser/\` (\`npm ci && npm run build\`)
-   and checks that \`dist/cardvision.js\` and \`dist/worker.js\` are byte for byte the copies in
+   and checks that \`dist/cardvision.js\`, \`dist/worker.js\`, \`dist/compute-session.js\`,
+   \`dist/page-capture.js\` and \`dist/remote-release.js\` are byte for byte the copies in
    \`${dir}/vendor/cardvision-browser/\` that the add-on bundles.
 2. Builds the add-on from \`${dir}/\` (\`npm ci\`, then
    \`npm run build -- --target firefox --release ../release/${releaseId}\` and \`npm run package\`).
@@ -180,7 +181,7 @@ steps). \`opencv.mjs.LEGAL.txt\` holds their licenses.
 
 | In the package | From |
 | --- | --- |
-| \`background.js\`, \`content.js\`, \`compute.js\`, \`tooltip.js\`, \`popup.js\` | \`${dir}/src/\` (TypeScript), bundled and minified by esbuild (\`${dir}/scripts/build.mjs\`). \`compute.js\` includes the runtime's \`cardvision.js\`. |
+| \`background.js\`, \`content.js\`, \`compute.js\`, \`tooltip.js\`, \`popup.js\` | \`${dir}/src/\` (TypeScript), bundled and minified by esbuild (\`${dir}/scripts/build.mjs\`). \`compute.js\` includes the toolkit's \`compute-session.js\` and \`remote-release.js\`; \`content.js\` its \`page-capture.js\`. None of them holds ONNX Runtime, WebAssembly or OpenCV. |
 | \`runtime/worker.js\` | the runtime's worker, built from \`cardvision-browser/browser/src/\` by esbuild (step 1). It includes ONNX Runtime Web's JavaScript. |
 | \`runtime/ort-wasm-simd-threaded.jsep.mjs\`, \`.wasm\` | ONNX Runtime Web ${vendor.onnxruntimeWeb} from npm (\`onnxruntime-web\`), unmodified. |
 | \`runtime/opencv.mjs\`, \`runtime/opencv_js.wasm\` | OpenCV.js, see above. |

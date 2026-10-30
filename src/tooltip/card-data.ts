@@ -14,7 +14,8 @@ export interface CardFacts {
   printed?: string | null;
 }
 
-export type CardTable = Record<string, [string, string | null, string | null] | [string, string | null, string | null, string | null]>;
+/** The table the build writes to data/cards.json, by the toolkit's rule (vendored remote-release.js). */
+export type { CardTable } from "../../vendor/cardvision-browser/remote-release.js";
 
 /** Check the shape of a `{sourceFile}` map; anything else is treated as no map. */
 export function parseSourceFileMaps(raw: unknown): SourceFileMaps {

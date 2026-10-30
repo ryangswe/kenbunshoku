@@ -12,8 +12,8 @@
 // Unknown extra fields are ignored, among them the obsolete `cardLink` (the tooltip no longer
 // has a link; files may still carry it, of any type). The optional `update` field (an addition proposed for
 // unpacked installs) is read when it is well formed and ignored otherwise. The optional `release` field
-// (the remote release pointer, SETTINGS.md) is kept as written: src/release/pointer.ts and
-// src/release/geometric.ts judge it where it is used, and a malformed one never makes the file
+// (the remote release pointer, SETTINGS.md) is kept as written: the vendored remote-release.js
+// (parsePointer, parseGeometricPointer) judges it where it is used, and a malformed one never makes the file
 // unusable. The optional `localizedArt` field (card pictures in the viewer's language) keeps each
 // well-formed language and drops the rest; it never makes the file unusable either.
 
@@ -53,7 +53,7 @@ export interface Settings {
   /** The geometric stage (extra accuracy). Optional in the file; absent means on. `false` turns
    *  it off without a release. */
   geometric: boolean;
-  /** The `release` field as written (null when absent); see src/release/pointer.ts. */
+  /** The `release` field as written (null when absent); see the vendored remote-release.js (parsePointer). */
   release?: unknown;
   /** Card pictures by language (`fr`, `ja`…); empty when the file offers none. */
   localizedArt?: Record<string, LocalizedArt>;
