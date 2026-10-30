@@ -199,8 +199,11 @@ export class Agent {
       return;
     }
     const video = this.currentVideo();
+    // Both frames there: nothing more to do here (the control measures the picture itself; a
+    // second measure per move would only cost the page a layout).
+    if (!video || (this.compute?.isConnected && this.tooltip?.isConnected)) return;
     // The first trusted move over a picture starts the page's session (the frames, the model).
-    if (video && fractionIn(this.pictureOf(video), event.clientX, event.clientY)) this.ensureFrames();
+    if (fractionIn(this.pictureOf(video), event.clientX, event.clientY)) this.ensureFrames();
   };
 
   // ------------------------------------------------------------------ the video

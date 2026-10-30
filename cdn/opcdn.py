@@ -644,7 +644,7 @@ RELEASE_CACHE = "public, max-age=31536000, immutable"
 RELEASE_ID = re.compile(r"^[0-9a-f]{16}$")
 FLAT_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
-# The extension reads a release document no further than this (src/release/remote-load.ts DOCUMENT_MAX_BYTES).
+# The extension reads a release document no further than this (the vendored remote-release.js, DOCUMENT_MAX_BYTES).
 MAX_RELEASE_DOC_BYTES = 256 * 1024
 # Published beside the weights: the release's license, notice and provenance (release-legal/).
 LEGAL_TYPES = {"LICENSE": "text/plain; charset=utf-8", "NOTICE": "text/plain; charset=utf-8",

@@ -162,7 +162,8 @@ New cards reach installed copies without a store update: the settings file may n
 card-recognition release published on this host, and a qualifying install loads it instead of the
 release bundled in the extension. The release is data only (JSON and ONNX files); code stays in the
 package. Anything wrong with it, at any step, loads the bundled release. The extension's side is
-`src/release/` and `src/compute/frame.ts`; the publishing side is `opcdn.py publish-release`.
+the toolkit's `remote-release.js` and compute frame (vendored; `src/compute/compute.ts` wires
+them); the publishing side is `opcdn.py publish-release`.
 
 ```json
 "release": {
@@ -268,7 +269,7 @@ after loading, one restart).
 
 **Card facts.** The tooltip's table of names (`data/cards.json`) is built from the bundled catalog,
 so a card new in a remote release would be recognized and then shown as nothing. The compute frame
-therefore builds the same table (`src/shared/card-table.mjs`, the build's own rule) from the catalog
+therefore builds the same table (the toolkit's `buildCardTable`, the build's own rule) from the catalog
 it hands the worker, before the load, and adopts it only when the worker confirms that release's
 id. With each card it shows from that release, it posts the card's facts (`{releaseId, cardId,
 facts: {name, set, art}}`) on `BroadcastChannel("kenbunshoku-card-facts")`, then sends the card, with
