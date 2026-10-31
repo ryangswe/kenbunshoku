@@ -5,6 +5,8 @@
 //
 //   name, shortName, description   the extension's names (manifest, popup header) and description
 //   icons                          a folder of icon-16.png, icon-32.png, icon-48.png, icon-128.png
+//                                  and optionally icon-on-dark-16.png, icon-on-dark-32.png: a lighter
+//                                  toolbar icon for dark themes (Firefox's toolbar, the popup header)
 //   videoSites                     { "youtube": bool, "twitch": bool }: where it runs (at least one)
 //   imageHosts                     hosts it may request: card pictures, the settings file, the
 //                                  card-feature index (host permissions and the pages' connect-src)
@@ -30,6 +32,14 @@ import { fileURLToPath } from "node:url";
 export const ROOT = fileURLToPath(new URL("..", import.meta.url));
 export const CONFIG_PATH = join(ROOT, "kenbunshoku.config.json");
 export const ICON_SIZES = [16, 32, 48, 128];
+/** The optional icons for dark surfaces: the toolbar sizes only (Chrome's toolbar has one icon for
+ *  every theme; Firefox switches with its theme, and the popup header with the color scheme). */
+export const ON_DARK_ICON_SIZES = [16, 32];
+
+/** Whether the config's icon folder has the icons for dark surfaces. */
+export function hasOnDarkIcons(config, root = ROOT) {
+  return ON_DARK_ICON_SIZES.some((s) => existsSync(join(root, config.icons, `icon-on-dark-${s}.png`)));
+}
 
 const KEYS = [
   "$comment", "name", "shortName", "description", "icons", "videoSites", "imageHosts", "settingsUrl", "outlineColor", "outlineGlowColor",
@@ -151,7 +161,13 @@ export function configProblems(c, root = ROOT) {
     if (problem) p.push(problem);
   }
   if (typeof c.icons !== "string" || c.icons === "") p.push("icons: a folder");
-  else if (root) for (const s of ICON_SIZES) if (!existsSync(join(root, c.icons, `icon-${s}.png`))) p.push(`icons: ${c.icons}/icon-${s}.png is missing`);
+  else if (root) {
+    for (const s of ICON_SIZES) if (!existsSync(join(root, c.icons, `icon-${s}.png`))) p.push(`icons: ${c.icons}/icon-${s}.png is missing`);
+    // The icons for dark surfaces are all there or none.
+    if (hasOnDarkIcons(c, root)) {
+      for (const s of ON_DARK_ICON_SIZES) if (!existsSync(join(root, c.icons, `icon-on-dark-${s}.png`))) p.push(`icons: ${c.icons}/icon-on-dark-${s}.png is missing`);
+    }
+  }
   const sites = c.videoSites;
   if (typeof sites !== "object" || sites === null || typeof sites.youtube !== "boolean" || typeof sites.twitch !== "boolean" || Object.keys(sites).length !== 2) {
     p.push('videoSites: { "youtube": true|false, "twitch": true|false }');

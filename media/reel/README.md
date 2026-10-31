@@ -76,8 +76,9 @@ sound), then `npm run mux`. To preview and scrub the timeline, use `npm run stud
    02, 03 and the two promo tiles from the captures into `out/store/`. Frame numbers in
    `scripts/make-store-assets.py` belong to the original captures: after a recapture, pick the
    matching frames from `captures/<name>/verify/`. The store icon is not made here. It is
-   `icons/icon-128.png` drawn at 96 px in 16 px of transparent padding, as the Chrome Web Store
-   asks; `docs/store/store-icon-128-padded.png` is the uploaded file.
+   the dark tile (`icons/source/kenbunshoku-tile.svg`) drawn at 96 px in 16 px of transparent
+   padding, as the Chrome Web Store asks; `docs/store/store-icon-128-padded.png` is the uploaded
+   file.
 
 To change the edit:
 - **Cuts and captions:** `src/timeline.ts` (`T`, `MONTAGE`, `CAPTIONS`). Keep cuts on bar lines:

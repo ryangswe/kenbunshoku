@@ -12,7 +12,7 @@ import { buildManifest, FIREFOX_DATA_COLLECTION, FIREFOX_MIN_VERSION, firefoxAdd
 import { CONFIG, IS_KENBUNSHOKU, TOY_CONFIG } from "./helpers/fork.js";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
-const ff = (dev: boolean) => firefoxManifest(buildManifest({ version: "0.3.0", dev, store: true }), { dev, config: CONFIG });
+const ff = (dev: boolean, onDarkIcons = false) => firefoxManifest(buildManifest({ version: "0.3.0", dev, store: true }), { dev, config: CONFIG, onDarkIcons });
 
 describe.runIf(typeof CONFIG.firefoxAddonId === "string")("the Firefox manifest", () => {
   const release = ff(false);
@@ -43,6 +43,22 @@ describe.runIf(typeof CONFIG.firefoxAddonId === "string")("the Firefox manifest"
     const { background: _b, browser_specific_settings: _g, ...rest } = release;
     const { background: _c, minimum_chrome_version: _m, ...chromeRest } = chrome;
     expect(rest).toEqual(chromeRest);
+  });
+
+  it("switches the toolbar icon with Firefox's theme when the icon folder has icons for dark surfaces", () => {
+    expect(release.action).toEqual(chrome.action);
+    const themed = ff(false, true);
+    expect(themed.action).toEqual({
+      ...chrome.action,
+      theme_icons: [
+        // light: for a theme with light text (a dark toolbar); dark: for one with dark text.
+        { light: "icons/icon-on-dark-16.png", dark: "icons/icon-16.png", size: 16 },
+        { light: "icons/icon-on-dark-32.png", dark: "icons/icon-32.png", size: 32 },
+      ],
+    });
+    const { action: _a, ...rest } = themed;
+    const { action: _b, ...plain } = release;
+    expect(rest).toEqual(plain);
   });
 
   it("gives a dev build its own ID, so it loads beside the listed add-on", () => {

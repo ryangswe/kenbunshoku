@@ -13,7 +13,7 @@ starts from the same files.
 | `03-screenshot-1280x800.png` | 1280×800 | Chrome Web Store, addons.mozilla.org | The official regional broadcast, paused: a hover on Sanji (OP06-119). |
 | `promo-small-440x280.png` | 440×280 | Chrome Web Store (small promo tile) | Drawn; the tooltip's card picture is the Portgas.D.Ace hover from the official broadcast. |
 | `promo-marquee-1400x560.png` | 1400×560 | Chrome Web Store (marquee promo tile) | Drawn around a crop of the official broadcast's board during the Portgas.D.Ace hover. |
-| `store-icon-128-padded.png` | 128×128 | Chrome Web Store (store icon) | The extension icon (`icons/icon-128.png`) with the padding the store asks for. |
+| `store-icon-128-padded.png` | 128×128 | Chrome Web Store (store icon) | The icon on its dark tile (`icons/source/kenbunshoku-tile.svg`), at 96 px with the padding the store asks for. |
 
 How they were made: from the launch reel's captures, with
 `media/reel/scripts/make-store-assets.py`. [media/reel/README.md](../../media/reel/README.md) says how

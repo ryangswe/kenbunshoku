@@ -30,7 +30,7 @@ body:
     attributes:
       label: Extension version
       description: Shown on your browser's extensions page.
-      placeholder: "0.4.0"
+      placeholder: "0.4.1"
     validations:
       required: true
   - type: dropdown

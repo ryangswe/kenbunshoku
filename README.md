@@ -16,6 +16,9 @@ Game, its card names and its card art belong to their owners.
 **[Add Kenbunshoku to Chrome from the Chrome Web Store](https://chromewebstore.google.com/detail/kenbunshoku/gndfmgcngfebiiiioddngmifddjiiabf)**: one click, and Chrome keeps it
 up to date.
 
+**[Add Kenbunshoku to Firefox from addons.mozilla.org](https://addons.mozilla.org/firefox/addon/kenbunshoku/)**: Firefox 148 or later on
+desktop, and Firefox keeps it up to date.
+
 Then open a One Piece Card Game video on Twitch or YouTube and rest the pointer on a card: its
 picture appears beside it.
 
