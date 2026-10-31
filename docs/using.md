@@ -86,8 +86,9 @@ How often it is right, and what it does not recognize, is in [accuracy.md](accur
 
 ## Updating and removing
 
-**Chrome Web Store installs update themselves.** Chrome installs new versions on its own, and
-your settings stay. The rest of this section is about installs from a release zip.
+**Installs from the Chrome Web Store or addons.mozilla.org update themselves.** The browser installs
+new versions on its own, and your settings stay. The rest of this section, up to removing it, is
+about installs from a release zip (Chrome only).
 
 Switching from a zip install to the Web Store: the two are separate extensions to Chrome, so
 remove the zip install after you install from the store.
@@ -100,6 +101,7 @@ your existing Kenbunshoku folder with the contents of the new one, then click th
 **Reload** arrow on Kenbunshoku's card in `chrome://extensions`. When a newer version is out,
 Kenbunshoku's popup says "New version available" with a link.
 
-**To remove it**, click **Remove** on its card in `chrome://extensions`. Removing the extension
+**To remove it**, click **Remove** on its card in `chrome://extensions` in Chrome, or choose
+**Remove** from its **⋯** menu in `about:addons` in Firefox. Removing the extension
 deletes its saved settings (the on/off switch and the card size);
 installing it again starts fresh.
