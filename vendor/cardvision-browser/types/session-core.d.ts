@@ -90,6 +90,9 @@ export declare class SessionCore {
     private nextRequestId;
     private inFlight;
     private lastAcceptedRequestId;
+    /** Whether the worker answered a look with an analysis since its release loaded: until then
+     *  the watchdog waits `FIRST_ANALYSIS_WATCHDOG_MS`. */
+    private analyzedSinceLoad;
     private generation;
     private sourceCount;
     private result;
