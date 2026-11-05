@@ -14,6 +14,7 @@
 import { resolveCardImage, type Resolution, SourceHealth } from "../images/chain.js";
 import type { LocalizedPictures } from "../l10n/list.js";
 import type { Settings } from "../settings/schema.js";
+import { sameSettings } from "../settings/same.js";
 import type { SourceFileMaps } from "../settings/templates.js";
 import { allowedParentOrigin, parseTooltipIn, tag, type TooltipOut, type TooltipSize } from "../shared/messages.js";
 import type { CardFacts, CardTable } from "./card-data.js";
@@ -88,7 +89,9 @@ export class TooltipController {
   private localized: LocalizedPictures | null = null;
   private readonly health = new SourceHealth();
   private readonly cache = new Map<string, Promise<Resolution>>();
-  private readonly objectUrls = new Map<string, string>();
+  /** The object URL of each picture shown, with the picture it was made from: a URL is used again
+   *  only for that same picture, never for a newer one of the same card. */
+  private readonly objectUrls = new Map<string, { blob: Blob; url: string }>();
   /** One per show(): a picture's chain acts only while its show() is the latest. */
   private seq = 0;
   current: string | null = null;
@@ -105,13 +108,23 @@ export class TooltipController {
 
   constructor(private readonly deps: TooltipDeps) {}
 
-  /** Fresh settings: every source is tried again, and no picture is kept from the old ones. */
+  /**
+   * When the settings are read again, every source is tried again for the next picture loaded.
+   * The same settings (the hourly refresh stores a new copy even when the file has not changed)
+   * keep the pictures already loaded, from whichever source gave them, and a picture that is
+   * loading goes on loading. Changed settings, in any field, drop the pictures from the old ones,
+   * and the card on show is shown again with the new ones (its placeholder, then its picture), so
+   * it is never left on its placeholder. Every change of `this.settings` must show the card again:
+   * a picture's chain stops as soon as the settings it started with are replaced (`live()`).
+   */
   setSettings(settings: Settings): void {
-    this.settings = settings;
     this.health.reset();
+    if (this.settings && sameSettings(this.settings, settings)) return;
+    this.settings = settings;
     this.cache.clear();
-    for (const url of this.objectUrls.values()) this.deps.revokeObjectURL(url);
+    for (const { url } of this.objectUrls.values()) this.deps.revokeObjectURL(url);
     this.objectUrls.clear();
+    if (this.current !== null) this.show(this.current, this.currentSeq, this.currentRelease);
   }
 
   /** Pictures in the viewer's language, or null for the usual ones. Pictures already kept were
@@ -120,7 +133,7 @@ export class TooltipController {
     if (this.localized?.listSha256 === localized?.listSha256 && this.localized?.source.template === localized?.source.template) return;
     this.localized = localized;
     this.cache.clear();
-    for (const url of this.objectUrls.values()) this.deps.revokeObjectURL(url);
+    for (const { url } of this.objectUrls.values()) this.deps.revokeObjectURL(url);
     this.objectUrls.clear();
   }
 
@@ -149,12 +162,15 @@ export class TooltipController {
     }
   }
 
-  /** The facts for a card: the channel's for its release, then the bundled table. */
+  /** The facts for a card: the channel's for its release, then those of the same card on show
+   *  (kept even when the channel's copy has been dropped), then the bundled table. */
   private lookup(cardId: string, releaseId: string | undefined): CardFacts | null {
     if (releaseId !== undefined) {
       const f = this.facts.get(`${releaseId}|${cardId}`);
       if (f) return f;
     }
+    const shown = this.currentFacts;
+    if (shown && this.current === cardId && this.currentRelease === releaseId) return shown;
     return knownCard(this.deps.table, cardId);
   }
 
@@ -218,12 +234,15 @@ export class TooltipController {
         const pixels = await this.deps.imageSize(r.blob);
         if (!live()) return;
         const size = artSize(pixels.width, pixels.height);
-        let url = this.objectUrls.get(pictureKey(card));
-        if (!url) {
-          url = this.deps.createObjectURL(r.blob);
-          this.objectUrls.set(pictureKey(card), url);
+        // A chain that was running when the pictures were let go (setLocalized) can store its URL
+        // after the clear; the card's next picture is a new one and gets a URL of its own.
+        let kept = this.objectUrls.get(pictureKey(card));
+        if (kept?.blob !== r.blob) {
+          if (kept) this.deps.revokeObjectURL(kept.url);
+          kept = { blob: r.blob, url: this.deps.createObjectURL(r.blob) };
+          this.objectUrls.set(pictureKey(card), kept);
         }
-        e.img.src = url;
+        e.img.src = kept.url;
         // Shown once it is drawable, so the placeholder never gives way to an empty box; a
         // picture that does not decode here shows the name (the catch below). Chrome rejects a
         // pending decode() whenever src is set again, even to the same value: the token keeps a
@@ -281,8 +300,8 @@ export class TooltipController {
       while (this.cache.size > CACHE_LIMIT) {
         const oldest = this.cache.keys().next().value as string;
         this.cache.delete(oldest);
-        const url = this.objectUrls.get(oldest);
-        if (url) this.deps.revokeObjectURL(url);
+        const kept = this.objectUrls.get(oldest);
+        if (kept) this.deps.revokeObjectURL(kept.url);
         this.objectUrls.delete(oldest);
       }
     }
