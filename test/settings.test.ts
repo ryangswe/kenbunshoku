@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { describe, expect, it } from "vitest";
 
-import { parsePointer } from "../src/release/pointer.js";
-import { parseGeometricPointer } from "../src/release/geometric.js";
+import { parseGeometricPointer, parsePointer } from "../vendor/cardvision-browser/remote-release.js";
 import DEFAULT_CONFIG from "../cdn/config.json";
 import { UPDATE_URL_PREFIX } from "../src/constants.js";
 import { validateSettings as validateWithHosts } from "../src/settings/schema.js";

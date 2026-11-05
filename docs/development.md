@@ -86,7 +86,10 @@ archive into an empty folder, run `./build-firefox.sh`, and `diff -r` the unzipp
 ## The runtime
 
 `vendor/cardvision-browser/` holds the runtime's built modules at the commit recorded in its
-`VENDOR.json`, with its license and notice. To update it:
+`VENDOR.json`, with its license and notice: the worker and the runtime, and the toolkit's
+entries for extensions (`compute-session.js` for the compute frame, `page-capture.js` for the
+content script, `remote-release.js` for remote releases; their contract is the toolkit's
+`docs/extension-session.md`). To update it:
 
 ```
 node scripts/vendor-runtime.mjs --repo <path to a cardvision toolkit checkout> --commit <sha> \
@@ -132,9 +135,9 @@ was shown (see the comment at its top; it needs `puppeteer-core`, which is not a
   `connect-src`.
 - The settings file's `update.url` must lie under the config's `updateUrlPrefix`.
 - New sets reach installs through the settings file's release pointer; the routine is in
-  [MAINTAINING.md](../MAINTAINING.md). `src/release/` is the extension's side
-  (`geometric.ts` is Kenbunshoku's own; the other files are shared with other forks of this
-  extension and kept the same), and `cdn/opcdn.py publish-release` the publishing side.
+  [MAINTAINING.md](../MAINTAINING.md). The extension's side is the toolkit's
+  `remote-release.js` (vendored, with the geometric stage's rules), and `cdn/opcdn.py
+  publish-release` the publishing side.
 - TODO (each new set): when a store release bundles a new set, update the set line in the "New
   sets" bullet of the Limits list in [accuracy.md](accuracy.md) (today OP-17, EB-04, ST-36, PRB-02).
 - TODO (unpublished addresses): the cardvision toolkit's repository, its adapt guide and the

@@ -1,26 +1,38 @@
 // SPDX-License-Identifier: Apache-2.0
 // The compute frame: an extension page inside the video page, hidden. It hosts the runtime's
 // worker (on the extension's origin, under the extension's policy, which allows WebAssembly)
-// and the session that decides when a picture is analyzed (host-session.ts). The wiring and
-// its origin rule are in frame.ts.
+// and the session that decides when a picture is analyzed: the toolkit's compute frame
+// (vendored compute-session.js, startComputeFrame; its contract is the toolkit's
+// docs/extension-session.md). What stays here: the origins it serves, the release choice and its
+// geometric stage, the card facts for the tooltip frame (facts.ts), and the dev hook.
 //
 // This frame is made on the first pointer move over a video's picture (the page's session
 // starts then), so the release, and after it the geometric stage's card-feature index (about
 // 60 MB, from the image host, kept in the browser's cache), load then and never at install.
-// Which release: the bundled one, or the one the settings file names (src/release/,
-// cdn/SETTINGS.md "release"), read once per page; for a remote release the stage follows the
-// pointer's own index (src/release/geometric.ts).
+// Which release: the bundled one, or the one the settings file names (the vendored
+// remote-release.js, cdn/SETTINGS.md "release"), read once per page; for a remote release the
+// stage follows the pointer's own index.
 
 import { CONFIG } from "../config.js";
 import { RELEASE_PATH, SETTINGS_URL, WORKER_PATH } from "../constants.js";
 import { readEffectiveSettings } from "../settings/store.js";
-import { allowedParentOrigin, FACTS_CHANNEL, parseFactsRequest } from "../shared/messages.js";
-import { buildCardTable } from "../shared/card-table.mjs";
-import { chooseRelease, decisionLine, recordSkip } from "../release/choose.js";
-import { checkRemoteGeometric, chosenBeforeFetch, fallbackRequest, geometricLine, parseGeometricPointer } from "../release/geometric.js";
+import { allowedParentOrigin, FACTS_CHANNEL, parseFactsRequest, TAG } from "../shared/messages.js";
+import {
+  buildCardTable,
+  checkRemoteGeometric,
+  chooseRelease,
+  chosenBeforeFetch,
+  decisionLine,
+  fallbackRequest,
+  geometricLine,
+  parseGeometricPointer,
+  recordSkip,
+  type ReleaseDecision,
+  type RemoteReleaseChoice,
+} from "../../vendor/cardvision-browser/remote-release.js";
+import { computeProtocol, DRIVER_TICK_MS, SHOWN_HOLD, startComputeFrame, type WorkerLike } from "../../vendor/cardvision-browser/compute-session.js";
 import type { FrameAnalysis } from "../../vendor/cardvision-browser/cardvision.js";
-import { type ReleaseChoice, type ReleaseDecision, startComputeFrame, type WorkerLike } from "./frame.js";
-import { DRIVER_TICK_MS } from "./host-session.js";
+import { createShownFacts } from "./facts.js";
 import { buildLoadRequest, stageForPage } from "./load-request.js";
 
 declare const __DEV__: boolean;
@@ -37,7 +49,10 @@ const sha256Hex = async (bytes: ArrayBuffer): Promise<string> => {
 
 void (async () => {
   const framed = window.parent !== window;
-  const parentOrigin = location.ancestorOrigins?.[0] ?? null;
+  // Chrome and Firefox 148 or later (the Firefox build's minimum). A referrer policy that hides
+  // the parent makes it the string "null": none is set on this frame (agent.ts).
+  const ancestor = location.ancestorOrigins?.[0] ?? null;
+  const parentOrigin = ancestor === "null" ? null : ancestor;
   if (!framed || parentOrigin === null || !allowedParentOrigin(parentOrigin, __DEV__)) return;
   // The settings file can switch the stage off without a release (`geometric: false`).
   const stage = await stageForPage(
@@ -60,21 +75,31 @@ void (async () => {
     .catch(() => "-");
   let lastDecision: ReleaseDecision | null = null;
   const settingsUrl = SETTINGS_URL;
+  // `factsFor` reads the release in effect; it is asked only once the frame exists (below).
+  const shownFacts = createShownFacts(
+    (message) => facts.postMessage(message),
+    () => frame!.release,
+  );
   const frame = startComputeFrame({
     win: window,
     framed,
     parentOrigin,
-    dev: __DEV__,
+    allowedParentOrigin: (origin) => allowedParentOrigin(origin, __DEV__),
+    protocol: computeProtocol(TAG),
+    // A shown card is kept through short gaps (two empty analyses in a row, or 5 s): no flicker on
+    // a live stream.
+    hold: SHOWN_HOLD,
+    onShown: (card, release) => shownFacts.onShown(card, release),
     createWorker: () => new Worker(workerUrl, { type: "module" }) as unknown as WorkerLike,
     loadRequest,
     now: () => performance.now(),
     // A build with no settings address never fetches anything: the bundled release only.
     ...(settingsUrl !== null
       ? {
-          chooseRelease: async (hooks: { onDownloading(): void }): Promise<ReleaseChoice> => {
+          chooseRelease: async (hooks: { onDownloading(): void }): Promise<RemoteReleaseChoice> => {
             // The `release` field as read once for this page: the release and its stage follow it.
             let releaseField: unknown = null;
-            let choice: ReleaseChoice;
+            let choice: RemoteReleaseChoice;
             try {
               choice = await chooseRelease(
               {
@@ -114,7 +139,6 @@ void (async () => {
       // Local only, never sent: no page, channel, video, frame or card.
       console.info(decisionLine(CONFIG.name, d, bundledId));
     },
-    postFacts: (message) => facts.postMessage(message),
     onGeometricStatus: (status) => {
       if (__DEV__) geometricBytes = status.bytes;
       // G3: the runtime refused the remote release's index; the release runs with the stage off.
@@ -147,26 +171,33 @@ void (async () => {
   // card that arrived before its facts); the frame whose release it is answers.
   facts.onmessage = (event: MessageEvent) => {
     const want = parseFactsRequest(event.data);
-    const answer = want ? frame.factsFor(want.releaseId, want.cardId) : null;
+    const answer = want ? shownFacts.factsFor(want.releaseId, want.cardId) : null;
     if (answer) facts.postMessage(answer);
   };
-  setInterval(() => frame.tick(), DRIVER_TICK_MS);
+  const ticker = setInterval(() => frame.tick(), DRIVER_TICK_MS);
+  addEventListener("pagehide", () => {
+    clearInterval(ticker);
+    frame.stop();
+  });
   if (__DEV__) {
     // Dev builds only: what the smoke check reads (test/smoke/smoke.mjs).
-    (window as unknown as { __kenbunshokuDebug: () => unknown }).__kenbunshokuDebug = () => ({
-      state: frame.session?.state ?? "loading",
-      error: frame.session?.error ?? null,
-      backend: frame.session?.backend ?? null,
-      analyzed: frame.session?.framesAnalyzed ?? 0,
-      lastFrameError: frame.session?.lastFrameError ?? null,
-      lastWorkerMs: frame.session?.lastWorkerMs ?? null,
-      restarts: frame.restarts,
-      stopped: frame.stopped,
-      release: { ...frame.release, decision: lastDecision },
-      geometric: frame.session?.geometric ?? null,
-      geometricBytes,
-      geometricReason,
-      frames,
-    });
+    (window as unknown as { __kenbunshokuDebug: () => unknown }).__kenbunshokuDebug = () => {
+      const status = frame.core?.status() ?? null;
+      return {
+        state: status?.state ?? "loading",
+        error: status?.error ?? null,
+        backend: status?.backend ?? null,
+        analyzed: status?.frames ?? 0,
+        lastFrameError: status?.lastFrameError ?? null,
+        lastWorkerMs: status?.lastWorkerMs ?? null,
+        restarts: frame.restarts,
+        stopped: frame.stopped,
+        release: { source: frame.release.source, id: frame.release.id, reason: frame.release.reason, decision: lastDecision },
+        geometric: status?.geometric ?? null,
+        geometricBytes,
+        geometricReason,
+        frames,
+      };
+    };
   }
 })();
