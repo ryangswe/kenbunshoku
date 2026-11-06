@@ -20,10 +20,12 @@ Node 22 or later.
 ```
 npm ci
 npm test
+npm run lint
 ```
 
-`npm test` runs the type check, then the tests. [docs/development.md](docs/development.md) says
-how to build the extension; a build needs a model release folder, which is not in this
+`npm test` runs the type check, then the tests. `npm run lint` finds unhandled promises and
+switches that miss a case (the rules are in `.oxlintrc.json`). [docs/development.md](docs/development.md)
+says how to build the extension; a build needs a model release folder, which is not in this
 repository. The checks on a pull request also build the extension for Chrome and Firefox with the
 bundled release and lint the Firefox build.
 
