@@ -23,6 +23,11 @@
   <!-- The settings that only matter while card hovers are on: disabled and dimmed while they are
        off, and until the switch's state is read. -->
   <fieldset id="hover-settings" class="group" disabled>
+    <div class="picker">
+      <label for="card-language" class="label">Card language</label>
+      <select id="card-language" class="select" aria-describedby="card-language-hint" aria-busy="true" disabled></select>
+      <p id="card-language-hint" class="hint">Shows card pictures in this language where Bandai publishes them. Automatic follows your browser's language.</p>
+    </div>
     <div class="dial">
       <div class="row">
         <label for="card-size" class="label">Card size</label>
