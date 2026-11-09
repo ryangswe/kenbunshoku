@@ -2,7 +2,8 @@
 # Install from a release zip (Load unpacked)
 
 Most people should install Kenbunshoku from the [Chrome Web Store](https://chromewebstore.google.com/detail/kenbunshoku/gndfmgcngfebiiiioddngmifddjiiabf): one click, and Chrome keeps it
-up to date. This page is for the other cases: a Chrome setup that can't use the Web Store,
+up to date. In Firefox, install it from addons.mozilla.org instead (see [Firefox](#firefox) below).
+This page is for the other cases in Chrome: a Chrome setup that can't use the Web Store,
 trying a release before it reaches the store, or learning how to load an extension you build
 yourself (**Load unpacked**), for example a [fork for another card game](make-it-yours.md). It takes a few
 minutes, and a zip install does not update itself.
@@ -55,3 +56,15 @@ an extension installed this way; choose to keep it.
 
 To update without losing your settings, or to remove it, see
 [Updating and removing](using.md#updating-and-removing).
+
+## Firefox
+
+The zip on the releases page is the Chrome build; it is not made for Firefox. In Firefox, install
+Kenbunshoku from [addons.mozilla.org](https://addons.mozilla.org/firefox/addon/kenbunshoku/)
+(Firefox 148 or later on desktop), and Firefox keeps it up to date. Release versions of Firefox
+keep an add-on installed for good when Mozilla has signed it and refuse one that is not signed.
+Nothing on the releases page is signed for Firefox.
+
+To try a build of your own in Firefox, build it for Firefox and load it as a temporary add-on, as
+the [developer guide](development.md#firefox) describes. Firefox removes a temporary add-on when
+you quit Firefox.
