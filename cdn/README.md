@@ -203,7 +203,7 @@ its art and its index, and the pointer moves last:
 ## Card pictures in other languages (`l10n/`)
 
 Official pictures from Bandai's card list in another language (French today), for the cards the
-extension knows, shown to viewers whose browser's first language it is ([SETTINGS.md](SETTINGS.md),
+extension knows, shown to viewers whose card language it is ([SETTINGS.md](SETTINGS.md),
 "Card pictures in the viewer's language"). The maintainer builds a folder with `list.json`
 (`{ "<card id>": "<file>" }`) and the pictures it names, each `<official id>.<first 8 hex of its
 sha256>.<ext>`. Each catalog printing takes the printing with the same card number when its

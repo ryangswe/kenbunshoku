@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // The popup: one switch (the master on/off); under it the settings that only matter while card
-// hovers are on (today the card-size dial, card-size-control.ts), disabled and dimmed while
+// hovers are on (the card language menu, card-language-control.ts, and the card-size dial,
+// card-size-control.ts), disabled and dimmed while
 // hovers are off; a "New version available" line only when the settings file names a newer
 // version (installs that never update by themselves; never in Firefox, which installs only
 // signed add-ons and updates them itself); and two links (the project page, and the open-source
@@ -13,6 +14,8 @@ import { DISMISSED_UPDATE_KEY, updateNotice } from "../settings/update.js";
 import { ENABLED_KEY, readEnabled } from "../shared/enabled.js";
 import { CARD_SIZE_KEY } from "../shared/card-size.js";
 import { initCardSize } from "./card-size-control.js";
+import { CARD_LANGUAGE_KEY } from "../shared/card-language.js";
+import { initCardLanguage } from "./card-language-control.js";
 
 interface Area {
   get(keys: string | string[] | null): Promise<Record<string, unknown>>;
@@ -26,10 +29,12 @@ export interface PopupEnv {
   version: string;
   /** Whether this build shows the "New version available" line (false in the Firefox build). */
   updateNotices?: boolean;
+  /** The browser's languages, most preferred first (for the card language menu's Automatic). */
+  languages?: () => readonly string[];
 }
 
 /** Fill the popup and keep it current. Adds one storage listener. */
-export function initPopup(env: PopupEnv): { renderUpdate(): Promise<void>; renderSwitch(): Promise<void> } {
+export function initPopup(env: PopupEnv): { renderUpdate(): Promise<void>; renderSwitch(): Promise<void>; renderLanguage(): Promise<void> } {
   const $ = <T extends HTMLElement>(id: string): T => env.doc.getElementById(id) as T;
 
   // The extension's own name, from kenbunshoku.config.json.
@@ -97,11 +102,14 @@ export function initPopup(env: PopupEnv): { renderUpdate(): Promise<void>; rende
   void renderSwitch();
   void renderUpdate();
   const cardSize = initCardSize(env.doc, env.local);
+  const language = initCardLanguage(env.doc, env.local, env.languages ?? (() => []));
   env.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
     if (LAST_GOOD_KEY in changes || DISMISSED_UPDATE_KEY in changes) void renderUpdate();
+    // A new settings file can offer other languages.
+    if (LAST_GOOD_KEY in changes || CARD_LANGUAGE_KEY in changes) void language.render();
     if (ENABLED_KEY in changes) void renderSwitch();
     if (CARD_SIZE_KEY in changes) void cardSize.render();
   });
-  return { renderUpdate, renderSwitch };
+  return { renderUpdate, renderSwitch, renderLanguage: language.render };
 }

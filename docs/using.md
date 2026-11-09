@@ -36,20 +36,31 @@ window is short). Move to another card to see that one, even one under the pictu
 pointer passes through it, and nothing on it can be clicked. When there is no picture, the
 card's name shows instead. Pausing works too, on recorded videos and on live streams.
 
-The picture is Bandai's official one, in your browser's language when Bandai publishes the card in
-it (French today, from version 0.4.0) and in English otherwise. It follows the first language in
-your browser's language settings; there is no separate setting.
+The picture is Bandai's official one. When Bandai publishes the card in your card language, the
+picture is in that language, and otherwise it is in English. French pictures arrived in version
+0.4.0. The popup's **Card language** menu sets the language, and by default it
+follows your browser.
 
 ## The toolbar popup
 
 Kenbunshoku's toolbar popup has the main on/off switch, **Card hovers**: turned off, it analyzes
 no video, on any page, until you turn it back on. It does not stop the settings check above.
 
+**Card language** sets the language of the card pictures. **Automatic**, the default, goes through
+the languages in your browser's language settings in order and takes the first one that is English
+or that Kenbunshoku has pictures in. For example, Japanese and then French gives French pictures,
+and English and then French gives English ones. You can also pick English, or any other language
+in the menu, whatever your browser's settings. Each language is named in its own language. The
+menu lists the languages Kenbunshoku offers today, so a new one can appear without an update. If
+a language you picked stops being offered, the pictures follow your browser until it comes back,
+and your choice is kept. The menu changes only the card pictures, and the popup itself stays
+in English.
+
 **Card size** sets how large the card's picture is shown, from 70% to 130% of its usual size
 (100% unless you change it). A card on show changes size at once. The picture still stays inside
 the window and beside the card, so in a small window it can be smaller than the size you set.
-While card hovers are off, card size is grayed out and can't be changed; it keeps your size for
-when you turn them back on.
+While card hovers are off, card language and card size are grayed out and can't be changed. They
+keep your choices for when you turn card hovers back on.
 
 Below them are two links, to the project page and to the open-source toolkit it is built on.
 
@@ -103,5 +114,5 @@ Kenbunshoku's popup says "New version available" with a link.
 
 **To remove it**, click **Remove** on its card in `chrome://extensions` in Chrome, or choose
 **Remove** from its **⋯** menu in `about:addons` in Firefox. Removing the extension
-deletes its saved settings (the on/off switch and the card size);
+deletes its saved settings (the on/off switch, the card language and the card size);
 installing it again starts fresh.

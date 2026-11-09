@@ -120,8 +120,11 @@ re-try it after a fresh `config.json` read.
 }
 ```
 
-- **Which language:** the browser's first preferred language, by its base subtag (`fr-CA` → `fr`).
-  There is no setting. A language the file does not offer, and English, show the usual pictures.
+- **The language** is the popup's **Card language**. On Automatic, the default, it is the first of
+  the browser's preferred languages, by base subtag (`fr-CA` → `fr`), that is English or a key here;
+  English when none is. A language picked in the popup that the file stops offering is treated as
+  Automatic, and the viewer's choice is kept. English shows the usual pictures. The popup lists the
+  keys here, so a new language needs no extension update.
 - **Keys** are lowercase language codes (`fr`, `ja`), never `en`. A key of another shape is dropped.
 - **`template`** must use `{sourceFile}` and name an image host; the value of `{sourceFile}` comes
   from the card list, not from the bundled map.
