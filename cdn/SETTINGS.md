@@ -120,7 +120,7 @@ re-try it after a fresh `config.json` read.
 }
 ```
 
-- **Which language:** the popup's **Card language**. On Automatic, the default, it is the first of
+- **The language** is the popup's **Card language**. On Automatic, the default, it is the first of
   the browser's preferred languages, by base subtag (`fr-CA` → `fr`), that is English or a key here;
   English when none is. A language picked in the popup that the file stops offering is treated as
   Automatic, and the viewer's choice is kept. English shows the usual pictures. The popup lists the

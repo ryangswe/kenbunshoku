@@ -84,9 +84,11 @@ On **Automatic**, the default, it reads the languages in your browser's language
 (for example Japanese, then French) and takes the first that is English or that the settings file
 offers pictures in. When that language is not English, cards that have a picture in it show it,
 and the others show the English picture. Your browser's languages are not stored. The card
-language you pick is stored on your computer (see below). The language reaches
-`cdn.kenbunshoku.com` only as part of the addresses above, as it already does in the
-`Accept-Language` header browsers send with every request.
+language you pick is stored on your computer (see below). The card language reaches
+`cdn.kenbunshoku.com` only as part of the addresses above. On Automatic, it is one of the languages
+your browser already sends in the `Accept-Language` header of every request. A language you pick
+yourself may not be one of them, and then the picture addresses tell `cdn.kenbunshoku.com` that
+language too.
 
 ## What it keeps on your computer
 

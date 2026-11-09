@@ -40,7 +40,8 @@ export function languageOptions(offered: readonly string[], automatic: string): 
 }
 
 /** Fill the menu and keep it current. Returns its render function, for storage changes (the
- *  choice, or a new settings file with other languages) and the browser's language changing. */
+ *  choice, or a new settings file with other languages) and the browser's language changing
+ *  (popup.ts). */
 export function initCardLanguage(doc: Document, local: Area, languages: () => readonly string[]): { render(): Promise<void> } {
   const select = doc.getElementById("card-language") as HTMLSelectElement;
   let ready = false;

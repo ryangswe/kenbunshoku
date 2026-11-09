@@ -6,7 +6,6 @@
 // not the video site's. The logic is in controller.ts.
 
 import { loadImage } from "../images/chain.js";
-import { localizedChoice } from "../l10n/language.js";
 import { loadLocalizedPictures } from "../l10n/list.js";
 import type { Settings } from "../settings/schema.js";
 import { LAST_GOOD_KEY, readEffectiveSettings } from "../settings/store.js";
@@ -14,6 +13,7 @@ import { AUTOMATIC, CARD_LANGUAGE_KEY, parseCardLanguage, readCardLanguage } fro
 import { type CardTable, parseSourceFileMaps } from "./card-data.js";
 import { connectTooltipFrame, TooltipController } from "./controller.js";
 import { frameHasShape, type ShapeWindow } from "./frame-shape.js";
+import { LocalizedSync } from "./localized-sync.js";
 import { FACTS_CHANNEL, parseCardFacts, type TooltipOut } from "../shared/messages.js";
 
 declare const __DEV__: boolean;
@@ -32,35 +32,8 @@ const decode = async (blob: Blob): Promise<void> => {
 
 let post: ((message: TooltipOut) => void) | null = null;
 
-/** The popup's card language ("auto" until read). */
-let cardLanguage = AUTOMATIC;
-/** How many times the pictures' language was applied; only the latest load may land. */
-let localizedCalls = 0;
-
 /** The browser's languages, most preferred first. */
 const browserLanguages = (): readonly string[] => (navigator.languages?.length ? navigator.languages : [navigator.language]);
-
-/** Pictures in the popup's card language, or on Automatic the browser's, when the settings offer
- *  it. With `namesOnly` on, or English picked, nothing is downloaded and cards show their usual
- *  pictures. */
-function applyLocalized(controller: TooltipController, settings: Settings): void {
-  // Only the latest call applies: a slow list for a language the viewer has since left must not
-  // replace what they picked after it.
-  const call = ++localizedCalls;
-  const choice = localizedChoice(settings, browserLanguages(), cardLanguage);
-  if (!choice) {
-    controller.setLocalized(null);
-    return;
-  }
-  void loadLocalizedPictures(choice.lang, choice.art, (...args) => fetch(...args)).then(
-    (pictures) => {
-      if (call === localizedCalls) controller.setLocalized(pictures);
-    },
-    () => {
-      if (call === localizedCalls) controller.setLocalized(null);
-    },
-  );
-}
 
 void (async () => {
   const framed = window.parent !== window;
@@ -72,7 +45,6 @@ void (async () => {
     readEffectiveSettings(chrome.storage.local),
     readCardLanguage(chrome.storage.local).catch(() => AUTOMATIC),
   ]);
-  cardLanguage = language;
   const controller = new TooltipController({
     elements: { root: $("card"), art: $("art"), img: $<HTMLImageElement>("img"), placeholder: $("placeholder"), pill: $("pill") },
     table: (cards ?? {}) as CardTable,
@@ -92,7 +64,16 @@ void (async () => {
     frameFits: (size) => frameHasShape(size, window as unknown as ShapeWindow),
   });
   controller.setSettings(effective.settings);
-  applyLocalized(controller, effective.settings);
+  // Pictures in the popup's card language, or on Automatic the browser's (localized-sync.ts).
+  const localized = new LocalizedSync(
+    {
+      load: (lang, art) => loadLocalizedPictures(lang, art, (...args) => fetch(...args)),
+      apply: (pictures) => controller.setLocalized(pictures),
+      languages: browserLanguages,
+    },
+    language,
+  );
+  localized.sync(effective.settings);
   // Facts of a remote release's cards come from a compute frame over this channel, never through
   // the page (the page can post `card` messages to this frame, not here).
   factsChannel.onmessage = (event: MessageEvent) => {
@@ -105,19 +86,19 @@ void (async () => {
   let settingsNow = effective.settings;
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
-    if (CARD_LANGUAGE_KEY in changes) cardLanguage = parseCardLanguage((changes[CARD_LANGUAGE_KEY] as { newValue?: unknown } | undefined)?.newValue);
+    if (CARD_LANGUAGE_KEY in changes) localized.cardLanguage = parseCardLanguage((changes[CARD_LANGUAGE_KEY] as { newValue?: unknown } | undefined)?.newValue);
     if (LAST_GOOD_KEY in changes) {
       void readEffectiveSettings(chrome.storage.local).then((e) => {
         settingsNow = e.settings;
         controller.setSettings(e.settings);
-        applyLocalized(controller, e.settings);
+        localized.sync(e.settings);
       });
     } else if (CARD_LANGUAGE_KEY in changes) {
-      applyLocalized(controller, settingsNow);
+      localized.sync(settingsNow);
     }
   });
   // The browser's language changed: on Automatic, the pictures follow it.
-  window.addEventListener("languagechange", () => applyLocalized(controller, settingsNow));
+  window.addEventListener("languagechange", () => localized.sync(settingsNow));
   // The pill's size follows its text's layout (fonts can arrive late).
   const pill = $("pill");
   new ResizeObserver(() => {

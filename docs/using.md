@@ -36,9 +36,9 @@ window is short). Move to another card to see that one, even one under the pictu
 pointer passes through it, and nothing on it can be clicked. When there is no picture, the
 card's name shows instead. Pausing works too, on recorded videos and on live streams.
 
-The picture is Bandai's official one. When Bandai publishes the card in your card language (French
-is the only one besides English today, from version 0.4.0), the picture is in that language, and
-otherwise it is in English. The popup's **Card language** menu sets the language, and by default it
+The picture is Bandai's official one. When Bandai publishes the card in your card language, the
+picture is in that language, and otherwise it is in English. French pictures arrived in version
+0.4.0. The popup's **Card language** menu sets the language, and by default it
 follows your browser.
 
 ## The toolbar popup

@@ -6,7 +6,7 @@ import { initPopup } from "./view.js";
 
 declare const __TARGET__: "chrome" | "firefox";
 
-initPopup({
+const popup = initPopup({
   doc: document,
   local: chrome.storage.local as never,
   onChanged: chrome.storage.onChanged as never,
@@ -15,4 +15,6 @@ initPopup({
   updateNotices: __TARGET__ !== "firefox",
   languages: () => (navigator.languages?.length ? navigator.languages : [navigator.language]),
 });
+// The browser's language changed: Automatic may name another language.
+window.addEventListener("languagechange", () => void popup.renderLanguage());
 chrome.runtime.sendMessage({ kind: "settings:refresh" }).catch(() => undefined);
