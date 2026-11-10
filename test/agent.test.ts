@@ -430,6 +430,9 @@ describe("Agent", () => {
     vi.useFakeTimers();
     agent = await startAgent();
     move(100, 100);
+    fromFrame(tooltip(), { kind: "ready" });
+    const sent = spyOn(tooltip());
+    const cardMessages = () => sent.filter((m) => m.kind === "card").length;
     const card = { cardId: "OP01-001", name: "Roronoa Zoro", box: { x: 0.1, y: 0.1, width: 0.2, height: 0.4 } };
     showCard({ ...card, rotation: 15, localWidth: 0.1, localHeight: 0.3 });
     const el = outline()!;
@@ -437,9 +440,14 @@ describe("Agent", () => {
     // The 960 x 540 picture: center (192, 162), sides 96 x 162 pixels.
     expect([el.style.left, el.style.top, el.style.width, el.style.height].map(parseFloat)).toEqual([144, 81, 96, 162]);
     expect(el.style.transform).toBe("rotate(15deg)");
-    // The same card reported again with only its outline changed: the outline follows it.
+    expect(cardMessages()).toBe(1);
+    const place = [tooltip()!.style.left, tooltip()!.style.top];
+    // The same card reported again with only its outline changed: the outline follows it, and the
+    // tooltip is neither sent the card again nor moved.
     fromFrame(compute(), { kind: "shown", card: { ...card, rotation: -10, localWidth: 0.1, localHeight: 0.3 } });
     expect(el.style.transform).toBe("rotate(-10deg)");
+    expect(cardMessages()).toBe(1);
+    expect([tooltip()!.style.left, tooltip()!.style.top]).toEqual(place);
     // Upright again: the box, unturned.
     fromFrame(compute(), { kind: "shown", card });
     expect(el.style.transform).toBe("none");

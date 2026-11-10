@@ -92,7 +92,8 @@ the rest is the base pipeline. An arrow into `cdn.kenbunshoku.com` or
   each shown card's name to the tooltip frame over a channel the page cannot reach.
 - **The tooltip frame** gets a card id and name, loads the card's picture (from the CDN, then
   `optcgapi.com` if the CDN fails, or none with `namesOnly`), and reports its size back. The
-  content script places it, and draws the **outline** around the same box.
+  content script places it, and draws the **outline** around the same box, turned with the card
+  when the compute frame sends the card's turned outline.
 - **The background** fetches the settings file. The popup and the tooltip frame ask it for a
   refresh, which it makes at most once an hour.
 

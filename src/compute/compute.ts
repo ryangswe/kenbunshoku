@@ -91,8 +91,8 @@ void (async () => {
     hold: SHOWN_HOLD,
     // Named cards follow their own outline: a tilted card is hovered on the card itself, not on
     // the upright box around it, and its shown card carries the turned outline the content
-    // script draws (toolkit 0.10.1). It costs one tilt estimate per card whose match reaches the
-    // naming threshold, on the crop the card already has.
+    // script draws (toolkit 0.10.1). It costs one tilt estimate per detected card whose match
+    // reaches the recognizer's threshold (tau), on the crop the card already has.
     rotatedOutlines: true,
     onShown: (card, release) => shownFacts.onShown(card, release),
     createWorker: () => new Worker(workerUrl, { type: "module" }) as unknown as WorkerLike,
