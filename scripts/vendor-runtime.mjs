@@ -25,7 +25,7 @@
 //   LICENSE, NOTICE                  the runtime's license and notice (ONNX Runtime Web's MIT
 //                                    license is in THIRD_PARTY_LICENSES.txt at the top)
 //   types/                           declarations of the runtime's API, and cardvision.d.ts
-//   VENDOR.json                      the commit, the toolkit release it belongs to (--toolkit-release),
+//   VENDOR.json                      the commit, each vendored file's SHA-256, the toolkit release it belongs to (--toolkit-release),
 //                                    the runtime's version, the ONNX Runtime pin and the OpenCV.js lock
 //
 // ONNX Runtime Web's WebAssembly files (about 28 MB) are not vendored: `npm run build` copies
@@ -34,13 +34,13 @@
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
-const DEFAULT_COMMIT = "3d8962c";
+const DEFAULT_COMMIT = "d0584b7f6cf1ddc1938ba654f025483768fce429";
 const OPENCV_FILES = ["opencv.mjs", "opencv_js.wasm", "opencv.mjs.LEGAL.txt"];
 // The toolkit's entries for extensions, beside the runtime: the compute frame's session, the content
 // script's capture control, and the remote-release module (pointer, choice, loading, card table).
@@ -138,6 +138,14 @@ try {
         ortFiles,
         opencv: { lock, legalSha256: createHash("sha256").update(readFileSync(join(out, "opencv.mjs.LEGAL.txt"))).digest("hex") },
         files: readdirSync(out).filter((n) => n !== "VENDOR.json" && n !== "types").sort(),
+        // The SHA-256 of each vendored file (types/ included), so a hand edit shows; the build checks them.
+        sha256: Object.fromEntries(
+          readdirSync(out, { recursive: true })
+            .map((n) => String(n))
+            .filter((n) => n !== "VENDOR.json" && !basename(n).startsWith(".") && !statSync(join(out, n)).isDirectory())
+            .sort()
+            .map((n) => [n.split(sep).join("/"), createHash("sha256").update(readFileSync(join(out, n))).digest("hex")]),
+        ),
       },
       null,
       2,

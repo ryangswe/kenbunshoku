@@ -64,7 +64,7 @@ export declare function replyRejection(envelope: FrameEnvelope | undefined, live
 /** Does a rejected reply still finish the request in flight? */
 export declare function rejectionAnswersInFlight(reason: ReplyRejection): boolean;
 /** Which analysis policy applies right now. */
-export type AnalysisState = "always-on" | "fast" | "reading" | "idle";
+export type AnalysisState = "always-on" | "fast" | "reading" | "idle" | "probe";
 export interface StartedInfo {
     /** Time of the analyzed picture in the video, in seconds: what staleness is measured from. */
     videoTimeSec?: number;
@@ -76,6 +76,7 @@ export declare class FrameScheduler {
     private readonly confirmFrames;
     private mode;
     private readingIntervalMs;
+    private probeIntervalMs;
     private pending;
     private repeatsLeft;
     private lastStartedAt;
@@ -101,14 +102,22 @@ export declare class FrameScheduler {
     private lastUnansweredCapture;
     /** A look's capture was refused since the picture was last answered, received or replaced. */
     private refused;
+    /** Layout mode: the host also wants pointer-driven analysis. */
+    private pointerAnalysis;
     /**
      * @param intervalMs The cadence of the mode: the fast cadence in pointer mode, the slow one
      *   in always-on mode (cadence.ts `cadenceMs`).
      * @param confirmFrames How many times a still picture is analyzed in all.
      * @param mode Defaults to "always-on": the cadence alone decides.
      * @param readingIntervalMs The slow cadence of the "reading" state. Defaults to `intervalMs`.
+     * @param probeIntervalMs Layout mode: the probe interval (the product's). Required there.
      */
-    constructor(intervalMs: number, confirmFrames?: number, mode?: AnalysisMode, readingIntervalMs?: number);
+    constructor(intervalMs: number, confirmFrames?: number, mode?: AnalysisMode, readingIntervalMs?: number, probeIntervalMs?: number | null);
+    private checkProbe;
+    setProbeIntervalMs(ms: number): void;
+    /** Layout mode: does the host also want pointer-driven analysis (while its display shows the
+     *  recognizer's own cards)? */
+    setPointerAnalysis(on: boolean): void;
     setIntervalMs(ms: number): void;
     setReadingIntervalMs(ms: number): void;
     /** Is a tooltip showing at the resting pointer? Report it before each evaluation and after
@@ -176,6 +185,7 @@ export declare class FrameScheduler {
     /** Is the grace period of the last pointer activity still running? */
     pointerActive(now: number): boolean;
     analysisState(now: number): AnalysisState;
+    private pointerState;
     /** May anything be analyzed right now? */
     analysisActive(now: number): boolean;
     /** The cadence in effect: the slow reading cadence while reading, else the mode's cadence. */

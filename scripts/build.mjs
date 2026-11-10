@@ -25,9 +25,9 @@
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 
@@ -91,6 +91,26 @@ const out = resolve(root, values.out);
 const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf-8"));
 const vendorDir = join(root, "vendor", "cardvision-browser");
 const vendor = JSON.parse(readFileSync(join(vendorDir, "VENDOR.json"), "utf-8"));
+// The vendored runtime must be exactly what scripts/vendor-runtime.mjs recorded: every file listed, none changed, none added.
+{
+  const recorded = vendor.sha256 ?? {};
+  const present = readdirSync(vendorDir, { recursive: true })
+    .map((n) => String(n))
+    .filter((n) => n !== "VENDOR.json" && !basename(n).startsWith(".") && !statSync(join(vendorDir, n)).isDirectory())
+    .map((n) => n.split(sep).join("/"));
+  const problems = [
+    ...present.filter((n) => !(n in recorded)).map((n) => `${n} is not in VENDOR.json`),
+    ...Object.keys(recorded).filter((n) => !present.includes(n)).map((n) => `${n} is missing`),
+    ...present
+      .filter((n) => n in recorded && createHash("sha256").update(readFileSync(join(vendorDir, n))).digest("hex") !== recorded[n])
+      .map((n) => `${n} differs from its recorded SHA-256`),
+  ];
+  if (Object.keys(recorded).length === 0) problems.unshift("VENDOR.json records no SHA-256 (re-vendor with scripts/vendor-runtime.mjs)");
+  if (problems.length > 0) {
+    console.error(`vendor/cardvision-browser does not match VENDOR.json:\n  ${problems.join("\n  ")}`);
+    process.exit(1);
+  }
+}
 
 // ------------------------------------------------------------------ 1. the release, verified
 const { loadReleaseData } = await import(pathToFileURL(join(vendorDir, "cardvision.js")).href);
