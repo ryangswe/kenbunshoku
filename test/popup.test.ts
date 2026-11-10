@@ -11,7 +11,7 @@ import { initPopup } from "../src/popup/view.js";
 import { memoryStorage } from "./helpers/memory-storage.js";
 
 const HTML = `<span id="name"></span><button id="enabled" role="switch" aria-checked="false" aria-busy="true" disabled></button>
-<fieldset id="hover-settings" disabled><input id="card-size" type="range" disabled><output id="card-size-value"></output></fieldset>
+<fieldset id="hover-settings" disabled><select id="card-language" aria-busy="true" disabled></select><input id="card-size" type="range" disabled><output id="card-size-value"></output></fieldset>
 <p id="update" hidden><a id="update-link"></a><button id="update-dismiss"></button></p>
 <a id="project"></a><a id="runtime"></a>`;
 
@@ -260,5 +260,99 @@ describe("popup", () => {
     initPopup({ doc: document, local: memoryStorage(), onChanged: listenersOf().onChanged, version: "0.1.0" });
     expect((document.getElementById("project") as HTMLAnchorElement).href).toBe(new URL(PROJECT_URL).href);
     expect((document.getElementById("runtime") as HTMLAnchorElement).href).toBe(new URL(RUNTIME_URL).href);
+  });
+
+  describe("card language menu", () => {
+    const HOST = CONFIG.imageHosts[0];
+    const fileWith = (extra: Record<string, unknown>) => ({
+      schemaVersion: 1, updatedAt: "2026-11-09T00:00:00Z", namesOnly: false, primary: null, fallbacks: [], cardLink: null, update: null, ...extra,
+    });
+    const french = HOST ? { fr: { template: `https://${HOST}/l10n/fr/{sourceFile}`, list: `https://${HOST}/l10n/fr/list.json`, listSha256: "a".repeat(64) } } : {};
+    const stored = (raw: unknown) => ({ "settings.lastGood": { raw, fetchedAt: 1 } });
+    const menu = () => document.getElementById("card-language") as HTMLSelectElement;
+    const entries = () => [...menu().options].map((o) => [o.value, o.textContent, o.lang]);
+
+    it("offers Automatic and English when the settings offer no other language", async () => {
+      initPopup({ doc: document, local: memoryStorage(stored(fileWith({}))), onChanged: listenersOf().onChanged, version: "0.1.0", languages: () => ["de-DE"] });
+      await settle();
+      expect(entries()).toEqual([["auto", "Automatic (English)", "en"], ["en", "English", "en"]]);
+      expect(menu().value).toBe("auto");
+      expect(menu().disabled).toBe(false);
+      expect(menu().hasAttribute("aria-busy")).toBe(false);
+    });
+
+    it.runIf(HOST !== undefined)("names each offered language in its own language, and Automatic names the one it picks", async () => {
+      initPopup({ doc: document, local: memoryStorage(stored(fileWith({ localizedArt: french }))), onChanged: listenersOf().onChanged, version: "0.1.0", languages: () => ["ja", "fr-CA"] });
+      await settle();
+      expect(entries()).toEqual([["auto", "Automatic (Français)", "en"], ["en", "English", "en"], ["fr", "Français", "fr"]]);
+    });
+
+    it.runIf(HOST !== undefined)("stores a choice at once, and follows a choice made elsewhere", async () => {
+      const local = memoryStorage(stored(fileWith({ localizedArt: french })));
+      const { listeners, onChanged } = listenersOf();
+      initPopup({ doc: document, local, onChanged, version: "0.1.0", languages: () => ["fr-FR"] });
+      await settle();
+      menu().value = "en";
+      menu().dispatchEvent(new Event("change"));
+      await settle();
+      expect(local.data.cardLanguage).toBe("en");
+      local.data.cardLanguage = "fr";
+      listeners[0]!({ cardLanguage: { newValue: "fr" } }, "local");
+      await settle();
+      expect(menu().value).toBe("fr");
+      expect(listeners).toHaveLength(1);
+    });
+
+    it.runIf(HOST !== undefined)("shows a choice the settings stop offering as Automatic, keeps it stored, and shows it again when it comes back", async () => {
+      const local = memoryStorage({ ...stored(fileWith({})), cardLanguage: "fr" });
+      const { listeners, onChanged } = listenersOf();
+      initPopup({ doc: document, local, onChanged, version: "0.1.0", languages: () => ["en-US"] });
+      await settle();
+      expect(menu().value).toBe("auto");
+      expect(entries().map(([v]) => v)).toEqual(["auto", "en"]);
+      expect(local.data.cardLanguage).toBe("fr");
+      Object.assign(local.data, stored(fileWith({ localizedArt: french })));
+      listeners[0]!({ "settings.lastGood": { newValue: local.data["settings.lastGood"] } }, "local");
+      await settle();
+      expect(menu().value).toBe("fr");
+    });
+
+    it.runIf(HOST !== undefined)("offers no other language while the settings show names only", async () => {
+      initPopup({ doc: document, local: memoryStorage(stored(fileWith({ namesOnly: true, localizedArt: french }))), onChanged: listenersOf().onChanged, version: "0.1.0", languages: () => ["fr-FR"] });
+      await settle();
+      expect(entries()).toEqual([["auto", "Automatic (English)", "en"], ["en", "English", "en"]]);
+    });
+
+    it("keeps the menu still until the stored choice is read", async () => {
+      const local = memoryStorage({ cardLanguage: "en" });
+      let release: () => void = () => undefined;
+      const gate = new Promise<void>((r) => (release = r));
+      const slow = { ...local, get: async (k: string | string[] | null) => (await gate, local.get(k)), set: local.set };
+      initPopup({ doc: document, local: slow, onChanged: listenersOf().onChanged, version: "0.1.0" });
+      expect(menu().disabled).toBe(true);
+      expect(menu().getAttribute("aria-busy")).toBe("true");
+      const option = document.createElement("option");
+      option.value = "auto";
+      menu().append(option);
+      menu().value = "auto";
+      menu().dispatchEvent(new Event("change"));
+      await settle();
+      expect(local.data.cardLanguage).toBe("en");
+      release();
+      await settle();
+      await settle();
+      expect(menu().value).toBe("en");
+      expect(menu().disabled).toBe(false);
+    });
+
+    it("shows Automatic with English alone when the storage cannot be read", async () => {
+      const local = memoryStorage();
+      const broken = { ...local, get: async () => Promise.reject(new Error("storage unavailable")), set: local.set };
+      initPopup({ doc: document, local: broken, onChanged: listenersOf().onChanged, version: "0.1.0", languages: () => ["fr-FR"] });
+      await settle();
+      await settle();
+      expect(entries().map(([v]) => v)).toEqual(["auto", "en"]);
+      expect(menu().disabled).toBe(false);
+    });
   });
 });

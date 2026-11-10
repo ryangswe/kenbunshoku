@@ -22,8 +22,10 @@ desktop, and Firefox keeps it up to date.
 Then open a One Piece Card Game video on Twitch or YouTube and rest the pointer on a card: its
 picture appears beside it.
 
-Installing from a release zip instead (a Chrome setup without the Web Store, a release before
-it reaches the store, or your own build): see [docs/install-from-zip.md](docs/install-from-zip.md).
+To install from a release zip instead, for example in a Chrome setup without the Web Store, for a
+release before it reaches the store, or for your own build, see
+[docs/install-from-zip.md](docs/install-from-zip.md). Release zips are Chrome builds, so in Firefox
+use the addons.mozilla.org link above.
 
 ## Documentation
 

@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { SOURCE_FAILURE_LIMIT } from "../src/constants.js";
 import { loadImage, resolveCardImage, SourceHealth } from "../src/images/chain.js";
-import { localizedChoice, pickLanguage } from "../src/l10n/language.js";
+import { localizedChoice, offeredLanguages, viewerLanguage } from "../src/l10n/language.js";
 import { loadLocalizedPictures, type LocalizedPictures, parseCardList } from "../src/l10n/list.js";
 import type { LocalizedArt, Settings } from "../src/settings/schema.js";
 import { validateSettings } from "../src/settings/schema.js";
@@ -14,19 +14,33 @@ const FR_TEMPLATE = "https://cdn.kenbunshoku.com/l10n/fr/{sourceFile}";
 const LIST_URL = "https://cdn.kenbunshoku.com/l10n/fr/list.0123456789abcdef.json";
 const sha = (text: string) => createHash("sha256").update(text).digest("hex");
 
-describe("pickLanguage (follows the browser, no setting)", () => {
+describe("viewerLanguage on Automatic (the toolkit recipe: the browser's languages in order)", () => {
   it.each([
     [["fr-FR", "en-US"], ["fr"], "fr"],
     [["fr-CA"], ["fr", "ja"], "fr"],
     [["FR"], ["fr"], "fr"],
+    [["fr_CA"], ["fr"], "fr"],
     [["ja"], ["fr", "ja"], "ja"],
-    [["en-US", "fr-FR"], ["fr"], null], // only the first preferred language counts
-    [["de-DE"], ["fr"], null],
-    [["en"], ["en"], null], // English is the usual picture, never a language of its own
-    [[], ["fr"], null],
-    [undefined, ["fr"], null],
+    [["ja", "fr"], ["fr"], "fr"], // the whole list is walked, not only its first entry
+    [["en-US", "fr-FR"], ["fr"], "en"], // English comes first, and it is the catalog's language
+    [["de-DE", "ja"], ["fr"], "en"], // nothing offered: English
+    [["", "fr"], ["fr"], "fr"],
+    [[], ["fr"], "en"],
+    [undefined, ["fr"], "en"],
   ])("%j with %j offered → %s", (preferred, offered, expected) => {
-    expect(pickLanguage(preferred as string[] | undefined, offered as string[])).toBe(expected);
+    expect(viewerLanguage(offered as string[], "auto", preferred as string[] | undefined)).toBe(expected);
+  });
+});
+
+describe("viewerLanguage with a chosen language", () => {
+  it("uses the choice when it is English or offered, whatever the browser says", () => {
+    expect(viewerLanguage(["fr"], "en", ["fr-FR"])).toBe("en");
+    expect(viewerLanguage(["fr"], "fr", ["en-US"])).toBe("fr");
+  });
+
+  it("follows the browser when the chosen language is no longer offered", () => {
+    expect(viewerLanguage([], "fr", ["en-US"])).toBe("en");
+    expect(viewerLanguage(["ja"], "fr", ["ja"])).toBe("ja");
   });
 });
 
@@ -45,10 +59,25 @@ describe("localizedChoice", () => {
 
   it("picks the browser's language when the settings offer it", () => {
     expect(localizedChoice(settings(false, { fr: art }), ["fr-FR"])).toEqual({ lang: "fr", art });
+    expect(localizedChoice(settings(false, { fr: art }), ["ja", "fr"])).toEqual({ lang: "fr", art });
+  });
+
+  it("follows the popup's choice: English shows the usual pictures, French its own", () => {
+    expect(localizedChoice(settings(false, { fr: art }), ["fr-FR"], "en")).toBeNull();
+    expect(localizedChoice(settings(false, { fr: art }), ["en-US"], "fr")).toEqual({ lang: "fr", art });
+    expect(localizedChoice(settings(false, { fr: art }), ["fr-FR"], "auto")).toEqual({ lang: "fr", art });
+  });
+
+  it("treats a chosen language the settings stop offering as Automatic", () => {
+    expect(localizedChoice(settings(false), ["fr-FR"], "fr")).toBeNull();
+    expect(localizedChoice(settings(false, { ja: art }), ["fr-FR", "ja"], "fr")).toEqual({ lang: "ja", art });
   });
 
   it("chooses nothing under namesOnly, so not even the card list is downloaded", () => {
     expect(localizedChoice(settings(true, { fr: art }), ["fr-FR"])).toBeNull();
+    expect(localizedChoice(settings(true, { fr: art }), ["en-US"], "fr")).toBeNull();
+    expect(offeredLanguages(settings(true, { fr: art }))).toEqual([]);
+    expect(offeredLanguages(settings(false, { fr: art }))).toEqual(["fr"]);
   });
 
   it("chooses nothing when the settings offer no language (older files)", () => {

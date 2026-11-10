@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-29T00:00:00Z",
+  "updatedAt": "2026-11-08T00:00:00Z",
   "namesOnly": false,
   "primary": {
     "id": "cdn",
@@ -21,18 +21,18 @@
     }
   },
   "update": {
-    "latest": "0.3.0",
-    "url": "https://github.com/ryangswe/kenbunshoku/releases/tag/v0.3.0"
+    "latest": "0.4.1",
+    "url": "https://github.com/ryangswe/kenbunshoku/releases/tag/v0.4.1"
   },
   "release": {
-    "id": "4e22c3209b2ecca7",
-    "path": "vision/releases/4e22c3209b2ecca7/release.json",
-    "sha256": "d8477453431445c87d73b37dbdc3960297f827f2a0a18ab8d41792a0260b88c2",
+    "id": "0aa3e56d7c3dde5d",
+    "path": "vision/releases/0aa3e56d7c3dde5d/release.json",
+    "sha256": "103aedd3fd9618f3603d5442ab91c7af0b1a9347836e5508240924f4a19a1fa8",
     "minimumExtensionVersion": "0.2.0",
     "geometric": {
-      "path": "vision/releases/4e22c3209b2ecca7/geometric.json",
-      "sha256": "3ab6dbaf5c4d5739f86db9887ddff25fc73accbb5e97e6a9c856846d6785164d",
-      "manifestSha256": "9cf25b2605bc3d136a18d258265cbff96093b7f3cdaf3a4a06f4283ef8cf4baf"
+      "path": "vision/releases/0aa3e56d7c3dde5d/geometric.json",
+      "sha256": "febc6f10a8c273c90697390ff7e56697489b0db806d0f31cc3cecaa92fd057f1",
+      "manifestSha256": "a026c024587bd9827c9c57a8785ca358d01184eb8187c5c943376d59a673e704"
     }
   }
 }
