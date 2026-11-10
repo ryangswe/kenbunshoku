@@ -34,11 +34,13 @@
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join, resolve, sep } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+
+import { vendoredFiles } from "./vendor-check.mjs";
 
 const DEFAULT_COMMIT = "d0584b7f6cf1ddc1938ba654f025483768fce429";
 const OPENCV_FILES = ["opencv.mjs", "opencv_js.wasm", "opencv.mjs.LEGAL.txt"];
@@ -138,14 +140,8 @@ try {
         ortFiles,
         opencv: { lock, legalSha256: createHash("sha256").update(readFileSync(join(out, "opencv.mjs.LEGAL.txt"))).digest("hex") },
         files: readdirSync(out).filter((n) => n !== "VENDOR.json" && n !== "types").sort(),
-        // The SHA-256 of each vendored file (types/ included), so a hand edit shows; the build checks them.
-        sha256: Object.fromEntries(
-          readdirSync(out, { recursive: true })
-            .map((n) => String(n))
-            .filter((n) => n !== "VENDOR.json" && !basename(n).startsWith(".") && !statSync(join(out, n)).isDirectory())
-            .sort()
-            .map((n) => [n.split(sep).join("/"), createHash("sha256").update(readFileSync(join(out, n))).digest("hex")]),
-        ),
+        // The SHA-256 of each vendored file (types/ included); scripts/vendor-check.mjs checks them.
+        sha256: Object.fromEntries(vendoredFiles(out).map((n) => [n, createHash("sha256").update(readFileSync(join(out, n))).digest("hex")])),
       },
       null,
       2,
