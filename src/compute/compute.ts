@@ -89,6 +89,11 @@ void (async () => {
     // A shown card is kept through short gaps (two empty analyses in a row, or 5 s): no flicker on
     // a live stream.
     hold: SHOWN_HOLD,
+    // Named cards follow their own outline: a tilted card is hovered on the card itself, not on
+    // the upright box around it, and its shown card carries the turned outline the content
+    // script draws (toolkit 0.10.1). It costs one tilt estimate per card whose match reaches the
+    // naming threshold, on the crop the card already has.
+    rotatedOutlines: true,
     onShown: (card, release) => shownFacts.onShown(card, release),
     createWorker: () => new Worker(workerUrl, { type: "module" }) as unknown as WorkerLike,
     loadRequest,

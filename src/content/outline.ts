@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // The outline drawn around the card whose tooltip is showing. It is the accepted detection's
 // box (the one the tooltip is placed beside), mapped onto the picture on screen the same way
-// (letterboxing, full screen, theater, resizing). The agent shows and hides it with the tooltip.
+// (letterboxing, full screen, theater, resizing); for a turned card, the turned outline the
+// compute frame's hit test uses, about the same center. The agent shows and hides it with the
+// tooltip.
 //
 // It never takes the pointer and never moves the page: a fixed-position element with
 // pointer-events none, nothing focusable, drawn in a closed shadow root so the page's styles do
@@ -41,6 +43,57 @@ export function outlineRect(picture: Rect, box: FractionBox, pictureKnown = true
     height: (y1 - y0) * picture.height,
   };
   return rect.width >= MIN_OUTLINE_SIDE && rect.height >= MIN_OUTLINE_SIDE ? rect : null;
+}
+
+/** Where the outline goes and its turn in degrees (0 upright, positive clockwise). The element
+ *  takes the rectangle, then `rotate()` about its center. */
+export interface OutlinePlace extends Rect {
+  rotation: number;
+}
+
+/** A shown card as the outline needs it: its box, and its turned outline when it has one. */
+export interface OutlinedCard {
+  box: FractionBox;
+  rotation?: number;
+  localWidth?: number;
+  localHeight?: number;
+}
+
+/**
+ * Where the outline of a shown card goes. A turned card (the toolkit's `rotatedOutlines`) gets
+ * the outline the compute frame's hit test uses: its own sides (`localWidth` of the picture's
+ * width, `localHeight` of its height) about the center of the box, turned by `rotation` degrees
+ * in pixels, as `computeCardQuad` draws it. An upright card, a malformed outline, or a turned
+ * outline that would reach past the picture (where it cannot be clipped like a box) gets the
+ * box, as `outlineRect` places it. Null when the box itself draws nothing.
+ */
+export function outlinePlace(picture: Rect, card: OutlinedCard, pictureKnown = true): OutlinePlace | null {
+  const rect = outlineRect(picture, card.box, pictureKnown);
+  if (!rect) return null;
+  const upright = { ...rect, rotation: 0 };
+  const { rotation, localWidth, localHeight } = card;
+  const side = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v > 0 && v <= 1;
+  if (typeof rotation !== "number" || !Number.isFinite(rotation) || rotation === 0 || rotation <= -45 || rotation > 45) return upright;
+  if (!side(localWidth) || !side(localHeight)) return upright;
+  const width = localWidth * picture.width;
+  const height = localHeight * picture.height;
+  if (width < MIN_OUTLINE_SIDE || height < MIN_OUTLINE_SIDE) return upright;
+  const centerX = picture.left + (card.box.x + card.box.width / 2) * picture.width;
+  const centerY = picture.top + (card.box.y + card.box.height / 2) * picture.height;
+  // Half the turned outline's extent on screen, to keep it on the picture.
+  const turn = (rotation * Math.PI) / 180;
+  const cos = Math.abs(Math.cos(turn));
+  const sin = Math.abs(Math.sin(turn));
+  const halfX = (width * cos + height * sin) / 2;
+  const halfY = (width * sin + height * cos) / 2;
+  // Half a pixel of slack for rounding.
+  const inside =
+    centerX - halfX >= picture.left - 0.5 &&
+    centerY - halfY >= picture.top - 0.5 &&
+    centerX + halfX <= picture.left + picture.width + 0.5 &&
+    centerY + halfY <= picture.top + picture.height + 0.5;
+  if (!inside) return upright;
+  return { left: centerX - width / 2, top: centerY - height / 2, width, height, rotation };
 }
 
 /**
@@ -93,8 +146,9 @@ export class CardOutline {
     return this.visible;
   }
 
-  /** Draw it around `rect` (page coordinates), or hide it when `rect` is null. */
-  show(rect: Rect | null): void {
+  /** Draw it around `rect` (page coordinates), turned by its `rotation` degrees about its center
+   *  when it has one, or hide it when `rect` is null. */
+  show(rect: (Rect & { rotation?: number }) | null): void {
     if (!rect) {
       this.hide();
       return;
@@ -104,6 +158,7 @@ export class CardOutline {
     s.top = `${rect.top}px`;
     s.width = `${rect.width}px`;
     s.height = `${rect.height}px`;
+    s.transform = rect.rotation ? `rotate(${rect.rotation}deg)` : "none";
     if (this.visible) return;
     this.visible = true;
     s.display = "block";

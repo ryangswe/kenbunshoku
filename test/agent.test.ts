@@ -81,7 +81,7 @@ function computeReady(instance = INSTANCE): void {
 
 /** The compute frame names a card, and the tooltip frame answers with its size for it (the
  *  frame is shown only once that size has come). */
-function showCard(card: { cardId: string; name: string; box: { x: number; y: number; width: number; height: number } }): void {
+function showCard(card: { cardId: string; name: string; box: { x: number; y: number; width: number; height: number }; rotation?: number; localWidth?: number; localHeight?: number }): void {
   computeReady();
   fromFrame(compute(), { kind: "shown", card });
   fromFrame(tooltip(), { kind: "size", width: 320, height: 448, shape: "card", cardId: card.cardId });
@@ -424,6 +424,36 @@ describe("Agent", () => {
     vi.advanceTimersByTime(HIDE_DELAY_MS + 1);
     expect(tooltip()!.style.visibility).toBe("hidden");
     expect(el.style.display).toBe("none");
+  });
+
+  it("turns the outline with a turned card, and follows a new outline of the same card", async () => {
+    vi.useFakeTimers();
+    agent = await startAgent();
+    move(100, 100);
+    const card = { cardId: "OP01-001", name: "Roronoa Zoro", box: { x: 0.1, y: 0.1, width: 0.2, height: 0.4 } };
+    showCard({ ...card, rotation: 15, localWidth: 0.1, localHeight: 0.3 });
+    const el = outline()!;
+    expect(el.style.display).toBe("block");
+    // The 960 x 540 picture: center (192, 162), sides 96 x 162 pixels.
+    expect([el.style.left, el.style.top, el.style.width, el.style.height].map(parseFloat)).toEqual([144, 81, 96, 162]);
+    expect(el.style.transform).toBe("rotate(15deg)");
+    // The same card reported again with only its outline changed: the outline follows it.
+    fromFrame(compute(), { kind: "shown", card: { ...card, rotation: -10, localWidth: 0.1, localHeight: 0.3 } });
+    expect(el.style.transform).toBe("rotate(-10deg)");
+    // Upright again: the box, unturned.
+    fromFrame(compute(), { kind: "shown", card });
+    expect(el.style.transform).toBe("none");
+    expect([el.style.left, el.style.top, el.style.width, el.style.height].map(parseFloat)).toEqual([96, 54, 192, 216]);
+  });
+
+  it("draws a malformed outline upright, and still shows the card", async () => {
+    vi.useFakeTimers();
+    agent = await startAgent();
+    move(100, 100);
+    showCard({ cardId: "OP01-001", name: "Roronoa Zoro", box: { x: 0.1, y: 0.1, width: 0.2, height: 0.4 }, rotation: 90, localWidth: 0.1, localHeight: 0.3 });
+    expect(tooltip()!.style.visibility).toBe("visible");
+    expect(outline()!.style.display).toBe("block");
+    expect(outline()!.style.transform).toBe("none");
   });
 
   it("hides the outline with the tooltip when the pointer leaves the player", async () => {
