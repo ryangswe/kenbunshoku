@@ -40,6 +40,12 @@ export type MeasuredPacingOption = boolean | {
 };
 /** The share the option asks for, or null when pacing is off. Throws on a share outside (0, 1]. */
 export declare function resolveMeasuredPacing(option: MeasuredPacingOption | undefined): number | null;
+/** Which faces the geometric stage verifies: "all" (the default) or "focus", the faces at the
+ *  pointer (`SessionOptions.geometricScope`). */
+export type GeometricScope = "all" | "focus";
+/** The scope a session runs. Throws on a value that is not a scope, and on "focus" outside
+ *  pointer mode (it needs the pointer to say which faces to verify). */
+export declare function resolveGeometricScope(scope: GeometricScope | undefined, mode: AnalysisMode | undefined): GeometricScope;
 /**
  * The wait between analyses under measured pacing.
  * @param fixedMs Today's fixed interval for the mode and backend: the wait is never shorter, and

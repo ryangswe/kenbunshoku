@@ -34,6 +34,9 @@ export interface FaceResult {
      *  the "accepted-nms" hover selection, and, without a geometric stage, the tracker's input;
      *  with one, the tracker is given the cosine looks that would be kept without it). */
     kept: boolean;
+    /** True on a face the geometric stage applies to that was not verified on this frame
+     *  (`geometricScope: "focus"`): it is not named, whatever its cosine look. Absent otherwise. */
+    unverified?: true;
     /** With a geometric stage that ran on this face: what it found and what the embedding alone
      *  answered (Python: `GeometricOutcome.to_json`). The fields above are the fused look's. */
     geometric?: GeometricEvidence;
@@ -97,6 +100,10 @@ export interface AnalyzeOptions {
         x: number;
         y: number;
     } | null;
+    /** "focus" verifies with the geometric stage only the faces whose box holds `focus`
+     *  and those joined to them by overlapping boxes (recognition.ts `focusGroup`), and names no
+     *  face the stage applies to and did not verify; no `focus` then means no face is verified. Default "all": every face the stage applies to. */
+    geometricScope?: "all" | "focus";
     /** True gives each named card on this frame its outline (tilt.ts `outlineRect`): `rotation`,
      *  `localWidth` and `localHeight` follow a tilted card, `bounds` stays the box. Default false:
      *  every card's outline is its box, as before. */

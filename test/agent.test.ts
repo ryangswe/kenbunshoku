@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Agent, HIDE_DELAY_MS } from "../src/content/agent.js";
 import { tag } from "../src/shared/messages.js";
+import { PROTOCOL_VERSION } from "../vendor/cardvision-browser/page-capture.js";
 
 const EXT = "chrome-extension://igfdjmpikcbplijnlpkligaafepgoaaa";
 
@@ -74,9 +75,9 @@ function fromFrame(frame: HTMLIFrameElement | undefined, data: object): void {
 
 const INSTANCE = "0123456789abcdef";
 
-/** The compute frame says ready (contract version 1); the same instance again changes nothing. */
+/** The compute frame says ready (the vendored contract version); the same instance again changes nothing. */
 function computeReady(instance = INSTANCE): void {
-  fromFrame(compute(), { kind: "ready", version: 1, instance });
+  fromFrame(compute(), { kind: "ready", version: PROTOCOL_VERSION, instance });
 }
 
 /** The compute frame names a card, and the tooltip frame answers with its size for it (the
@@ -904,7 +905,7 @@ describe("Agent and the toolkit's capture control", () => {
     agent = await startAgent();
     move(100, 100);
     const sent = spyOn(compute());
-    fromFrame(compute(), { kind: "ready", version: 2, instance: INSTANCE });
+    fromFrame(compute(), { kind: "ready", version: PROTOCOL_VERSION + 1, instance: INSTANCE });
     capture(12);
     expect(answer(sent, 12)).toBeUndefined();
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("reload the page"));

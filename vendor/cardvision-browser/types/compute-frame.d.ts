@@ -25,10 +25,17 @@ export interface ComputeFrameEnv extends Omit<WorkerSessionEnv, "capture" | "onS
     onShown?(card: ShownCard | null, release: ReleaseInEffect): void;
     /** Makes the frame's `instance` (16 lowercase hex characters); random by default. For tests. */
     instanceId?(): string;
+    /** End the worker after this many ms with no pointer over the picture, no `intent`, no card
+     *  shown and no look in flight, and load it again on the next pointer or intent. A positive
+     *  finite number; off when absent. Measured by `now()`, checked on each `tick()`. */
+    idleUnloadMs?: number;
 }
 export interface ComputeFrame {
     /** Null only while `chooseRelease` decides. */
     readonly core: SessionCore | null;
+    /** `idle` while the worker is ended for idleness (the core's own status reads `loading` then), else the state the last
+     *  status posted: `loading`, `ready` or `failed`. */
+    readonly state: "loading" | "ready" | "failed" | "idle";
     /** Recognition is off for good in this page. */
     readonly stopped: boolean;
     readonly restarts: number;

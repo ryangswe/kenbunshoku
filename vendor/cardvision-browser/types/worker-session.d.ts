@@ -1,5 +1,5 @@
 import type { AnalysisWidth } from "./capture.js";
-import { type MeasuredPacingOption, type SessionMode } from "./cadence.js";
+import { type GeometricScope, type MeasuredPacingOption, type SessionMode } from "./cadence.js";
 import type { GeometricStatus, WorkerReply, WorkerRequest } from "./messages.js";
 import type { FrameAnalysis } from "./pipeline.js";
 import type { CardTable } from "./remote/card-table.js";
@@ -39,10 +39,15 @@ export interface WorkerSessionEnv {
     mode?: SessionMode;
     /** Measured pacing (`SessionOptions.measuredPacing`); off when absent. */
     measuredPacing?: MeasuredPacingOption;
+    /** `SessionOptions.geometricScope`; "all" when absent. */
+    geometricScope?: GeometricScope;
     /** Hold a shown card through short gaps (`SHOWN_HOLD`); off when absent. */
     hold?: ShownHold;
     /** True: named cards follow their outline (`SessionOptions.rotatedOutlines`). */
     rotatedOutlines?: boolean;
+    /** Keep the load request in effect (a remote release's files included) so that `suspend` can
+     *  load it again. Off by default: the request is then not held after the worker has it. */
+    keepLoadRequest?: boolean;
     /** Capture the picture now and answer the core with `frame` or `captureFailed`. */
     capture(requestId: number, analysisWidth: AnalysisWidth): void;
     onShown?(card: Shown | null): void;
@@ -79,6 +84,17 @@ export interface WorkerSession {
     readonly release: ReleaseInEffect;
     /** Call every `DRIVER_TICK_MS`. */
     tick(): void;
+    /** The worker was ended by `suspend` and `resume` has not been called. */
+    readonly suspended: boolean;
+    /** End the worker to give its memory back, keeping the core and the release in effect; false
+     *  (nothing done) unless the session is ready, with no remote release still being tried. The
+     *  core goes back to loading. Not a restart. */
+    suspend(): boolean;
+    /** Start a worker again on the load request in effect when `suspend` was called (without the
+     *  geometric stage if the worker had turned it off). If that load fails, or the worker stops
+     *  while it loads, it is the one restart (bundled release, plain load); with the restart used up
+     *  recognition is off. No effect unless suspended. */
+    resume(): void;
     /** End the worker and the core. */
     stop(): void;
 }

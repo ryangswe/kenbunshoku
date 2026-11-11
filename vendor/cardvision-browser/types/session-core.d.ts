@@ -1,6 +1,6 @@
-import type { AABB } from "./boxes.js";
+import { type AABB } from "./boxes.js";
 import type { AnalysisWidth } from "./capture.js";
-import { type MeasuredPacingOption, type SessionMode } from "./cadence.js";
+import { type GeometricScope, type MeasuredPacingOption, type SessionMode } from "./cadence.js";
 import { FrameScheduler } from "./frame-scheduler.js";
 import { type GeometricStatus, type ReleaseProgress, type ReleaseStatus, type TiltedStatus, type WorkerReply, type WorkerRequest } from "./messages.js";
 import { type FractionBox } from "./compute-messages.js";
@@ -80,6 +80,9 @@ export interface SessionCoreOptions {
     /** True: named cards follow their outline on every frame (`SessionOptions.rotatedOutlines`).
      *  Default false. */
     rotatedOutlines?: boolean;
+    /** "focus": each frame asks the geometric stage to verify only the faces at the pointer
+     *  (`SessionOptions.geometricScope`). Throws unless the mode is "pointer". Default "all". */
+    geometricScope?: GeometricScope;
     /** Pace analysis from the measured analysis time (`SessionOptions.measuredPacing`). Off when
      *  absent. */
     measuredPacing?: MeasuredPacingOption;
@@ -97,6 +100,7 @@ export declare class SessionCore {
     private readonly hold;
     private readonly maxOtherBoxes;
     private readonly rotatedOutlines;
+    private readonly focusScope;
     private readonly hitTest;
     private readonly pacer;
     private readonly st;
@@ -152,20 +156,34 @@ export declare class SessionCore {
      * so nothing is shown. `{ restart: true }`: another worker loads the release, the state is
      * "loading" again (the release in effect is kept until it answers), the geometric stage is
      * reported off with the reason `worker-restarted` (to `onGeometricStatus` in any case, in the
-     * status only when a stage was asked for). `{ error }`: recognition is off ("failed").
+     * status only when a stage was asked for). `{ idle: true }`: the worker was ended on purpose
+     * (worker-session.ts `suspend`): as a restart, but not a loss; a running stage is reported off
+     * with the reason `idle-unload`. `{ error }`: recognition is off ("failed").
      * Ignored once stopped or failed.
      */
     workerStopped(next: {
         restart: true;
     } | {
+        idle: true;
+    } | {
         error: string;
     }): void;
+    /** Whether a look is out: asked for, or being analyzed. */
+    analysisInFlight(): boolean;
     /** Another worker now loads a release in place of one that never loaded (a fallback): the
      *  geometric stage's status starts again ("loading" when this load asks for a stage, null
      *  otherwise), and the previous load's progress is dropped. Nothing else changes. */
     reloading(next: {
         geometric: boolean;
     }): void;
+    /**
+     * Focus scope: the pointer is on a face the stage applies to that the newest analysis did not
+     * verify (or in a group with one), so the picture is analyzed again with the pointer there,
+     * as a look started by the pointer: at most once per `HOVER_TRIGGER_MIN_GAP_MS`, never while
+     * one is in flight, with the repeats a newly presented picture gets. It stops by itself: that
+     * look verifies the pointer's group, so nothing is unverified there any more.
+     */
+    private relookForUnverified;
     private requestCapture;
     status(): SessionStatus;
     /** The newest result that still describes the picture on screen, or null. */
@@ -186,6 +204,8 @@ export declare class SessionCore {
      * at once; the pointer leaving its box, a seek, a new source or a cut end it at once.
      */
     shown(): Shown | null;
+    /** Whether the pointer is, in the newest result, on a group that holds an unverified face. */
+    private pointerGroupHoldsUnverified;
     private current;
     /** The time of the picture on screen: the host's live time when it gives one, else the time
      *  last reported. */
