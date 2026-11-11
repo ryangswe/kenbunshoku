@@ -138,6 +138,10 @@ export declare class SessionCore {
      *  picture of the look in flight (late, given up on, or never asked for), or when a seek, a new
      *  source or a cut came since the capture was asked for (that look is then finished). */
     frame(requestId: number, bitmap: ImageBitmap, mediaTime: number): void;
+    /** Is this capture a repeat of the picture the newest analyzed look was taken at? */
+    private isStillRepeat;
+    /** A still repeat with no unverified face in the newest result has nothing to add. */
+    private stillNeedsNothing;
     /** The capture for `requestId` failed. `retry`: the picture could not be had (not ready yet, or
      *  blank) and is looked at again after a back-off; otherwise a refusal, retried by nothing. */
     captureFailed(requestId: number, reason: string, retry?: boolean): void;
