@@ -72,6 +72,10 @@ you stop moving it, unless a card is showing under the resting pointer, and alwa
 you last moved it. It stops at once when
 the pointer leaves the video or the tab goes to the background.
 
+After 10 minutes with no pointer over the video and no card showing, Kenbunshoku unloads the
+recognition model in that tab to give its memory back. The next time you point at the video, it
+starts again, as the first time does, and reads its files from the browser's caches.
+
 ## Extra accuracy (WebGPU)
 
 In a browser that has WebGPU, Kenbunshoku is designed to
@@ -82,7 +86,8 @@ fails or is too slow. For it, Kenbunshoku downloads a card-feature file of about
 even one with no cards), and caches it in the browser's storage; it is downloaded again if that storage is cleared or the file changes. Without
 WebGPU it works without the extra check. Each tab
 in which you have hovered a video holds its own copy of the card features in memory, about
-60–70 MB, until the tab is closed or navigates away.
+60–70 MB, until the tab is closed or navigates away, or until the model is unloaded after 10 idle
+minutes (above).
 
 ## Known limitations
 

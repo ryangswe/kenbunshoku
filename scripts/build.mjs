@@ -12,6 +12,8 @@
 //                 `optcgapi` fallback afresh. Without it, the committed data/source-files.json
 //                 is used.
 // --dev           A development build: also runs on the local test page (http://127.0.0.1, http://localhost).
+// --idle-unload-ms  Dev builds only: unload after this many idle milliseconds instead of 10
+//                 minutes (src/constants.ts IDLE_UNLOAD_MS), to check the unload quickly.
 // --store         A Chrome Web Store build: the manifest has no `key` (the store assigns the ID).
 //                 Other builds carry the public key that fixes the ID of unpacked installs.
 // --target        chrome (the default; also Edge and Brave) or firefox: the same bundles with
@@ -49,6 +51,7 @@ const { values } = parseArgs({
     store: { type: "boolean", default: false },
     target: { type: "string", default: "chrome" },
     "geo-manifest-url": { type: "string" },
+    "idle-unload-ms": { type: "string" },
     out: { type: "string", default: "dist" },
   },
 });
@@ -58,6 +61,15 @@ if (!values.release) {
 }
 if (values["geo-manifest-url"] && !values.dev) {
   console.error("--geo-manifest-url is for dev builds only: a release build names the index on the CDN");
+  process.exit(2);
+}
+const idleUnloadMs = values["idle-unload-ms"] === undefined ? null : Number(values["idle-unload-ms"]);
+if (idleUnloadMs !== null && !values.dev) {
+  console.error("--idle-unload-ms is for dev builds only: a release build unloads after 10 idle minutes");
+  process.exit(2);
+}
+if (idleUnloadMs !== null && !(Number.isInteger(idleUnloadMs) && idleUnloadMs > 0)) {
+  console.error(`--idle-unload-ms is a positive whole number of milliseconds (got "${values["idle-unload-ms"]}")`);
   process.exit(2);
 }
 if (values.dev && values.store) {
@@ -155,7 +167,7 @@ const shared = {
   sourcemap: false,
   logLevel: "warning",
   legalComments: "linked",
-  define: { __DEV__: values.dev ? "true" : "false", __TARGET__: JSON.stringify(values.target) },
+  define: { __DEV__: values.dev ? "true" : "false", __TARGET__: JSON.stringify(values.target), __IDLE_UNLOAD_MS__: JSON.stringify(idleUnloadMs) },
   plugins: [configPlugin],
 };
 await build({ ...shared, format: "iife", entryPoints: { content: join(root, "src/content/index.ts") }, outdir: out });

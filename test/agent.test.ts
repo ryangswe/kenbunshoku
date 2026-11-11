@@ -928,4 +928,65 @@ describe("Agent and the toolkit's capture control", () => {
     computeReady("fedcba9876543210");
     expect(sent.map((m) => m.kind)).toEqual(expect.arrayContaining(["presented", "pointer"]));
   });
+
+  /** The compute frame reports that it ended its worker when idle (toolkit 0.12.0). */
+  const idle = () => fromFrame(compute(), { kind: "status", state: "idle", error: null, backend: null });
+
+  it("idle: both frames and the outline go, and nothing is made by a move off the video", async () => {
+    agent = await startAgent();
+    move(100, 100);
+    showCard({ cardId: "OP01-001", name: "Zoro", box: { x: 0.05, y: 0.1, width: 0.1, height: 0.3 } });
+    expect(tooltip()!.style.visibility).toBe("visible");
+    move(2000, 2000); // off the picture: the card goes, then the frame goes idle
+    fromFrame(compute(), { kind: "shown", card: null });
+    idle();
+    expect(frames()).toEqual([]);
+    expect(outline()).toBeNull();
+    move(2000, 1500);
+    expect(frames()).toEqual([]);
+  });
+
+  it("idle: the next trusted move over the video makes both frames once, says hello, and tells the pointer", async () => {
+    agent = await startAgent();
+    move(100, 100);
+    computeReady();
+    idle();
+    expect(frames()).toEqual([]);
+    move(110, 100);
+    expect(frames().filter((f) => f.src.endsWith("/compute.html"))).toHaveLength(1);
+    expect(frames().filter((f) => f.src.endsWith("/tooltip.html"))).toHaveLength(1);
+    const sent = spyOn(compute());
+    expect(sent.filter((m) => m.kind === "hello")).toHaveLength(1);
+    move(120, 100); // still before the new frame's ready: the agent makes nothing of its own
+    expect(frames()).toHaveLength(2);
+    computeReady("fedcba9876543210");
+    expect(sent.map((m) => m.kind)).toEqual(expect.arrayContaining(["presented", "pointer"]));
+  });
+
+  it("idle: a page script's move over the video makes nothing, and the frames made again go idle again", async () => {
+    agent = await startAgent();
+    move(100, 100);
+    computeReady();
+    idle();
+    trustedEvents = false;
+    move(110, 100);
+    expect(frames()).toEqual([]);
+    trustedEvents = true;
+    move(110, 100);
+    computeReady("fedcba9876543210");
+    idle();
+    expect(frames()).toEqual([]);
+  });
+
+  it("idle: a card shown in the frames made again reaches the new tooltip", async () => {
+    agent = await startAgent();
+    move(100, 100);
+    computeReady();
+    idle();
+    move(100, 100);
+    showCard({ cardId: "OP01-001", name: "Zoro", box: { x: 0.05, y: 0.1, width: 0.1, height: 0.3 } });
+    fromFrame(tooltip(), { kind: "ready" });
+    expect(spyOn(tooltip()).some((m) => m.kind === "card" && m.cardId === "OP01-001")).toBe(true);
+    expect(tooltip()!.style.visibility).toBe("visible");
+  });
 });
