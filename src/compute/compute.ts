@@ -16,6 +16,7 @@
 import { CONFIG } from "../config.js";
 import { IDLE_UNLOAD_MS, RELEASE_PATH, SETTINGS_URL, WORKER_PATH } from "../constants.js";
 import { readEffectiveSettings } from "../settings/store.js";
+import { SESSION_OPTIONS } from "./session-options.js";
 import { allowedParentOrigin, FACTS_CHANNEL, parseFactsRequest, TAG } from "../shared/messages.js";
 import {
   buildCardTable,
@@ -30,7 +31,7 @@ import {
   type ReleaseDecision,
   type RemoteReleaseChoice,
 } from "../../vendor/cardvision-browser/remote-release.js";
-import { computeProtocol, DRIVER_TICK_MS, SHOWN_HOLD, startComputeFrame, type WorkerLike } from "../../vendor/cardvision-browser/compute-session.js";
+import { computeProtocol, DRIVER_TICK_MS, startComputeFrame, type WorkerLike } from "../../vendor/cardvision-browser/compute-session.js";
 import type { FrameAnalysis } from "../../vendor/cardvision-browser/cardvision.js";
 import { createShownFacts } from "./facts.js";
 import { buildLoadRequest, stageForPage } from "./load-request.js";
@@ -88,20 +89,7 @@ void (async () => {
     parentOrigin,
     allowedParentOrigin: (origin) => allowedParentOrigin(origin, __DEV__),
     protocol: computeProtocol(TAG),
-    // A shown card is kept through short gaps (two empty analyses in a row, or 5 s): no flicker on
-    // a live stream.
-    hold: SHOWN_HOLD,
-    // Named cards follow their own outline: a tilted card is hovered on the card itself, not on
-    // the upright box around it, and its shown card carries the turned outline the content
-    // script draws (toolkit 0.10.1). It costs one tilt estimate per detected card whose match
-    // reaches the recognizer's threshold (tau), on the crop the card already has.
-    rotatedOutlines: true,
-    // The geometric stage checks only the card under the pointer (and the boxes overlapping it),
-    // not every card in the picture, so the first card on a paused picture shows several times
-    // sooner. A card the stage has not checked yet shows nothing until it is checked. On a still
-    // picture the next analyses check every card, so moving to another card is as fast as before
-    // (toolkit #83). Without the stage (no WebGPU) this changes nothing.
-    geometricScope: "focus",
+    ...SESSION_OPTIONS,
     // After 10 idle minutes the worker ends and its memory is given back; agent.ts then removes
     // this frame too (toolkit 0.12.0, idle unload). The next pointer over the video loads again.
     idleUnloadMs: __IDLE_UNLOAD_MS__ ?? IDLE_UNLOAD_MS,
@@ -167,6 +155,9 @@ void (async () => {
     ...(__DEV__
       ? {
           onAnalysis: (analysis: FrameAnalysis) => {
+            // A reused repeat of a still picture (toolkit #89) is the previous analysis again:
+            // counting it would count the same faces twice.
+            if (analysis.reused) return;
             const faces = analysis.boxes.filter((b) => b.face);
             frames.push({
               analyzeMs: analysis.timings.analyzeMs,
