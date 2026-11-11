@@ -35,7 +35,7 @@ import { build } from "esbuild";
 
 import { buildManifest, firefoxManifest } from "./manifest.mjs";
 import { buildSourceFileMaps } from "./card-data.mjs";
-import { buildCardTable } from "../src/shared/card-table.mjs";
+import { checkVendoredRuntime } from "./vendor-check.mjs";
 import { CONFIG_PATH, geometricIndexProblem, hasOnDarkIcons, ICON_SIZES, loadForkConfig, ON_DARK_ICON_SIZES } from "./fork-config.mjs";
 import { LEGAL_FILES, releaseLegalProblem } from "./release-legal.mjs";
 import { describeOversized, oversizedTextFiles, TEXT_FILE_LIMIT } from "./package-size.mjs";
@@ -90,7 +90,9 @@ const legalDir = join(root, "release-legal");
 const out = resolve(root, values.out);
 const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf-8"));
 const vendorDir = join(root, "vendor", "cardvision-browser");
-const vendor = JSON.parse(readFileSync(join(vendorDir, "VENDOR.json"), "utf-8"));
+// The vendored runtime is checked against VENDOR.json before any of it runs.
+const vendor = checkVendoredRuntime();
+const { buildCardTable } = await import("../vendor/cardvision-browser/remote-release.js");
 
 // ------------------------------------------------------------------ 1. the release, verified
 const { loadReleaseData } = await import(pathToFileURL(join(vendorDir, "cardvision.js")).href);
@@ -168,8 +170,9 @@ await build({
   },
   outdir: out,
 });
-// compute.js bundles the runtime's module; its license comments are in the runtime's LEGAL file.
-copyFileSync(join(vendorDir, "cardvision.js.LEGAL.txt"), join(out, "cardvision.js.LEGAL.txt"));
+// compute.js and content.js bundle the toolkit's extension entries (compute-session.js,
+// remote-release.js, page-capture.js), which hold no third-party code: the runtime and its license
+// comments are in runtime/worker.js and its LEGAL file.
 for (const name of ["compute.html", "tooltip.html", "tooltip.css", "popup.css"]) copyFileSync(join(root, "static", name), join(out, name));
 // The popup carries the extension's name from the config, and its icon for dark surfaces when the
 // icon folder has one (shown while the popup is dark).

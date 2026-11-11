@@ -20,6 +20,7 @@ import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
+import { checkVendoredRuntime } from "./vendor-check.mjs";
 
 const { values } = parseArgs({
   options: {
@@ -36,7 +37,8 @@ if (!values.dir === !values.url) {
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const vendorDir = join(root, "vendor", "cardvision-browser");
-const vendor = JSON.parse(readFileSync(join(vendorDir, "VENDOR.json"), "utf-8"));
+// The vendored runtime is checked against VENDOR.json before any of it runs.
+const vendor = checkVendoredRuntime();
 const { loadReleaseData, loadRelease } = await import(pathToFileURL(join(vendorDir, "cardvision.js")).href);
 
 const fileFetch = async (url) => {

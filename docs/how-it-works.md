@@ -40,7 +40,7 @@ flowchart TD
         CS["Content script:<br/>pointer, capture"]
         OUT["Outline host"]
         subgraph CF["Compute iframe, extension origin"]
-            HS["Host session:<br/>when to analyze, hover rule"]
+            HS["Session (the toolkit's):<br/>when to analyze, hover rule"]
             W["Worker: cardvision-browser<br/>ONNX Runtime Web,<br/>WebGPU or WASM"]
             GEO["Geometric stage:<br/>WebGPU, optional"]
         end
@@ -84,7 +84,7 @@ the rest is the base pipeline. An arrow into `cdn.kenbunshoku.com` or
   analysis size and transfers it as an `ImageBitmap`.
 - **The compute frame** decides when to analyze and runs the hover rule; its worker runs the
   vendored runtime on the release bundled in the extension, or on a newer release the settings
-  file names (`src/release/`): the frame downloads that release's files once, checks each against
+  file names (the toolkit's remote-release module, vendored): the frame downloads that release's files once, checks each against
   its SHA-256, reuses the bundled files that are the same, and falls back to the bundled release on
   any problem. Frames, pictures and results never go to the network. The worker also downloads the
   card-feature index of the optional geometric stage after the release has loaded and keeps it in
@@ -92,7 +92,8 @@ the rest is the base pipeline. An arrow into `cdn.kenbunshoku.com` or
   each shown card's name to the tooltip frame over a channel the page cannot reach.
 - **The tooltip frame** gets a card id and name, loads the card's picture (from the CDN, then
   `optcgapi.com` if the CDN fails, or none with `namesOnly`), and reports its size back. The
-  content script places it, and draws the **outline** around the same box.
+  content script places it, and draws the **outline** around the same box, turned with the card
+  when the compute frame sends the card's turned outline.
 - **The background** fetches the settings file. The popup and the tooltip frame ask it for a
   refresh, which it makes at most once an hour.
 

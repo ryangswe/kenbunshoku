@@ -1,10 +1,12 @@
 import { type AABB } from "./boxes.js";
-import { type AnalysisMode } from "./cadence.js";
-import { type FrameSource } from "./capture.js";
+import { type MeasuredPacingOption, type SessionMode } from "./cadence.js";
+import { type ClientBox, type FrameSource, pictureBox } from "./capture.js";
 import { type AnalysisState } from "./frame-scheduler.js";
-import type { GeometricStatus, ReleaseProgress, ReleaseStatus } from "./messages.js";
-import { type FrameAnalysis } from "./pipeline.js";
+import type { GeometricStatus, ReleaseStatus } from "./messages.js";
+import type { FrameAnalysis } from "./pipeline.js";
 import type { ExecutionProvider } from "./providers.js";
+export { type ClientBox, pictureBox };
+export { WORKER_RESTARTS } from "./worker-session.js";
 export interface SessionOptions {
     /** URL of the release document. Its paths are relative to it. With `releaseFiles`, the
      *  document's path among those files (`release.json`). */
@@ -22,7 +24,15 @@ export interface SessionOptions {
     providers?: ExecutionProvider[];
     /** "pointer" (the default): analyze only around pointer activity. "always-on": analyze for as
      *  long as the session runs. */
-    mode?: AnalysisMode;
+    mode?: SessionMode;
+    /** Pace analysis from the time recent analyses took on this device. Default off: the fixed
+     *  rates. `true`, or `{ share }`: the wait is the median of the last 5 measured analyses
+     *  divided by the share of time analysis may take (default 0.25), never shorter than the fixed
+     *  rate. It is at most 4 s while the pointer is active, the release's `hover.maxAgeMs` + 4.75 s
+     *  (6.75 s by default) while the pointer rests on a tooltip, and 8 s in always-on mode. The
+     *  fixed rate applies until 3 analyses have been measured. Learned within the session, never
+     *  stored. A share outside (0, 1] throws. */
+    measuredPacing?: MeasuredPacingOption;
     /** URL of the geometric stage's settings document (it names the packed index). Optional and
      *  off by default: without it recognition is the embedding's alone. With it the stage loads
      *  after the release and joins between frames; `status().geometric` says where it is. */
@@ -33,15 +43,12 @@ export interface SessionOptions {
     /** False turns the geometric watchdog off (default: on). Meant for measuring the stage, not
      *  for showing cards: with it off, a slow stage is never turned off. */
     geometricWatchdog?: boolean;
+    /** True: each named card's `rotation`, `localWidth` and `localHeight` follow the card when it
+     *  sits at an angle (tilt.ts `outlineRect`), for outlines and hit tests that follow tilted
+     *  cards; `bounds` stays the detector's box. Default false: every card is its box, as before. */
+    rotatedOutlines?: boolean;
     /** Called whenever the status or what would be shown may have changed. */
     onUpdate?: () => void;
-}
-/** A rectangle in CSS pixels of the viewport, like `getBoundingClientRect`. */
-export interface ClientBox {
-    left: number;
-    top: number;
-    width: number;
-    height: number;
 }
 /** What would be shown for a pointer position. */
 export interface Shown {
@@ -51,12 +58,20 @@ export interface Shown {
     box: ClientBox;
     /** The card's box in pixels of the analyzed frame. */
     frameBox: AABB;
+    /** With `rotatedOutlines`, for a turned card: its tilt in degrees in (-45, 45], positive
+     *  clockwise like CSS `rotate()`, and its own sides in fractions of the picture, about the
+     *  center of `box`. All three or none; absent for an upright card. */
+    rotation?: number;
+    localWidth?: number;
+    localHeight?: number;
 }
 export interface SessionStatus {
-    /** "loading" until the release has loaded; "failed" when it did not (see `error`). */
+    /** "loading" until the release has loaded; "failed" when it did not, or when the worker
+     *  stopped twice after loading (see `error`). A worker that stops after loading is restarted
+     *  once, without the geometric stage, and the state is "loading" again meanwhile. */
     state: "loading" | "ready" | "failed" | "stopped";
     error: string | null;
-    /** The release in effect, once loaded. */
+    /** The release in effect, once loaded (kept while a restarted worker loads it again). */
     release: ReleaseStatus["release"];
     /** The execution provider the recognizer runs on. */
     backend: ExecutionProvider | null;
@@ -70,11 +85,18 @@ export interface SessionStatus {
     lastRoundTripMs: number | null;
     /** Why the newest frame was not analyzed, when it was not. */
     lastFrameError: string | null;
-    /** The geometric stage's state as the worker last reported it; null when none was asked for. */
+    /** The geometric stage's state as the worker last reported it, or off with the reason
+     *  `worker-restarted` after a restart; null when none was asked for. */
     geometric?: {
         state: GeometricStatus["state"];
         reason: string | null;
         bytes: number | null;
+    } | null;
+    /** The tilted retry: on when the release turns it on, off with the worker's reason once it is
+     *  turned off for the session; null when the release does not turn it on. */
+    tilted?: {
+        state: "on" | "off";
+        reason: string | null;
     } | null;
     /** While the release loads: downloading its files (`bytes`, their sum once known) or preparing
      *  the models. Null once it has loaded or failed, and before the worker has said. */
@@ -96,21 +118,6 @@ export interface Session {
     /** Stop analyzing, end the worker and remove every listener. */
     stop(): void;
 }
-/**
- * Where the picture sits inside an element's box, for the element's `object-fit`. A video is
- * fitted inside its box by default, leaving bars; an image fills its box by default.
- */
-export declare function pictureBox(element: ClientBox, picture: {
-    width: number;
-    height: number;
-}, fit: string): ClientBox;
-/** Whether a result whose frame was taken at `resultSec` may still be shown against a picture
- *  at `nowSec`: their distance in video time is at most `maxAgeMs`. */
-export declare function withinMaxAge(resultSec: number, nowSec: number, maxAgeMs: number): boolean;
-/** What `status().loading` becomes on a release-progress reply: the reply's phase while the
- *  release loads; `undefined` (no change) once it has loaded or failed, or the session has
- *  stopped, so a reply that arrives late changes nothing. */
-export declare function progressUpdate(state: SessionStatus["state"], reply: ReleaseProgress): SessionStatus["loading"] | undefined;
 /**
  * Start a session on an element. The release loads in the background (`status().state`); until
  * then, and whenever nothing can be said, `at` returns null.

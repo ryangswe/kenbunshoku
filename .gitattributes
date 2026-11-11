@@ -2,3 +2,6 @@
 # `git archive` (the addons.mozilla.org source archive) and GitHub's source downloads.
 docs/store/ export-ignore
 media/ export-ignore
+
+# The vendored runtime is checked byte for byte against VENDOR.json: never convert its line endings.
+vendor/cardvision-browser/** -text
