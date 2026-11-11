@@ -48,6 +48,14 @@ export const IMAGE_TIMEOUT_MS = 5_000;
 export const SOURCE_FAILURE_LIMIT = 3;
 
 /**
+ * The compute frame ends its worker after this long with no pointer move over the picture, no card
+ * shown and no analysis in flight (toolkit 0.12.0, `idleUnloadMs`), and the content script then
+ * removes both frames, so the model's memory (and the geometric stage's, when on) is given back.
+ * The next pointer move over the video makes them again; the files come from the browser's caches.
+ */
+export const IDLE_UNLOAD_MS = 10 * 60_000;
+
+/**
  * The runtime's geometric stage (extra accuracy, WebGPU only), or null when the config turns it
  * off. Its settings file is copied into the built extension at GEOMETRIC_SETTINGS_PATH; it names
  * the packed card-feature index (about 60 MB) on an image host. The worker downloads the index

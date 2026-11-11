@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Agent, HIDE_DELAY_MS } from "../src/content/agent.js";
 import { tag } from "../src/shared/messages.js";
+import { PROTOCOL_VERSION } from "../vendor/cardvision-browser/page-capture.js";
 
 const EXT = "chrome-extension://igfdjmpikcbplijnlpkligaafepgoaaa";
 
@@ -74,9 +75,9 @@ function fromFrame(frame: HTMLIFrameElement | undefined, data: object): void {
 
 const INSTANCE = "0123456789abcdef";
 
-/** The compute frame says ready (contract version 1); the same instance again changes nothing. */
+/** The compute frame says ready (the vendored contract version); the same instance again changes nothing. */
 function computeReady(instance = INSTANCE): void {
-  fromFrame(compute(), { kind: "ready", version: 1, instance });
+  fromFrame(compute(), { kind: "ready", version: PROTOCOL_VERSION, instance });
 }
 
 /** The compute frame names a card, and the tooltip frame answers with its size for it (the
@@ -904,7 +905,7 @@ describe("Agent and the toolkit's capture control", () => {
     agent = await startAgent();
     move(100, 100);
     const sent = spyOn(compute());
-    fromFrame(compute(), { kind: "ready", version: 2, instance: INSTANCE });
+    fromFrame(compute(), { kind: "ready", version: PROTOCOL_VERSION + 1, instance: INSTANCE });
     capture(12);
     expect(answer(sent, 12)).toBeUndefined();
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("reload the page"));
@@ -926,5 +927,94 @@ describe("Agent and the toolkit's capture control", () => {
     expect(sent.filter((m) => m.kind === "hello")).toHaveLength(1);
     computeReady("fedcba9876543210");
     expect(sent.map((m) => m.kind)).toEqual(expect.arrayContaining(["presented", "pointer"]));
+  });
+
+  /** The compute frame reports that it ended its worker when idle (toolkit 0.12.0). */
+  const idle = () => fromFrame(compute(), { kind: "status", state: "idle", error: null, backend: null });
+
+  it("idle: both frames and the outline go, and nothing is made by a move off the video", async () => {
+    agent = await startAgent();
+    move(100, 100);
+    showCard({ cardId: "OP01-001", name: "Zoro", box: { x: 0.05, y: 0.1, width: 0.1, height: 0.3 } });
+    expect(tooltip()!.style.visibility).toBe("visible");
+    move(2000, 2000); // off the picture: the card goes, then the frame goes idle
+    fromFrame(compute(), { kind: "shown", card: null });
+    idle();
+    expect(frames()).toEqual([]);
+    expect(outline()).toBeNull();
+    move(2000, 1500);
+    expect(frames()).toEqual([]);
+  });
+
+  it("idle: the next trusted move over the video makes both frames once, says hello, and tells the pointer", async () => {
+    agent = await startAgent();
+    move(100, 100);
+    computeReady();
+    idle();
+    expect(frames()).toEqual([]);
+    move(110, 100);
+    expect(frames().filter((f) => f.src.endsWith("/compute.html"))).toHaveLength(1);
+    expect(frames().filter((f) => f.src.endsWith("/tooltip.html"))).toHaveLength(1);
+    const sent = spyOn(compute());
+    expect(sent.filter((m) => m.kind === "hello")).toHaveLength(1);
+    move(120, 100); // still before the new frame's ready: the agent makes nothing of its own
+    expect(frames()).toHaveLength(2);
+    computeReady("fedcba9876543210");
+    expect(sent.map((m) => m.kind)).toEqual(expect.arrayContaining(["presented", "pointer"]));
+  });
+
+  it("idle: a page script's move over the video makes nothing, and the frames made again go idle again", async () => {
+    agent = await startAgent();
+    move(100, 100);
+    computeReady();
+    idle();
+    trustedEvents = false;
+    move(110, 100);
+    expect(frames()).toEqual([]);
+    trustedEvents = true;
+    move(110, 100);
+    computeReady("fedcba9876543210");
+    idle();
+    expect(frames()).toEqual([]);
+  });
+
+  it("idle: the same card shown before and after an unload reaches the new tooltip", async () => {
+    agent = await startAgent();
+    move(100, 100);
+    showCard({ cardId: "OP01-001", name: "Zoro", box: { x: 0.05, y: 0.1, width: 0.1, height: 0.3 } });
+    fromFrame(compute(), { kind: "shown", card: null });
+    idle();
+    move(100, 100);
+    showCard({ cardId: "OP01-001", name: "Zoro", box: { x: 0.05, y: 0.1, width: 0.1, height: 0.3 } });
+    fromFrame(tooltip(), { kind: "ready" });
+    expect(spyOn(tooltip()).some((m) => m.kind === "card" && m.cardId === "OP01-001")).toBe(true);
+    expect(tooltip()!.style.visibility).toBe("visible");
+  });
+
+  it("idle: frames made again and removed before their handshake (hovers off and on) are made again by the next move", async () => {
+    agent = await startAgent();
+    move(100, 100);
+    computeReady();
+    idle();
+    move(110, 100); // the control's make(): both frames, no handshake yet
+    agent.setEnabled(false);
+    expect(frames()).toEqual([]);
+    agent.setEnabled(true);
+    move(120, 100);
+    expect(frames().filter((f) => f.src.endsWith("/compute.html"))).toHaveLength(1);
+    expect(frames().filter((f) => f.src.endsWith("/tooltip.html"))).toHaveLength(1);
+    const sent = spyOn(compute());
+    expect(sent.some((m) => m.kind === "hello")).toBe(true);
+    computeReady("fedcba9876543210");
+    expect(sent.map((m) => m.kind)).toEqual(expect.arrayContaining(["presented", "pointer"]));
+  });
+
+  it("idle: a full-screen change while the frames are removed makes no frame", async () => {
+    agent = await startAgent();
+    move(100, 100);
+    computeReady();
+    idle();
+    document.dispatchEvent(new Event("fullscreenchange"));
+    expect(frames()).toEqual([]);
   });
 });

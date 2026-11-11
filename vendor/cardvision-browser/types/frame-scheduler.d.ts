@@ -205,6 +205,16 @@ export declare class FrameScheduler {
      * consulted.
      */
     hoverTriggerDue(now: number, videoTimeSec: number, inFlight: boolean): boolean;
+    /**
+     * May the current picture be looked at again at once because the pointer is on a face the last
+     * analysis left unverified (session option `geometricScope: "focus"`)? Yes when analysis may
+     * run, nothing is in flight, the picture is still (`idle`: nothing newly presented, no repeats
+     * or retry waiting) and no capture was refused, and the last analysis started by the pointer is
+     * at least `HOVER_TRIGGER_MIN_GAP_MS` ago. Unlike `hoverTriggerDue` it does not need a stale frame, and
+     * unlike `requestLook` it marks nothing stale and clears nothing: a still picture is analyzed
+     * again with the repeats a newly presented one gets (`started` with the "hover" trigger).
+     */
+    relookDue(now: number, inFlight: boolean): boolean;
     /** An analysis of the current picture was started. */
     started(now: number, info?: StartedInfo): void;
     /** Why the last analysis ran; null before the first. */

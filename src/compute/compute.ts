@@ -14,7 +14,7 @@
 // stage follows the pointer's own index.
 
 import { CONFIG } from "../config.js";
-import { RELEASE_PATH, SETTINGS_URL, WORKER_PATH } from "../constants.js";
+import { IDLE_UNLOAD_MS, RELEASE_PATH, SETTINGS_URL, WORKER_PATH } from "../constants.js";
 import { readEffectiveSettings } from "../settings/store.js";
 import { allowedParentOrigin, FACTS_CHANNEL, parseFactsRequest, TAG } from "../shared/messages.js";
 import {
@@ -36,6 +36,8 @@ import { createShownFacts } from "./facts.js";
 import { buildLoadRequest, stageForPage } from "./load-request.js";
 
 declare const __DEV__: boolean;
+/** Dev builds only: a shorter idle unload (`npm run build -- --dev --idle-unload-ms N`); null otherwise. */
+declare const __IDLE_UNLOAD_MS__: number | null;
 
 // Dev builds only: per-frame figures for the smoke check.
 const frames: Array<Record<string, number | null>> = [];
@@ -94,6 +96,9 @@ void (async () => {
     // script draws (toolkit 0.10.1). It costs one tilt estimate per detected card whose match
     // reaches the recognizer's threshold (tau), on the crop the card already has.
     rotatedOutlines: true,
+    // After 10 idle minutes the worker ends and its memory is given back; agent.ts then removes
+    // this frame too (toolkit 0.12.0, idle unload). The next pointer over the video loads again.
+    idleUnloadMs: __IDLE_UNLOAD_MS__ ?? IDLE_UNLOAD_MS,
     onShown: (card, release) => shownFacts.onShown(card, release),
     createWorker: () => new Worker(workerUrl, { type: "module" }) as unknown as WorkerLike,
     loadRequest,

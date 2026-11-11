@@ -49,7 +49,11 @@ is analyzed, then discarded. It is not saved to storage, uploaded or shared.
 ## What it sends, and to whom
 
 Card hovers start in a tab when the pointer first comes over a video's picture there, with
-Kenbunshoku switched on in the popup. A supported video with no cards in it counts too.
+Kenbunshoku switched on in the popup. A supported video with no cards in it counts too. After 10
+minutes in which the pointer has not moved over the video and no card has been showing,
+Kenbunshoku unloads card hovers in that tab to free memory. They start again the next time the
+pointer comes over the video, and the requests below then follow the same rules: most files come
+from your browser's caches, and the settings file is still checked at most once an hour.
 
 | Request | To | When | What the host learns |
 | --- | --- | --- | --- |

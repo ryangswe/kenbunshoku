@@ -134,6 +134,10 @@ export type WorkerRequest = {
         x: number;
         y: number;
     } | null;
+    /** "focus": the geometric stage verifies only the faces at `focus` and those overlapping them (null: none), and a
+     *  face it applies to and did not verify is not named (pipeline.ts `AnalyzeOptions`).
+     *  Absent: every face. */
+    geometricScope?: "focus";
     /** True: named cards on this frame follow their outline (pipeline.ts `AnalyzeOptions`).
      *  Default false. */
     rotatedOutlines?: boolean;
