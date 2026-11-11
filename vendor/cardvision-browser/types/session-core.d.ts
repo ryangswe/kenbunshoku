@@ -184,6 +184,8 @@ export declare class SessionCore {
      * look verifies the pointer's group, so nothing is unverified there any more.
      */
     private relookForUnverified;
+    /** The newest look that came back analyzed (`LastLook`). */
+    private lastLook;
     private requestCapture;
     status(): SessionStatus;
     /** The newest result that still describes the picture on screen, or null. */
