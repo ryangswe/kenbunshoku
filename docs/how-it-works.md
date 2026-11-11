@@ -78,13 +78,14 @@ the rest is the base pipeline. An arrow into `cdn.kenbunshoku.com` or
 
 - **The content script** is on for all supported videos (the popup's switch is the sole
   control), but makes no frame and loads no model before the pointer comes over the video's
-  picture, so a video nobody points at costs nothing. After 10 idle minutes (no pointer over the
-  picture, no card shown, no analysis in flight) the compute frame ends its worker and the content
-  script removes both frames, giving their memory back; the next pointer over the picture makes
-  them again (toolkit 0.12.0, `idleUnloadMs` and `whenIdle`). From then on it reports the pointer and
+  picture, so a video nobody points at costs nothing. From then on it reports the pointer and
   seeks to the compute frame,
   and, when asked and the pointer is active over the player, draws the video to a canvas at
   analysis size and transfers it as an `ImageBitmap`.
+  After 10 idle minutes (the pointer not moved over the picture, no card shown, no analysis in
+  flight) the compute frame ends its worker and the content script removes both frames, giving
+  their memory back; the next pointer move over the picture makes them again (toolkit 0.12.0,
+  `idleUnloadMs` and `whenIdle`).
 - **The compute frame** decides when to analyze and runs the hover rule; its worker runs the
   vendored runtime on the release bundled in the extension, or on a newer release the settings
   file names (the toolkit's remote-release module, vendored): the frame downloads that release's files once, checks each against

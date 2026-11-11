@@ -72,9 +72,11 @@ you stop moving it, unless a card is showing under the resting pointer, and alwa
 you last moved it. It stops at once when
 the pointer leaves the video or the tab goes to the background.
 
-After 10 minutes with no pointer over the video and no card showing, Kenbunshoku unloads the
-recognition model in that tab to give its memory back. The next time you point at the video, it
-starts again, as the first time does, and reads its files from the browser's caches.
+After 10 minutes in which you have not moved the pointer over the video and no card has been
+showing, Kenbunshoku unloads the recognition model in that tab to give its memory back. A pointer
+resting on a paused video counts as not moving. The next time you point at the video, the model
+starts again, as the first time does. Its files come from the extension itself or from the
+browser's caches.
 
 ## Extra accuracy (WebGPU)
 

@@ -12,7 +12,7 @@
 //     nothing is sent over the network.
 //   - Nothing is analyzed until the pointer first comes over a picture: that is when the two
 //     frames are created and the model loads.
-//   - After 10 idle minutes (no pointer over the picture, no card shown) the compute frame ends
+//   - After 10 idle minutes (no pointer move over the picture, no card shown) the compute frame ends
 //     its worker and both frames are removed, which gives their memory back (toolkit 0.12.0,
 //     `whenIdle`). The next trusted pointer move over the video makes them again; the control
 //     calls `make()` for that, and the agent makes no frame of its own meanwhile.
@@ -90,6 +90,10 @@ export class Agent {
   private placedFor: { cardId: string; rect: Rect } | null = null;
   private hideTimer: ReturnType<typeof setTimeout> | null = null;
   private loadError: string | null = null;
+  /** True from an idle removal until the control's `make()`: the control owes the frames then,
+   *  so the agent makes none of its own. Once `make()` ran, frames the page or the popup removed
+   *  before their handshake are made again by the agent, as at any time. */
+  private awaitingMake = false;
   /** The outline around the card the tooltip names (a shadow root in the page). */
   private outline: CardOutline | null = null;
   private stopListening: (() => void) | null = null;
@@ -208,7 +212,7 @@ export class Agent {
     }
     const video = this.currentVideo();
     // Removed when idle: the control makes them again on this move (whenIdle), not the agent.
-    if (this.control?.frameRemoved) return;
+    if (this.awaitingMake) return;
     // Both frames there: nothing more to do here (the control measures the picture itself; a
     // second measure per move would only cost the page a layout).
     if (!video || (this.compute?.isConnected && this.tooltip?.isConnected)) return;
@@ -275,6 +279,7 @@ export class Agent {
 
   /** The control's `make()` after an idle removal: both frames again. The control connects. */
   private makeFrames(): void {
+    this.awaitingMake = false;
     if (this.compute && !this.compute.isConnected) this.compute = null;
     if (!this.compute) this.createCompute();
     if (this.tooltip && !this.tooltip.isConnected) this.forgetTooltip();
@@ -284,6 +289,7 @@ export class Agent {
   /** The control's `remove()` when the frame went idle: no card is on show (idle needs none), and
    *  both frames and the outline go, as when hovers are turned off, but the video stays watched. */
   private removeFrames(): void {
+    this.awaitingMake = true;
     this.shown = null;
     if (this.hideTimer) clearTimeout(this.hideTimer);
     this.hideTimer = null;

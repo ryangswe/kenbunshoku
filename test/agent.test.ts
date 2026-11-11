@@ -978,15 +978,43 @@ describe("Agent and the toolkit's capture control", () => {
     expect(frames()).toEqual([]);
   });
 
-  it("idle: a card shown in the frames made again reaches the new tooltip", async () => {
+  it("idle: the same card shown before and after an unload reaches the new tooltip", async () => {
     agent = await startAgent();
     move(100, 100);
-    computeReady();
+    showCard({ cardId: "OP01-001", name: "Zoro", box: { x: 0.05, y: 0.1, width: 0.1, height: 0.3 } });
+    fromFrame(compute(), { kind: "shown", card: null });
     idle();
     move(100, 100);
     showCard({ cardId: "OP01-001", name: "Zoro", box: { x: 0.05, y: 0.1, width: 0.1, height: 0.3 } });
     fromFrame(tooltip(), { kind: "ready" });
     expect(spyOn(tooltip()).some((m) => m.kind === "card" && m.cardId === "OP01-001")).toBe(true);
     expect(tooltip()!.style.visibility).toBe("visible");
+  });
+
+  it("idle: frames made again and removed before their handshake (hovers off and on) are made again by the next move", async () => {
+    agent = await startAgent();
+    move(100, 100);
+    computeReady();
+    idle();
+    move(110, 100); // the control's make(): both frames, no handshake yet
+    agent.setEnabled(false);
+    expect(frames()).toEqual([]);
+    agent.setEnabled(true);
+    move(120, 100);
+    expect(frames().filter((f) => f.src.endsWith("/compute.html"))).toHaveLength(1);
+    expect(frames().filter((f) => f.src.endsWith("/tooltip.html"))).toHaveLength(1);
+    const sent = spyOn(compute());
+    expect(sent.some((m) => m.kind === "hello")).toBe(true);
+    computeReady("fedcba9876543210");
+    expect(sent.map((m) => m.kind)).toEqual(expect.arrayContaining(["presented", "pointer"]));
+  });
+
+  it("idle: a full-screen change while the frames are removed makes no frame", async () => {
+    agent = await startAgent();
+    move(100, 100);
+    computeReady();
+    idle();
+    document.dispatchEvent(new Event("fullscreenchange"));
+    expect(frames()).toEqual([]);
   });
 });
