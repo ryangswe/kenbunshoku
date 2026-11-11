@@ -6,6 +6,9 @@ export declare const REPEAT_INTERVAL_MS = 250;
 export declare const DRIVER_TICK_MS = 250;
 /** Pointer mode: analysis keeps running this long after the pointer's last activity. */
 export declare const POINTER_GRACE_MS = 10000;
+/** Pointer mode: the gap between cadence looks while the pointer rests where the newest look found
+ *  no card. A longer gap from the cadence (measured pacing) still wins. */
+export declare const EMPTY_SPOT_INTERVAL_MS = 2000;
 /** Pointer mode: the "reading" state outlasts the tooltip's last showing by this long. */
 export declare const READING_LINGER_MS = 5000;
 /** The least the stale-frame threshold can be: a moving pointer asks for a fresh analysis when
@@ -87,6 +90,9 @@ export declare class FrameScheduler {
     /** The last time a showing tooltip was reported while the pointer was inside. */
     private lastTooltipAt;
     private lastHoverTriggerAt;
+    /** The newest finished look, started after the pointer's last activity, found no card at the
+     *  pointer: the slow gap applies in the "fast" state until anything new happens. */
+    private emptySpot;
     private lastVideoTimeSec;
     private discontinuitySinceLast;
     private lastTriggerKind;
@@ -148,6 +154,12 @@ export declare class FrameScheduler {
     lookUnanswered(now: number, opts?: {
         prompt?: boolean;
     }): void;
+    /** The newest look came back analyzed and named no card at the pointer (nothing shown, no
+     *  hold). If it started after the pointer's last activity, the pointer rests on an empty spot
+     *  and cadence looks are spaced `EMPTY_SPOT_INTERVAL_MS` apart. A look that started before a
+     *  move says nothing about where the pointer is now. Report a card found with
+     *  `setTooltipShowing(true)`, which ends it. */
+    lookFoundNoCard(): void;
     /** A look came back analyzed: no retry is waiting, and the back-off starts over (as after
      *  `discontinuity`). */
     lookAnswered(): void;
@@ -188,7 +200,8 @@ export declare class FrameScheduler {
     private pointerState;
     /** May anything be analyzed right now? */
     analysisActive(now: number): boolean;
-    /** The cadence in effect: the slow reading cadence while reading, else the mode's cadence. */
+    /** The cadence in effect: the slow reading cadence while reading, `EMPTY_SPOT_INTERVAL_MS` (or
+     *  the mode's cadence if longer) while the pointer rests on an empty spot, else the mode's. */
     intervalInEffectMs(now: number): number;
     /** Should the current picture be analyzed now, by the cadence or as a repeat of a still? */
     due(now: number): boolean;

@@ -42,7 +42,7 @@ import { parseArgs } from "node:util";
 
 import { vendoredFiles } from "./vendor-check.mjs";
 
-const DEFAULT_COMMIT = "60f0c5ce120fbf59e7bf5431c5fa25bbc1075567";
+const DEFAULT_COMMIT = "6cfe574a10238901e3afb81224e26f42c212702b";
 const OPENCV_FILES = ["opencv.mjs", "opencv_js.wasm", "opencv.mjs.LEGAL.txt"];
 // The toolkit's entries for extensions, beside the runtime: the compute frame's session, the content
 // script's capture control, and the remote-release module (pointer, choice, loading, card table).

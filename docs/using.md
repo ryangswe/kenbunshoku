@@ -70,7 +70,9 @@ The first time you point at a video in a tab, the recognition model starts, whic
 moment. Recognition runs only while the pointer is over the video, and stops by itself 10 seconds after
 you stop moving it, unless a card is showing under the resting pointer, and always 60 seconds after
 you last moved it. It stops at once when
-the pointer leaves the video or the tab goes to the background.
+the pointer leaves the video or the tab goes to the background. While the pointer rests on a spot
+where no card is showing, it looks every 2 seconds instead of once or twice a second, so a card that appears
+under the resting pointer can take a little over 2 seconds to show.
 
 After 10 minutes in which you have not moved the pointer over the video and no card has been
 showing, Kenbunshoku unloads the recognition model in that tab to give its memory back. A pointer
