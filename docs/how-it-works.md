@@ -23,8 +23,12 @@ nothing when the match is not clear.
   picture alone (320 px wide, scaled down to fit the window but not below 200 px), or its name
   when there is no picture. It takes no pointer events.
 - The **background** (`src/background/`) fetches the settings file.
-- The runtime's **geometric stage** (WebGPU only) checks each recognized card against its art's
-  ORB features, using OpenCV.js and a packed card-feature index on the CDN. The compute frame
+- The runtime's **geometric stage** (WebGPU only) checks recognized cards against their art's
+  ORB features, using OpenCV.js and a packed card-feature index on the CDN. An analysis checks
+  only the card under the pointer and the boxes overlapping it, not every card in the picture
+  (`geometricScope: "focus"`), and a card it has not checked yet shows nothing until it is
+  checked. On a still picture the analyses that follow check every card, so moving to another
+  card is answered from the picture already analyzed. The compute frame
   passes the bundled stage settings (`data/geometric.json`, which names the index's manifest)
   and the manifest's pinned SHA-256 (`kenbunshoku.config.json`); the worker downloads the index after
   the release has loaded, keeps it in the Cache API, checks every shard's SHA-256, and turns
