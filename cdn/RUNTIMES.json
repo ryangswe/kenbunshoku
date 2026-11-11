@@ -37,16 +37,7 @@
     }
   },
   "0.5.0": {
-    "vendoredCommit": "fd0aa3c2531ecd41458787e579992c7300e30671",
-    "ortWeb": "1.29.0",
-    "bundledRelease": {
-      "id": "f80d5b56cd907f03",
-      "detectorSha256": "e8b36a038a6d4603c9a431834919afbeca85513dfca240bd967270b6aefe61ea",
-      "recognizerSha256": "c65b12e322f025db111993c1424e29addda8063a0540cc9fa958a3dade856f4c"
-    }
-  },
-  "0.6.0": {
-    "vendoredCommit": "70a709d1041fc309b77c04f247412c31b0e60c12",
+    "vendoredCommit": "a75b87ce7f3ef9bceec51f64e9601b3f10d1ed38",
     "ortWeb": "1.29.0",
     "bundledRelease": {
       "id": "f80d5b56cd907f03",
