@@ -77,8 +77,10 @@ the window and beside the card, so in a small window it can be smaller than the 
 shown until you move the pointer off it, as described in [Hovering a card](#hovering-a-card), and a
 card laid on top of it doesn't replace it until you move. Off, a card that moves away from the
 pointer goes after a moment, and a card laid on top replaces it after a moment without a pointer
-move, as in versions before 0.5.0. Changing it takes effect at once: in a tab where card hovers
-have started, the recognition model starts again, which takes a moment.
+move, as in versions before 0.5.0. Changing it takes effect at once in the tab you are looking
+at: if card hovers have started there, the recognition model starts again, which takes a moment.
+Other tabs follow when you next bring them to the front, so a change never reloads every open
+tab together.
 
 While card hovers are off, card language, card size and **Keep the card I'm pointing at** are
 grayed out and can't be changed. They keep your choices for when you turn card hovers back on.
@@ -102,8 +104,8 @@ under the resting pointer can take a little over 2 seconds to show.
 After 10 minutes in which you have not moved the pointer over the video and no card has been
 showing, Kenbunshoku unloads the recognition model in that tab to give its memory back. A pointer
 resting on a paused video counts as not moving. With **Keep the card I'm pointing at** on, a card
-stays showing while the pointer rests on it, so the model stays loaded until you move the pointer
-off the card. The next time you point at the video, the model
+stays showing while the pointer rests on it, so the 10 minutes start only once you move the
+pointer off the card. The next time you point at the video, the model
 starts again, as the first time does; the video simply playing on does not start it again. Its
 files come from the extension itself or from the
 browser's caches. In a tab you are not looking at, the browser may run Kenbunshoku's timers less

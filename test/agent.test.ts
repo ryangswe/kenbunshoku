@@ -1331,4 +1331,51 @@ describe("Agent and the toolkit's capture control", () => {
     move(110, 100);
     expect(frames()).toHaveLength(2);
   });
+
+  it("keep card: a tab in the background remakes its compute frame only when it comes to the front, once", async () => {
+    const setVisibility = (state: "hidden" | "visible") => {
+      Object.defineProperty(document, "visibilityState", { value: state, configurable: true });
+      Object.defineProperty(document, "hidden", { value: state === "hidden", configurable: true });
+      document.dispatchEvent(new Event("visibilitychange"));
+    };
+    try {
+      agent = await startAgent();
+      move(100, 100);
+      const first = compute()!;
+      setVisibility("hidden");
+      agent.restartForKeepCard();
+      agent.restartForKeepCard(); // flipped twice while away: still one remake
+      expect(compute()).toBe(first);
+      expect(first.isConnected).toBe(true);
+      setVisibility("visible");
+      const second = compute()!;
+      expect(second).not.toBe(first);
+      expect(first.isConnected).toBe(false);
+      expect(frames().filter((f) => f.src.endsWith("/compute.html"))).toHaveLength(1);
+      // Nothing owed any more: hiding and showing again makes nothing.
+      setVisibility("hidden");
+      setVisibility("visible");
+      expect(compute()).toBe(second);
+      // A frame made while the change was owed reads the switch itself: nothing more on return.
+      setVisibility("hidden");
+      agent.restartForKeepCard();
+      agent.setEnabled(false);
+      agent.setEnabled(true);
+      move(110, 100);
+      const third = compute()!;
+      expect(third).not.toBe(second);
+      setVisibility("visible");
+      expect(compute()).toBe(third);
+      // An idle unload while it was owed: nothing is made on return; the next move makes them.
+      setVisibility("hidden");
+      agent.restartForKeepCard();
+      computeReady();
+      fromFrame(compute(), { kind: "status", state: "idle", error: null, backend: null });
+      expect(frames()).toEqual([]);
+      setVisibility("visible");
+      expect(frames()).toEqual([]);
+    } finally {
+      setVisibility("visible");
+    }
+  });
 });

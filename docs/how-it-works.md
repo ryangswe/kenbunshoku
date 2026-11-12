@@ -23,7 +23,8 @@ nothing when the match is not clear.
   `src/compute/session-options.ts`): on, the reading hold (`READING_HOLD`) keeps the card while the
   pointer stays where it was seen, and the content script hides the outline of a card marked
   `held`; off, the shown hold (`SHOWN_HOLD`) keeps it through short gaps. A change makes a running
-  compute frame again. Pictures go from the content script to this frame only.
+  compute frame again, at once in the tab in front and in a background tab when it next comes to
+  the front. Pictures go from the content script to this frame only.
 - The **tooltip frame** (`src/tooltip/`), an extension page placed beside the card, shows its
   picture alone (320 px wide, scaled down to fit the window but not below 200 px), or its name
   when there is no picture. It takes no pointer events.
