@@ -29,6 +29,11 @@ export interface ComputeFrameEnv extends Omit<WorkerSessionEnv, "capture" | "onS
      *  shown and no look in flight, and load it again on the next pointer or intent. A positive
      *  finite number; off when absent. Measured by `now()`, checked on each `tick()`. */
     idleUnloadMs?: number;
+    /** A look on pointer entry (the core's `entryLook`): no picture is asked for while the pointer
+     *  is off the picture, and a look starts as soon as it comes back to a stale picture, or as soon
+     *  as a load ends under an active pointer. On by default here (unlike a `SessionCore` made
+     *  directly); `false` turns it off. */
+    entryLook?: boolean;
 }
 export interface ComputeFrame {
     /** Null only while `chooseRelease` decides. */

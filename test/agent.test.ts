@@ -49,6 +49,13 @@ function move(x: number, y: number): void {
   pointer("pointermove", x, y);
 }
 
+/** The browser reports that a video started playing (`trusted` false: a page script made it up). */
+function playing(v: HTMLVideoElement = video, trusted = true): void {
+  const event = new Event("playing");
+  Object.defineProperty(event, "isTrusted", { value: trusted });
+  v.dispatchEvent(event);
+}
+
 /** Each frame's window, as a stand-in: nothing is loaded into the frames here. */
 const windows = new WeakMap<HTMLIFrameElement, { sent: Array<Record<string, unknown>>; postMessage(m: Record<string, unknown>): void }>();
 Object.defineProperty(HTMLIFrameElement.prototype, "contentWindow", {
@@ -122,13 +129,15 @@ async function startAgent(trusted = true): Promise<Agent> {
 }
 
 describe("Agent", () => {
-  it("ignores pointer events a page script made", async () => {
+  it("ignores pointer events a page script made (a paused video, so nothing loads at play)", async () => {
+    media.paused = true;
     agent = await startAgent(false);
     move(100, 100);
     expect(frames()).toEqual([]);
   });
 
-  it("makes the two frames when the pointer first comes over the picture, and not before", async () => {
+  it("on a video that has not played, makes the two frames when the pointer first comes over the picture, and not before", async () => {
+    media.paused = true;
     agent = await startAgent();
     move(100, 600);
     expect(frames()).toEqual([]);
@@ -368,7 +377,8 @@ describe("Agent", () => {
     expect(document.querySelector("[data-kenbunshoku=button]")).toBeNull();
   });
 
-  it("stays idle on a video nobody points at: no frame for moves off the picture", async () => {
+  it("stays idle on a paused video nobody points at: no frame for moves off the picture", async () => {
+    media.paused = true;
     agent = await startAgent();
     move(100, 600);
     move(2000, 2000);
@@ -1016,5 +1026,244 @@ describe("Agent and the toolkit's capture control", () => {
     idle();
     document.dispatchEvent(new Event("fullscreenchange"));
     expect(frames()).toEqual([]);
+  });
+
+  // Loading at play (owner 2026-11-10 "Products load at video play", for Kenbunshoku 2026-11-12).
+  it("play: a main video already playing when hovers come on gets both frames, with no pointer move", async () => {
+    agent = await startAgent();
+    expect(frames().filter((f) => f.src.endsWith("/compute.html"))).toHaveLength(1);
+    expect(frames().filter((f) => f.src.endsWith("/tooltip.html"))).toHaveLength(1);
+    expect(spyOn(compute()).some((m) => m.kind === "hello")).toBe(true);
+  });
+
+  it("play: a paused main video gets them at its first playing event, and not before", async () => {
+    media.paused = true;
+    agent = await startAgent();
+    expect(frames()).toEqual([]);
+    media.paused = false;
+    playing();
+    expect(frames()).toHaveLength(2);
+  });
+
+  it("play: loading takes no picture; the frame's capture before any pointer is refused", async () => {
+    agent = await startAgent();
+    computeReady();
+    const sent = spyOn(compute());
+    capture(1);
+    expect(refused(sent, 1)).toBe(true);
+    move(100, 100);
+    capture(2);
+    await settle();
+    expect(refused(sent, 2)).toBe(false);
+  });
+
+  it("play: a playing event a page script made, or one from a paused video, makes nothing", async () => {
+    media.paused = true;
+    agent = await startAgent();
+    playing(video, false);
+    playing(video, true); // still paused: the toolkit's loadWhen waits for a video really playing
+    expect(frames()).toEqual([]);
+  });
+
+  it("play: a small video playing (a preview) makes nothing; the main video playing does", async () => {
+    media.paused = true;
+    agent = await startAgent();
+    const small = document.createElement("video");
+    Object.defineProperties(small, { videoWidth: { value: 640 }, videoHeight: { value: 360 }, paused: { value: false } });
+    small.getBoundingClientRect = () => ({ left: 980, top: 0, width: 200, height: 112, right: 1180, bottom: 112, x: 980, y: 0, toJSON() {} }) as DOMRect;
+    document.body.appendChild(small);
+    playing(small);
+    expect(frames()).toEqual([]);
+    media.paused = false;
+    playing();
+    expect(frames()).toHaveLength(2);
+  });
+
+  it("play: with hovers off a playing video makes nothing; turning them on makes the frames", async () => {
+    trustedEvents = true;
+    agent = new Agent({ dev: true });
+    agent.start();
+    playing();
+    expect(frames()).toEqual([]);
+    agent.setEnabled(true);
+    expect(frames()).toHaveLength(2);
+    agent.setEnabled(false);
+    expect(frames()).toEqual([]);
+    agent.setEnabled(true);
+    expect(frames()).toHaveLength(2);
+  });
+
+  it("play: not on an inactive page", async () => {
+    vi.stubGlobal("location", new URL("https://www.youtube.com/"));
+    agent = await startAgent();
+    playing();
+    expect(frames()).toEqual([]);
+  });
+
+  it("play: after an idle unload, the video playing again (a loop) makes nothing; the next trusted move does", async () => {
+    agent = await startAgent();
+    computeReady();
+    idle();
+    expect(frames()).toEqual([]);
+    playing();
+    media.paused = true;
+    media.paused = false;
+    playing();
+    expect(frames()).toEqual([]);
+    move(110, 100);
+    expect(frames()).toHaveLength(2);
+    expect(spyOn(compute()).filter((m) => m.kind === "hello")).toHaveLength(1);
+  });
+
+  /** Another video element in the page, playing, of the given size at the top left. */
+  function otherVideo(width: number, height: number): HTMLVideoElement {
+    const v = document.createElement("video");
+    Object.defineProperties(v, { videoWidth: { value: 1920 }, videoHeight: { value: 1080 }, paused: { value: false }, readyState: { value: 4 }, currentTime: { value: 3 } });
+    v.getBoundingClientRect = () => ({ left: 0, top: 0, width, height, right: width, bottom: height, x: 0, y: 0, toJSON() {} }) as DOMRect;
+    document.body.appendChild(v);
+    return v;
+  }
+
+  it("play: after an idle unload, a new larger video playing makes nothing; a trusted move over it does", async () => {
+    agent = await startAgent();
+    computeReady();
+    idle();
+    const bigger = otherVideo(1280, 720);
+    playing(bigger);
+    expect(frames()).toEqual([]);
+    move(110, 100);
+    expect(frames()).toHaveLength(2);
+  });
+
+  it("play: a main video replaced by another element loads when the new one plays", async () => {
+    media.paused = true;
+    agent = await startAgent();
+    expect(frames()).toEqual([]);
+    video.remove();
+    const next = otherVideo(960, 540);
+    playing(next);
+    expect(frames()).toHaveLength(2);
+  });
+
+  it("play: the main video starting to play while too small to count loads once it is the main video again", async () => {
+    video.remove();
+    let width = 960;
+    let paused = true;
+    const v = document.createElement("video");
+    Object.defineProperties(v, { videoWidth: { value: 1920 }, videoHeight: { value: 1080 }, paused: { get: () => paused }, readyState: { value: 4 }, currentTime: { value: 3 } });
+    v.getBoundingClientRect = () => ({ left: 0, top: 0, width, height: width * 0.5625, right: width, bottom: width * 0.5625, x: 0, y: 0, toJSON() {} }) as DOMRect;
+    document.body.appendChild(v);
+    agent = await startAgent(); // paused main video: watched, nothing made
+    expect(frames()).toEqual([]);
+    width = 200; // the player shrank (a mini player) and then plays: not the main video now
+    paused = false;
+    playing(v);
+    expect(frames()).toEqual([]);
+    width = 960; // back to full size, still playing
+    playing(v);
+    expect(frames()).toHaveLength(2);
+  });
+
+  it("play: on a Twitch page that is not a channel's page, a past broadcast or a clip (the front page's featured stream), playing makes nothing; the pointer does", async () => {
+    vi.stubGlobal("location", new URL("https://www.twitch.tv/"));
+    agent = await startAgent();
+    playing();
+    expect(frames()).toEqual([]);
+    vi.stubGlobal("location", new URL("https://www.twitch.tv/directory/category/one-piece-card-game"));
+    playing();
+    expect(frames()).toEqual([]);
+    move(100, 100);
+    expect(frames()).toHaveLength(2);
+  });
+
+  it("play: in an embedded YouTube player (a muted video playing by itself on another website), playing makes nothing; the pointer does", async () => {
+    vi.stubGlobal("location", new URL("https://www.youtube.com/embed/abc?autoplay=1&mute=1"));
+    agent = await startAgent();
+    playing();
+    expect(frames()).toEqual([]);
+    move(100, 100);
+    expect(frames()).toHaveLength(2);
+  });
+
+  it("play: a Twitch channel's page, a past broadcast or a clip loads at play", async () => {
+    for (const page of ["https://www.twitch.tv/somechannel", "https://www.twitch.tv/videos/123456789", "https://www.twitch.tv/somechannel/clip/SomeClip-Ab_12"]) {
+      agent?.stop();
+      for (const f of frames()) f.remove();
+      vi.stubGlobal("location", new URL(page));
+      media.paused = true;
+      agent = await startAgent();
+      expect(frames()).toEqual([]);
+      media.paused = false;
+      playing();
+      expect(frames(), page).toHaveLength(2);
+    }
+  });
+
+  it("play: a watch started on a channel's page makes nothing if the video first plays after the page changed to the front page; it loads on a channel's page again", async () => {
+    vi.stubGlobal("location", new URL("https://www.twitch.tv/somechannel"));
+    media.paused = true;
+    agent = await startAgent(); // paused: watched, nothing made
+    vi.stubGlobal("location", new URL("https://www.twitch.tv/"));
+    media.paused = false;
+    playing();
+    expect(frames()).toEqual([]);
+    vi.stubGlobal("location", new URL("https://www.twitch.tv/otherchannel"));
+    playing(); // the same element plays on (a seek, a stall): a new watch, already playing
+    expect(frames()).toHaveLength(2);
+  });
+
+  it("play: a video playing in a background tab loads (no visibility filter) but is never captured; coming back invents no authority, and delayed ticks are all refused", async () => {
+    const setVisibility = (state: "hidden" | "visible") => {
+      Object.defineProperty(document, "visibilityState", { value: state, configurable: true });
+      Object.defineProperty(document, "hidden", { value: state === "hidden", configurable: true });
+      document.dispatchEvent(new Event("visibilitychange"));
+    };
+    try {
+      media.paused = true;
+      agent = await startAgent();
+      setVisibility("hidden");
+      media.paused = false;
+      playing();
+      expect(frames()).toHaveLength(2);
+      computeReady();
+      const sent = spyOn(compute());
+      capture(1);
+      expect(refused(sent, 1)).toBe(true);
+      // Back in front, the pointer resting where it was: the frame's late ticks arrive together.
+      setVisibility("visible");
+      for (const id of [2, 3, 4, 5]) capture(id);
+      await settle();
+      for (const id of [2, 3, 4, 5]) expect(refused(sent, id)).toBe(true);
+      expect(sent.some((m) => m.kind === "frame")).toBe(false);
+      // A hover, then the tab hidden and shown again: the hover ended with the hide.
+      move(100, 100);
+      capture(6);
+      await settle();
+      expect(refused(sent, 6)).toBe(false);
+      setVisibility("hidden");
+      setVisibility("visible");
+      for (const id of [7, 8, 9]) capture(id);
+      await settle();
+      for (const id of [7, 8, 9]) expect(refused(sent, id)).toBe(true);
+      // The pointer moves over the video again: allowed again.
+      move(105, 100);
+      capture(10);
+      await settle();
+      expect(refused(sent, 10)).toBe(false);
+    } finally {
+      Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+      Object.defineProperty(document, "hidden", { value: false, configurable: true });
+    }
+  });
+
+  it("play: a frame the page removed is made again at the pointer, not by the video playing on", async () => {
+    agent = await startAgent();
+    const first = compute()!;
+    first.remove();
+    playing();
+    expect(compute()).toBeUndefined();
+    move(100, 100);
+    expect(compute()).toBeDefined();
+    expect(compute()).not.toBe(first);
   });
 });

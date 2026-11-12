@@ -37,6 +37,10 @@ export interface FaceResult {
     /** True on a face the geometric stage applies to that was not verified on this frame
      *  (`geometricScope: "focus"`): it is not named, whatever its cosine look. Absent otherwise. */
     unverified?: true;
+    /** True on a face the tilted retry would have tried but its cap (`maxFacesPerFrame`) left out
+     *  on this frame. In focus scope a pointer moving onto it asks for a look there, which retries
+     *  the pointer's faces with no cap. Absent otherwise. */
+    tiltedSkipped?: true;
     /** With a geometric stage that ran on this face: what it found and what the embedding alone
      *  answered (Python: `GeometricOutcome.to_json`). The fields above are the fused look's. */
     geometric?: GeometricEvidence;

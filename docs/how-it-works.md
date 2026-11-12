@@ -31,8 +31,8 @@ nothing when the match is not clear.
   analysis checks every card, and the repeats after it reuse that analysis, so a later move to
   another card is answered from it. The compute frame
   passes the bundled stage settings (`data/geometric.json`, which names the index's manifest)
-  and the manifest's pinned SHA-256 (`kenbunshoku.config.json`); the worker downloads the index after
-  the release has loaded, keeps it in the Cache API, checks every shard's SHA-256, and turns
+  and the manifest's pinned SHA-256 (`kenbunshoku.config.json`); the worker downloads the index once the
+  release has loaded and the viewer first points at the picture, keeps it in the Cache API, checks every shard's SHA-256, and turns
   the stage off by itself when it is too slow or fails. The compute frame asks the browser to
   keep that storage (`navigator.storage.persist()`).
 
@@ -74,7 +74,7 @@ flowchart TD
     BG -- "config.json: install, update,<br/>browser start, then at most hourly" --> CDN
     TT -- "card picture,<br/>when not loaded yet" --> CDN
     TT -. "card picture,<br/>when the CDN fails" .-> OPT
-    GEO -. "card-feature index:<br/>when hovers start, WebGPU,<br/>then cached" .-> CDN
+    GEO -. "card-feature index:<br/>at the first pointer, WebGPU,<br/>then cached" .-> CDN
 ```
 
 **How to read it.** Dashed arrows are the optional geometric stage and the picture fallback;
@@ -82,22 +82,32 @@ the rest is the base pipeline. An arrow into `cdn.kenbunshoku.com` or
 `optcgapi.com` is a request, with its contents and its timing as in [PRIVACY.md](../PRIVACY.md).
 
 - **The content script** is on for all supported videos (the popup's switch is the sole
-  control), but makes no frame and loads no model before the pointer comes over the video's
-  picture, so a video nobody points at costs nothing. From then on it reports the pointer and
-  seeks to the compute frame,
+  control). It makes both frames, and so loads the model, when the page's main video plays (the
+  toolkit's `loadWhen`, once per video element), or at the first pointer move over a video that has
+  not played. A video playing loads the model only on pages that are for watching
+  (`loadsAtPlay` in `site.ts`): not in an embedded YouTube player, which on another website may be
+  a muted video that plays by itself, and on Twitch only on a channel's page, a past broadcast or
+  a clip. Elsewhere, such as Twitch's front page with its featured stream, only the pointer does.
+  The main video is picked by size, and a featured stream is the largest video on its page, so the
+  page rule, not the size, keeps it from loading.
+  A video playing in a background tab loads the model too, with no visibility filter. Loading
+  reads no picture: the tab going to the background ends the hover, and coming back does not
+  restore it until the browser reports the pointer over the video again. From then on it reports
+  the pointer and seeks to the compute frame,
   and, when asked and the pointer is active over the player, draws the video to a canvas at
   analysis size and transfers it as an `ImageBitmap`.
   After 10 idle minutes (the pointer not moved over the picture, no card shown, no analysis in
   flight) the compute frame ends its worker and the content script removes both frames, giving
-  their memory back; the next pointer move over the picture makes them again (toolkit 0.12.0,
-  `idleUnloadMs` and `whenIdle`).
+  their memory back; the next pointer move over the picture makes them again, and the video
+  playing on does not (toolkit 0.12.0, `idleUnloadMs` and `whenIdle`).
 - **The compute frame** decides when to analyze and runs the hover rule; its worker runs the
   vendored runtime on the release bundled in the extension, or on a newer release the settings
   file names (the toolkit's remote-release module, vendored): the frame downloads that release's files once, checks each against
   its SHA-256, reuses the bundled files that are the same, and falls back to the bundled release on
   any problem. Frames, pictures and results never go to the network. The worker also downloads the
-  card-feature index of the optional geometric stage after the release has loaded and keeps it in
-  Cache Storage; a newer release names its own index. With a newer release, the frame also sends
+  card-feature index of the optional geometric stage, once the release has loaded and the viewer
+  has first pointed at the picture (`geometricLoad: "pointer"`, also after an idle unload), and
+  keeps it in Cache Storage; a newer release names its own index. With a newer release, the frame also sends
   each shown card's name to the tooltip frame over a channel the page cannot reach.
 - **The tooltip frame** gets a card id and name, loads the card's picture (from the CDN, then
   `optcgapi.com` if the CDN fails, or none with `namesOnly`), and reports its size back. The

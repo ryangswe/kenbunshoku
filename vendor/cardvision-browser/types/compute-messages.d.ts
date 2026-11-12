@@ -22,6 +22,11 @@ export interface ShownCard {
     rotation?: number;
     localWidth?: number;
     localHeight?: number;
+    /** Under a reading hold: true when the host should not draw the card's outline. `box` is where
+     *  the card was last seen. Set once two analyses in a row show it gone from there (one on a
+     *  still picture), or once no recent analysis is left and none is coming; cleared when an
+     *  analysis sees it there again. The tooltip stays either way. */
+    held?: true;
 }
 /** The two-frame contract's version. A content script and a compute frame work together only
  *  when they speak the same one: `hello` and `ready` carry it, and each side compares. */
