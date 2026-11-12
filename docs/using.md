@@ -45,7 +45,8 @@ card's name shows instead. Pausing works too, on recorded videos and on live str
 The card you point at stays shown while the pointer stays on it, so you can read it after the
 card moves: when a player picks it up, or lays another card on top of it, the picture stays until
 you move the pointer. If the card is no longer where you are pointing, the outline goes and the
-picture stays. To see a card laid on top, move the pointer off it and back on. Moving onto
+picture stays. On a playing video, the outline also goes once the pointer has rested for about 10
+seconds, and the picture stays then too. To see a card laid on top, move the pointer off it and back on. Moving onto
 another card next to it shows that card, as on a fan of overlapping cards. The popup's **Keep the
 card I'm pointing at** switch turns this off (see below).
 
@@ -89,9 +90,10 @@ Below them are two links, to the project page and to the open-source toolkit it 
 When a video plays on the pages named in
 [Turning card hovers on and off](#turning-card-hovers-on-and-off), the recognition model starts in
 that tab, which takes a moment, so that it is ready by the time you point at a card. Recognition
-runs only while the pointer is over the video, and stops by itself 10 seconds after
-you stop moving it. With **Keep the card I'm pointing at** turned off, it goes on while a card is
-showing under the resting pointer, and stops at the latest 60 seconds after you last moved it. It stops at once when
+runs only while the pointer is over the video, and stops by itself about 10 seconds after
+you stop moving it, or a few seconds later if the video jumps to another point meanwhile. With
+**Keep the card I'm pointing at** turned off, it goes on while a card is showing under the resting
+pointer. Either way, it stops at the latest 60 seconds after you last moved it. It stops at once when
 the pointer leaves the video or the tab goes to the background. While the pointer rests on a spot
 where no card is showing, it looks every 2 seconds instead of once or twice a second, so a card that appears
 under the resting pointer can take a little over 2 seconds to show.

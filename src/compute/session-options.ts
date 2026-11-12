@@ -3,6 +3,8 @@
 // startComputeFrame; they live here, away from compute.ts's side effects, so a test can pass the
 // same options to the vendored frame (test/session-options.test.ts).
 import { READING_HOLD, SHOWN_HOLD } from "../../vendor/cardvision-browser/compute-session.js";
+import type { KeyValueStorage } from "../settings/store.js";
+import { readKeepCard } from "../shared/keep-card.js";
 
 /** The options that do not depend on the viewer's settings (sessionOptions adds the hold). */
 export const SESSION_OPTIONS = {
@@ -39,4 +41,11 @@ export const SESSION_OPTIONS = {
  */
 export function sessionOptions(keepCard: boolean) {
   return { ...SESSION_OPTIONS, hold: keepCard ? READING_HOLD : SHOWN_HOLD } as const;
+}
+
+/** The session options for the switch as stored when the compute frame starts. A storage that
+ *  cannot be read gives the default (on). A change remakes the frame (agent.ts), so the hold
+ *  never changes under a running session. */
+export async function storedSessionOptions(storage: Pick<KeyValueStorage, "get">) {
+  return sessionOptions(await readKeepCard(storage).catch(() => true));
 }

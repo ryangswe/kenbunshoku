@@ -18,8 +18,7 @@
 import { CONFIG } from "../config.js";
 import { IDLE_UNLOAD_MS, RELEASE_PATH, SETTINGS_URL, WORKER_PATH } from "../constants.js";
 import { readEffectiveSettings } from "../settings/store.js";
-import { sessionOptions } from "./session-options.js";
-import { readKeepCard } from "../shared/keep-card.js";
+import { storedSessionOptions } from "./session-options.js";
 import { allowedParentOrigin, FACTS_CHANNEL, parseFactsRequest, TAG } from "../shared/messages.js";
 import {
   buildCardTable,
@@ -79,10 +78,8 @@ void (async () => {
     .then((r) => r.json() as Promise<{ id?: string }>)
     .then((doc) => doc.id ?? "-")
     .catch(() => "-");
-  // The popup's "Keep the card I'm pointing at", as stored when this frame starts: a change
-  // remakes the frame (agent.ts), so the hold never changes under a running session. A storage
-  // that cannot be read gives the default (on).
-  const keepCard = await readKeepCard(chrome.storage.local).catch(() => true);
+  // The hold follows the popup's "Keep the card I'm pointing at", as stored now.
+  const options = await storedSessionOptions(chrome.storage.local);
   let lastDecision: ReleaseDecision | null = null;
   const settingsUrl = SETTINGS_URL;
   // `factsFor` reads the release in effect; it is asked only once the frame exists (below).
@@ -96,7 +93,7 @@ void (async () => {
     parentOrigin,
     allowedParentOrigin: (origin) => allowedParentOrigin(origin, __DEV__),
     protocol: computeProtocol(TAG),
-    ...sessionOptions(keepCard),
+    ...options,
     // After 10 idle minutes the worker ends and its memory is given back; agent.ts then removes
     // this frame too (toolkit 0.12.0, idle unload). The next pointer over the video loads again.
     idleUnloadMs: __IDLE_UNLOAD_MS__ ?? IDLE_UNLOAD_MS,

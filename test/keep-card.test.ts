@@ -2,7 +2,8 @@
 // The popup's "Keep the card I'm pointing at" switch as stored, and the hold it picks.
 import { describe, expect, it } from "vitest";
 
-import { sessionOptions, SESSION_OPTIONS } from "../src/compute/session-options.js";
+import { sessionOptions, SESSION_OPTIONS, storedSessionOptions } from "../src/compute/session-options.js";
+import { applyStorageChanges } from "../src/content/storage-changes.js";
 import { KEEP_CARD_KEY, keepCardChanged, keepCardOn, readKeepCard } from "../src/shared/keep-card.js";
 import { READING_HOLD, SHOWN_HOLD } from "../vendor/cardvision-browser/compute-session.js";
 import { memoryStorage } from "./helpers/memory-storage.js";
@@ -39,5 +40,31 @@ describe("keep the card I'm pointing at", () => {
       expect(rest).toEqual(SESSION_OPTIONS);
     }
     expect("hold" in SESSION_OPTIONS).toBe(false);
+  });
+
+  it("gives the compute frame the hold the stored switch picks, and the reading hold when the storage cannot be read", async () => {
+    expect((await storedSessionOptions(memoryStorage())).hold).toBe(READING_HOLD);
+    expect((await storedSessionOptions(memoryStorage({ [KEEP_CARD_KEY]: true }))).hold).toBe(READING_HOLD);
+    expect((await storedSessionOptions(memoryStorage({ [KEEP_CARD_KEY]: false }))).hold).toBe(SHOWN_HOLD);
+    const broken = { get: () => Promise.reject(new Error("no storage")) };
+    expect((await storedSessionOptions(broken)).hold).toBe(READING_HOLD);
+  });
+
+  it("remakes the compute frame for a stored change that turns the switch over, and for nothing else", () => {
+    const calls: string[] = [];
+    const agent = {
+      setEnabled: (on: boolean) => void calls.push(`enabled ${on}`),
+      setCardSize: (percent: number) => void calls.push(`size ${percent}`),
+      restartForKeepCard: () => void calls.push("restart"),
+    };
+    applyStorageChanges(agent, { [KEEP_CARD_KEY]: { oldValue: true, newValue: false } }, "local");
+    expect(calls).toEqual(["restart"]);
+    applyStorageChanges(agent, { [KEEP_CARD_KEY]: { oldValue: false, newValue: false } }, "local");
+    applyStorageChanges(agent, { [KEEP_CARD_KEY]: { newValue: true } }, "local");
+    applyStorageChanges(agent, { [KEEP_CARD_KEY]: { oldValue: true, newValue: false } }, "sync");
+    expect(calls).toEqual(["restart"]);
+    // The other settings, as before.
+    applyStorageChanges(agent, { enabled: { newValue: false }, cardSize: { newValue: 120 } }, "local");
+    expect(calls).toEqual(["restart", "enabled false", "size 120"]);
   });
 });
