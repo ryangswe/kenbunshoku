@@ -12,10 +12,11 @@ videos. This page says what it reads, what it sends, and what it keeps.
 - The extension makes requests to two hosts, `cdn.kenbunshoku.com` and `optcgapi.com`, for a
   settings file, card pictures, updated card-recognition data when new cards are published, and,
   where the browser has WebGPU, a card-feature file of about 60 MB, downloaded once and cached. It is
-  downloaded the first time card hovers start on a video, on YouTube or Twitch: when a video plays
-  (you need not point at it), or when you first point at one that has not played. On Twitch, a
-  video starts them by playing only on a channel's page, a past broadcast or a clip; on other
-  Twitch pages, they start when you first point at a video. The video may have no cards in it.
+  downloaded the first time card hovers start on a video: when a video plays on a YouTube watch
+  or live page, or on a Twitch channel's page, past broadcast or clip (you need not point at it).
+  In other cases they start when you first point at a video: one that has not played, a YouTube
+  player embedded in another website, or a video on another Twitch page. The video may have no
+  cards in it.
 
 ## What it reads
 
@@ -35,9 +36,9 @@ videos. This page says what it reads, what it sends, and what it keeps.
 - Nothing on any other site.
 
 Card hovers are on for every supported video, with no per-channel switch. Embedded
-`www.youtube.com` players on any website are included, with no step to turn them on: one playing
-starts card hovers as a video on YouTube itself does, even one that plays by itself, such as a
-background video. With the toolbar switch off, the
+`www.youtube.com` players on any website are included, with no step to turn them on. An embedded
+player playing does not start card hovers, even one that plays by itself, such as a background
+video: they start when the pointer first comes over its picture. With the toolbar switch off, the
 extension reads no video on any page. The settings check (below) continues.
 
 ## What happens to the picture
@@ -53,9 +54,9 @@ is analyzed, then discarded. It is not saved to storage, uploaded or shared.
 
 Card hovers start in a tab when the page's main video plays there, with Kenbunshoku switched on
 in the popup, whether or not you point at it. A video that has not played, such as one paused when
-the page opened, starts them when the pointer first comes over its picture. So does a video on a
-Twitch page other than a channel's page, a past broadcast or a clip, such as the featured stream on
-Twitch's front page. A video that plays in a tab you are not looking at also starts them, and so
+the page opened, starts them when the pointer first comes over its picture. So does a YouTube
+player embedded in another website, and a video on a Twitch page other than a channel's page, a
+past broadcast or a clip, such as the featured stream on Twitch's front page. A video that plays in a tab you are not looking at also starts them, and so
 does a supported video with no cards in it. Starting card hovers loads the recognition model and makes the requests
 below; it reads no picture of the video. After 10
 minutes in which the pointer has not moved over the video and no card has been showing,

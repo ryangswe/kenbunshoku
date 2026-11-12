@@ -12,15 +12,15 @@
 //     nothing is sent over the network.
 //   - The two frames are made, and the model loads, when the page's main video plays (owner,
 //     2026-11-10 "Products load at video play", applied to Kenbunshoku on 2026-11-12): at once
-//     for a video already playing when card hovers are on,
-//     else at its first `playing` event (the toolkit's `loadWhen`, once per video element). A
-//     video that never plays, such as one paused when the page opens, gets them at the first
-//     trusted pointer move over its picture, as before. So does a video on a Twitch page other
-//     than a channel's page, a past broadcast, a clip or a popout player, such as the front
-//     page's featured stream (site.ts, loadsAtPlay). A video playing in a background tab loads them too; there is no visibility
-//     filter. Loading reads no picture: a picture is taken only on the viewer's own pointer
-//     activity (above), and the tab going to the background ends that until the pointer moves
-//     over the video again.
+//     for a video already playing when card hovers are on, else at its first `playing` event
+//     (the toolkit's `loadWhen`, once per video element). A video that never plays, such as one
+//     paused when the page opens, gets them at the first trusted pointer move over its picture,
+//     as before. So does a YouTube player embedded in another website, and a video on a Twitch
+//     page other than a channel's page, a past broadcast or a clip, such as the front page's
+//     featured stream (site.ts, loadsAtPlay; owner, 2026-11-12). A video
+//     playing in a background tab loads them too; there is no visibility filter. Loading reads
+//     no picture: a picture is taken only on the viewer's own pointer activity (above), and the
+//     tab going to the background ends that until the pointer moves over the video again.
 //   - After 10 idle minutes (no pointer move over the picture, no card shown) the compute frame ends
 //     its worker and both frames are removed, which gives their memory back (toolkit 0.12.0,
 //     `whenIdle`). The next trusted pointer move over the video makes them again; the control
@@ -273,8 +273,8 @@ export class Agent {
     this.playWatch = { video, stop };
   }
 
-  /** Whether a video playing on this page loads card hovers (site.ts: on Twitch, a channel's page,
-   *  a past broadcast, a clip or a popout player; not the front page's featured stream). */
+  /** Whether a video playing on this page loads card hovers (site.ts: not an embedded YouTube
+   *  player; on Twitch, a channel's page, a past broadcast or a clip). */
   private pageLoadsAtPlay(): boolean {
     return loadsAtPlay(new URL(location.href), this.options.dev);
   }

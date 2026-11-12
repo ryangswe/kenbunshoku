@@ -79,12 +79,14 @@ describe("isActivePage", () => {
   ])("%s (dev %s) → %s", (url, dev, active) => expect(isActivePage(new URL(url), dev, BOTH_SITES)).toBe(active));
 });
 
-// The page rule for loading at play: on Twitch only a channel's page, a past broadcast, a clip or a
-// popout player; other pages load at the first pointer move, as before.
+// The page rule for loading at play: on YouTube not an embedded player; on Twitch only a channel's
+// page, a past broadcast or a clip. Other pages load at the first pointer move, as before.
 describe("loadsAtPlay", () => {
   it.each([
     ["https://www.youtube.com/watch?v=abc", false, true],
-    ["https://www.youtube.com/embed/abc", false, true],
+    ["https://www.youtube.com/embed/abc", false, false],
+    ["https://www.youtube.com/embed/abc?autoplay=1&mute=1", false, false],
+    ["https://www.youtube.com/live/abc", false, true],
     ["https://www.youtube.com/@somechannel/live", false, true],
     ["https://www.youtube.com/", false, false],
     ["https://www.youtube.com/@somechannel", false, false],
@@ -106,7 +108,7 @@ describe("loadsAtPlay", () => {
     ["https://www.twitch.tv/somechannel/videos", false, false],
     ["https://www.twitch.tv/somechannel/about", false, false],
     ["https://www.twitch.tv/somechannel/clips", false, false],
-    ["https://www.twitch.tv/popout/somechannel/player", false, true],
+    ["https://www.twitch.tv/popout/somechannel/player", false, false],
     ["https://www.twitch.tv/popout/somechannel/chat", false, false],
     ["https://www.twitch.tv/moderator/somechannel", false, false],
     ["https://www.twitch.tv/a-b", false, false],

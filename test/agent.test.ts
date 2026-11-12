@@ -1176,6 +1176,15 @@ describe("Agent and the toolkit's capture control", () => {
     expect(frames()).toHaveLength(2);
   });
 
+  it("play: in an embedded YouTube player (a muted video playing by itself on another website), playing makes nothing; the pointer does", async () => {
+    vi.stubGlobal("location", new URL("https://www.youtube.com/embed/abc?autoplay=1&mute=1"));
+    agent = await startAgent();
+    playing();
+    expect(frames()).toEqual([]);
+    move(100, 100);
+    expect(frames()).toHaveLength(2);
+  });
+
   it("play: a Twitch channel's page, a past broadcast or a clip loads at play", async () => {
     for (const page of ["https://www.twitch.tv/somechannel", "https://www.twitch.tv/videos/123456789", "https://www.twitch.tv/somechannel/clip/SomeClip-Ab_12"]) {
       agent?.stop();

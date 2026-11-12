@@ -84,14 +84,16 @@ the rest is the base pipeline. An arrow into `cdn.kenbunshoku.com` or
 - **The content script** is on for all supported videos (the popup's switch is the sole
   control). It makes both frames, and so loads the model, when the page's main video plays (the
   toolkit's `loadWhen`, once per video element), or at the first pointer move over a video that has
-  not played. On Twitch, a video playing loads the model only on a channel's page, a past
-  broadcast, a clip or a popout player (`loadsAtPlay` in `site.ts`); elsewhere, such as the front
-  page's featured stream, only the pointer does. The main video is picked by size, and a featured
-  stream is the largest video on its page, so the page rule, not the size, keeps it from loading.
+  not played. A video playing loads the model only on pages that are for watching
+  (`loadsAtPlay` in `site.ts`): not in an embedded YouTube player, which on another website may be
+  a muted video that plays by itself, and on Twitch only on a channel's page, a past broadcast or
+  a clip. Elsewhere, such as Twitch's front page with its featured stream, only the pointer does.
+  The main video is picked by size, and a featured stream is the largest video on its page, so the
+  page rule, not the size, keeps it from loading.
   A video playing in a background tab loads the model too, with no visibility filter. Loading
   reads no picture: the tab going to the background ends the hover, and coming back does not
-  restore it until the browser reports the pointer over the video again. From then on it reports the pointer and
-  seeks to the compute frame,
+  restore it until the browser reports the pointer over the video again. From then on it reports
+  the pointer and seeks to the compute frame,
   and, when asked and the pointer is active over the player, draws the video to a canvas at
   analysis size and transfers it as an `ImageBitmap`.
   After 10 idle minutes (the pointer not moved over the picture, no card shown, no analysis in

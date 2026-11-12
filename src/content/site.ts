@@ -26,21 +26,24 @@ const TWITCH_SITE_PAGES = new Set([
   "videos", "wallet",
 ]);
 /** A Twitch channel's page (its live stream, or what the channel plays there), a past broadcast
- *  (`/videos/<id>`), a clip, or a channel's popout player. */
-const TWITCH_PLAYER_PAGE = /^\/(?:videos\/\d+|popout\/[A-Za-z0-9_]{1,25}\/player|([A-Za-z0-9_]{1,25})(?:\/clip\/[A-Za-z0-9_-]+)?)\/?$/;
+ *  (`/videos/<id>`) or a clip. */
+const TWITCH_PLAYER_PAGE = /^\/(?:videos\/\d+|([A-Za-z0-9_]{1,25})(?:\/clip\/[A-Za-z0-9_-]+)?)\/?$/;
 
 /** Whether a video playing on this page loads card hovers, or only the pointer does. YouTube: every
- *  active page. Twitch: a channel's page, a past broadcast, a clip or a popout player. Elsewhere on
- *  Twitch (the front page's featured stream, a directory's previews, a channel's player shrunk
- *  while you browse, a moderator's view with its small player) a video plays without being what
- *  you came to watch, or not as the page's main picture, so card hovers load there when you first
- *  point at a video, as before. The main video is picked by size, and a featured stream is the
+ *  active page but an embedded player (`/embed/`), which on another website may be a muted video
+ *  that plays by itself, so it loads at the first pointer move (owner, 2026-11-12: "Wait for a
+ *  hover"). Twitch: a channel's page, a past broadcast or a clip. Elsewhere on Twitch (the front
+ *  page's featured stream, a directory's previews, a channel's player shrunk while you browse, a
+ *  moderator's view with its small player) a video plays without being what you came to watch, or
+ *  not as the page's main picture, so card hovers load there when you first point at a video, as
+ *  before. So do the rarer player-only pages (a popout player), which keeps the list short. The main video is picked by size, and a featured stream is the
  *  largest video on its page, so the page decides this, not the size.
  *
  *  Twitch changes pages without reloading. A video still playing from the page before, with no new
  *  `playing` event, does not load at play on the new page; the first pointer move over it does. */
 export function loadsAtPlay(url: URL, dev: boolean, sites: VideoSites = VIDEO_SITES): boolean {
   if (!isActivePage(url, dev, sites)) return false;
+  if (url.hostname === "www.youtube.com") return !url.pathname.startsWith("/embed/");
   if (url.hostname !== "www.twitch.tv") return true;
   const page = TWITCH_PLAYER_PAGE.exec(url.pathname);
   return page !== null && (page[1] === undefined || !TWITCH_SITE_PAGES.has(page[1].toLowerCase()));
