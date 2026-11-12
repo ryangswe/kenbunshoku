@@ -77,10 +77,10 @@ the window and beside the card, so in a small window it can be smaller than the 
 shown until you move the pointer off it, as described in [Hovering a card](#hovering-a-card), and a
 card laid on top of it doesn't replace it until you move. Off, a card that moves away from the
 pointer goes after a moment, and a card laid on top replaces it after a moment without a pointer
-move, as in versions before 0.5.0. Changing it takes effect at once in the tab you are looking
-at: if card hovers have started there, the recognition model starts again, which takes a moment.
-Other tabs follow when you next bring them to the front, so a change never reloads every open
-tab together.
+move, as in versions before 0.5.0. Changing it takes effect at once in a tab you can see: if card
+hovers have started there, the recognition model starts again, which takes a moment. A tab in the
+background follows when you next bring it to the front, so a change never reloads every open tab
+together.
 
 While card hovers are off, card language, card size and **Keep the card I'm pointing at** are
 grayed out and can't be changed. They keep your choices for when you turn card hovers back on.
