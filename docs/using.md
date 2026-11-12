@@ -91,7 +91,8 @@ When a video plays on the pages named in
 [Turning card hovers on and off](#turning-card-hovers-on-and-off), the recognition model starts in
 that tab, which takes a moment, so that it is ready by the time you point at a card. Recognition
 runs only while the pointer is over the video, and stops by itself about 10 seconds after
-you stop moving it, or a few seconds later if the video jumps to another point meanwhile. With
+you stop moving it. If the video jumps to another point while a card is showing, it looks again
+for a few seconds. With
 **Keep the card I'm pointing at** turned off, it goes on while a card is showing under the resting
 pointer. Either way, it stops at the latest 60 seconds after you last moved it. It stops at once when
 the pointer leaves the video or the tab goes to the background. While the pointer rests on a spot
@@ -100,7 +101,9 @@ under the resting pointer can take a little over 2 seconds to show.
 
 After 10 minutes in which you have not moved the pointer over the video and no card has been
 showing, Kenbunshoku unloads the recognition model in that tab to give its memory back. A pointer
-resting on a paused video counts as not moving. The next time you point at the video, the model
+resting on a paused video counts as not moving. With **Keep the card I'm pointing at** on, a card
+stays showing while the pointer rests on it, so the model stays loaded until you move the pointer
+off the card. The next time you point at the video, the model
 starts again, as the first time does; the video simply playing on does not start it again. Its
 files come from the extension itself or from the
 browser's caches. In a tab you are not looking at, the browser may run Kenbunshoku's timers less
