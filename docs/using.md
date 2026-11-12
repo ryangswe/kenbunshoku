@@ -26,8 +26,8 @@ at the video and even on a video with no cards. Starting loads the recognition m
 memory and, the first time, downloads files (see [When recognition runs](#when-recognition-runs)).
 Nothing in the video is analyzed until you point at it. A video that has not played, such as one
 paused when the page opened, starts card hovers when the pointer first comes over it. On Twitch, a
-video starts them by playing only on a channel's page, a video or a clip; elsewhere, such as the
-featured stream on the front page, they start when you first point at it. A video playing in a tab
+video starts them by playing only on a channel's page, a past broadcast or a clip; elsewhere, such
+as the featured stream on the front page, they start when you first point at it. A video playing in a tab
 you are not looking at starts them too, but nothing is analyzed there. To
 turn card hovers off everywhere, use the switch in Kenbunshoku's toolbar popup; there is no
 per-channel switch. The extension separately checks its settings file when it is installed or
@@ -71,8 +71,9 @@ Below them are two links, to the project page and to the open-source toolkit it 
 
 ## When recognition runs
 
-When a video in a tab plays, the recognition model starts there, which takes a moment, so that it
-is ready by the time you point at a card. Recognition runs only while the pointer is over the
+When a video in a tab plays, the recognition model starts there (on Twitch, on the pages named in
+[Turning card hovers on and off](#turning-card-hovers-on-and-off)), which takes a moment, so that
+it is ready by the time you point at a card. Recognition runs only while the pointer is over the
 video, and stops by itself 10 seconds after
 you stop moving it, unless a card is showing under the resting pointer, and always 60 seconds after
 you last moved it. It stops at once when
@@ -98,8 +99,8 @@ the other cards in the picture too, which took about a second on our test clips.
 another card after that is answered from those checks. The check runs only when it loads successfully and stays on: it turns itself off when it
 fails or is too slow. For it, Kenbunshoku downloads a card-feature file of about 60 MB from
 `cdn.kenbunshoku.com` once, the first time a video plays with card hovers on (on Twitch, on a
-channel's page, a video or a clip), or you first point at one otherwise (on YouTube or Twitch, even
-one with no cards), and caches it in the
+channel's page, a past broadcast or a clip), or you first point at a video elsewhere (on YouTube or
+Twitch, even one with no cards), and caches it in the
 browser's storage; it is downloaded again if that storage is cleared or the file changes. Without
 WebGPU it works without the extra check. Each tab
 in which a video has played, or you have pointed at one, holds its own copy of the card features

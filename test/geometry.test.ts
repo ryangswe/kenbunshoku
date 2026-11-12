@@ -79,8 +79,8 @@ describe("isActivePage", () => {
   ])("%s (dev %s) → %s", (url, dev, active) => expect(isActivePage(new URL(url), dev, BOTH_SITES)).toBe(active));
 });
 
-// The page rule for loading at play (cardvision-hq#129 acceptance): on Twitch only a channel's
-// page, a clip or a video; other pages load at the first pointer move, as before.
+// The page rule for loading at play: on Twitch only a channel's page, a past broadcast, a clip or a
+// popout player; other pages load at the first pointer move, as before.
 describe("loadsAtPlay", () => {
   it.each([
     ["https://www.youtube.com/watch?v=abc", false, true],
@@ -106,7 +106,8 @@ describe("loadsAtPlay", () => {
     ["https://www.twitch.tv/somechannel/videos", false, false],
     ["https://www.twitch.tv/somechannel/about", false, false],
     ["https://www.twitch.tv/somechannel/clips", false, false],
-    ["https://www.twitch.tv/popout/somechannel/player", false, false],
+    ["https://www.twitch.tv/popout/somechannel/player", false, true],
+    ["https://www.twitch.tv/popout/somechannel/chat", false, false],
     ["https://www.twitch.tv/moderator/somechannel", false, false],
     ["https://www.twitch.tv/a-b", false, false],
     ["http://127.0.0.1:8770/", true, true],

@@ -1028,8 +1028,7 @@ describe("Agent and the toolkit's capture control", () => {
     expect(frames()).toEqual([]);
   });
 
-  // Loading at play (owner 2026-11-10 "Products load at video play", for Kenbunshoku 2026-11-12,
-  // cardvision-hq#117 and #129).
+  // Loading at play (owner 2026-11-10 "Products load at video play", for Kenbunshoku 2026-11-12).
   it("play: a main video already playing when hovers come on gets both frames, with no pointer move", async () => {
     agent = await startAgent();
     expect(frames().filter((f) => f.src.endsWith("/compute.html"))).toHaveLength(1);
@@ -1165,7 +1164,7 @@ describe("Agent and the toolkit's capture control", () => {
     expect(frames()).toHaveLength(2);
   });
 
-  it("play: on a Twitch page that is not a channel, a clip or a video (the front page's featured stream), playing makes nothing; the pointer does", async () => {
+  it("play: on a Twitch page that is not a channel's page, a past broadcast or a clip (the front page's featured stream), playing makes nothing; the pointer does", async () => {
     vi.stubGlobal("location", new URL("https://www.twitch.tv/"));
     agent = await startAgent();
     playing();
@@ -1177,7 +1176,7 @@ describe("Agent and the toolkit's capture control", () => {
     expect(frames()).toHaveLength(2);
   });
 
-  it("play: a Twitch channel's page, a video or a clip loads at play", async () => {
+  it("play: a Twitch channel's page, a past broadcast or a clip loads at play", async () => {
     for (const page of ["https://www.twitch.tv/somechannel", "https://www.twitch.tv/videos/123456789", "https://www.twitch.tv/somechannel/clip/SomeClip-Ab_12"]) {
       agent?.stop();
       for (const f of frames()) f.remove();
