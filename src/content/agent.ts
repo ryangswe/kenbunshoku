@@ -32,7 +32,11 @@
 //     on to the card underneath.
 //   - It outlines the card the tooltip names (outline.ts): the same accepted box, or the card's
 //     turned outline when the compute frame sends one, shown and hidden with the tooltip, never
-//     taking the pointer.
+//     taking the pointer. A card the reading hold keeps after it was seen gone (`held`) keeps
+//     its tooltip without an outline.
+//   - The popup's "Keep the card I'm pointing at" (on unless switched off) picks the compute
+//     frame's hold when the frame starts (session-options.ts). Changing it makes a running
+//     compute frame again.
 //   - It is on for every video (owner, 2026-10-27: no per-channel switch; the popup's switch is
 //     the only control). Until the main video plays (or the pointer comes over a paused one) no
 //     frame is made, no model loads and nothing is downloaded for card hovers. The popup's switch
@@ -217,6 +221,20 @@ export class Agent {
     this.enabled = enabled;
     if (!enabled) this.teardown();
     else this.loadAtPlay();
+  }
+
+  /** The popup's "Keep the card I'm pointing at" changed (shared/keep-card.ts). The compute
+   *  frame reads it when it starts, so a running one is made again now, and the next look uses
+   *  the new hold. The card on show goes with it. Nothing is made where no compute frame runs:
+   *  hovers off, no frame yet, or an idle unload waiting for the pointer (which leaves none). A
+   *  frame made again loads the model and the card-feature file again, from the browser's cache. */
+  restartForKeepCard(): void {
+    if (!this.enabled || !this.compute) return;
+    this.hideTooltip();
+    this.shown = null;
+    this.compute.remove();
+    this.compute = null;
+    this.ensureFrames();
   }
 
   // ------------------------------------------------------------------ the pointer
@@ -554,8 +572,10 @@ export class Agent {
     }
     // The same box (turned with the card when the frame sent its outline), on the same picture;
     // nothing when the picture's size is not known. A card reported again with only a new
-    // outline comes back here, so the drawn outline follows it.
-    this.outline?.show(ready ? outlinePlace(picture, card, video.videoWidth > 0 && video.videoHeight > 0) : null);
+    // outline comes back here, so the drawn outline follows it. A card the reading hold keeps
+    // after it was seen gone from there (`held`) keeps its tooltip but has no outline: it would
+    // frame another card or nothing.
+    this.outline?.show(ready && card.held !== true ? outlinePlace(picture, card, video.videoWidth > 0 && video.videoHeight > 0) : null);
   }
 
   private hideTooltip(): void {

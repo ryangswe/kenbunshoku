@@ -1266,4 +1266,69 @@ describe("Agent and the toolkit's capture control", () => {
     expect(compute()).toBeDefined();
     expect(compute()).not.toBe(first);
   });
+
+  it("hold: keeps the tooltip but draws no outline for a card the reading hold marks held, and outlines it again once seen there", async () => {
+    agent = await startAgent();
+    move(100, 100);
+    const card = { cardId: "OP01-001", name: "Zoro", box: { x: 0.1, y: 0.1, width: 0.1, height: 0.2 } };
+    showCard(card);
+    expect(outline()!.style.display).toBe("block");
+    const sent = spyOn(tooltip());
+    const cardMessages = () => sent.filter((m) => m.kind === "card").length;
+    const before = cardMessages();
+    fromFrame(compute(), { kind: "shown", card: { ...card, held: true } });
+    expect(tooltip()!.style.visibility).toBe("visible");
+    expect(outline()!.style.display).toBe("none");
+    // The same card: the tooltip is not sent it again.
+    expect(cardMessages()).toBe(before);
+    fromFrame(compute(), { kind: "shown", card });
+    expect(outline()!.style.display).toBe("block");
+  });
+
+  it("keep card: a change remakes the running compute frame, keeps the tooltip frame, clears the card on show and says hello to the new frame", async () => {
+    vi.useFakeTimers();
+    agent = await startAgent();
+    move(100, 100);
+    showCard({ cardId: "OP01-001", name: "Zoro", box: { x: 0.1, y: 0.1, width: 0.1, height: 0.2 } });
+    const oldCompute = compute()!;
+    const oldTooltip = tooltip()!;
+    agent.restartForKeepCard();
+    expect(oldCompute.isConnected).toBe(false);
+    expect(compute()).toBeDefined();
+    expect(compute()).not.toBe(oldCompute);
+    expect(frames().filter((f) => f.src.endsWith("/compute.html"))).toHaveLength(1);
+    expect(tooltip()).toBe(oldTooltip);
+    expect(tooltip()!.style.visibility).toBe("hidden");
+    expect(outline()!.style.display).toBe("none");
+    expect(spyOn(compute()).filter((m) => m.kind === "hello")).toHaveLength(1);
+    // The old frame's messages are no longer taken: a card from it shows nothing.
+    window.dispatchEvent(message(tag({ kind: "shown", card: { cardId: "OP01-002", name: "x", box: { x: 0.5, y: 0.5, width: 0.1, height: 0.2 } } }), EXT, oldCompute.contentWindow));
+    expect(tooltip()!.style.visibility).toBe("hidden");
+    // The new frame takes over: the pointer still over the video is told, and its card shows.
+    computeReady("fedcba9876543210");
+    expect(spyOn(compute()).map((m) => m.kind)).toEqual(expect.arrayContaining(["presented", "pointer"]));
+    fromFrame(compute(), { kind: "shown", card: { cardId: "OP01-001", name: "Zoro", box: { x: 0.1, y: 0.1, width: 0.1, height: 0.2 } } });
+    fromFrame(tooltip(), { kind: "size", width: 320, height: 448, shape: "card", cardId: "OP01-001" });
+    expect(tooltip()!.style.visibility).toBe("visible");
+  });
+
+  it("keep card: a change makes nothing where no compute frame runs (not loaded yet, hovers off, or an idle unload waiting for the pointer)", async () => {
+    media.paused = true;
+    agent = await startAgent();
+    agent.restartForKeepCard();
+    expect(frames()).toEqual([]);
+    agent.setEnabled(false);
+    agent.restartForKeepCard();
+    expect(frames()).toEqual([]);
+    agent.setEnabled(true);
+    move(100, 100);
+    computeReady();
+    fromFrame(compute(), { kind: "status", state: "idle", error: null, backend: null });
+    expect(frames()).toEqual([]);
+    agent.restartForKeepCard();
+    expect(frames()).toEqual([]);
+    // The next trusted move makes them, as after any idle unload.
+    move(110, 100);
+    expect(frames()).toHaveLength(2);
+  });
 });

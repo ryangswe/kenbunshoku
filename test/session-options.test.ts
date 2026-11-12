@@ -4,7 +4,7 @@
 // pointer, which the toolkit allows in pointer mode only.
 import { describe, expect, it } from "vitest";
 
-import { SESSION_OPTIONS } from "../src/compute/session-options.js";
+import { SESSION_OPTIONS, sessionOptions } from "../src/compute/session-options.js";
 import { allowedParentOrigin, tag, TAG } from "../src/shared/messages.js";
 import { computeProtocol, PROTOCOL_VERSION, startComputeFrame } from "../vendor/cardvision-browser/compute-session.js";
 import { SITE_ORIGIN } from "./helpers/fork.js";
@@ -31,6 +31,10 @@ describe("compute frame session options", () => {
 
   it("start the toolkit's compute frame in its default pointer mode", () => {
     expect(start()).not.toBeNull();
+  });
+
+  it("start the frame with either hold the popup's switch picks", () => {
+    for (const on of [true, false]) expect(start(sessionOptions(on))).not.toBeNull();
   });
 
   it("load the geometric stage at the first pointer, not with the release (owner, 2026-11-12)", async () => {

@@ -18,7 +18,12 @@ nothing when the match is not clear.
 - A hidden **compute frame** (`src/compute/`), an extension page inside the video page, hosts
   the runtime's worker. It decides when to analyze a picture (only around pointer activity,
   with the runtime's scheduler), and which card a tooltip shows at the pointer (the runtime's
-  hover rule). Pictures go from the content script to this frame only.
+  hover rule). How long a shown card stays is the runtime's hold, picked when the frame starts by
+  the popup's **Keep the card I'm pointing at** (`sessionOptions` in
+  `src/compute/session-options.ts`): on, the reading hold (`READING_HOLD`) keeps the card while the
+  pointer stays where it was seen, and the content script hides the outline of a card marked
+  `held`; off, the shown hold (`SHOWN_HOLD`) keeps it through short gaps. A change makes a running
+  compute frame again. Pictures go from the content script to this frame only.
 - The **tooltip frame** (`src/tooltip/`), an extension page placed beside the card, shows its
   picture alone (320 px wide, scaled down to fit the window but not below 200 px), or its name
   when there is no picture. It takes no pointer events.

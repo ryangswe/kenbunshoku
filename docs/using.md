@@ -42,6 +42,13 @@ window is short). Move to another card to see that one, even one under the pictu
 pointer passes through it, and nothing on it can be clicked. When there is no picture, the
 card's name shows instead. Pausing works too, on recorded videos and on live streams.
 
+The card you point at stays shown while the pointer stays on it, so you can read it after the
+card moves: when a player picks it up, or lays another card on top of it, the picture stays until
+you move the pointer. If the card is no longer where you are pointing, the outline goes and the
+picture stays. To see a card laid on top, move the pointer off it and back on. Moving onto
+another card next to it shows that card, as on a fan of overlapping cards. The popup's **Keep the
+card I'm pointing at** switch turns this off (see below).
+
 The picture is Bandai's official one. When Bandai publishes the card in your card language, the
 picture is in that language, and otherwise it is in English. French pictures arrived in version
 0.4.0. The popup's **Card language** menu sets the language, and by default it
@@ -65,8 +72,15 @@ in English.
 **Card size** sets how large the card's picture is shown, from 70% to 130% of its usual size
 (100% unless you change it). A card on show changes size at once. The picture still stays inside
 the window and beside the card, so in a small window it can be smaller than the size you set.
-While card hovers are off, card language and card size are grayed out and can't be changed. They
-keep your choices for when you turn card hovers back on.
+**Keep the card I'm pointing at** is on unless you turn it off. On, the card you point at stays
+shown until you move the pointer off it, as described in [Hovering a card](#hovering-a-card), and a
+card laid on top of it doesn't replace it until you move. Off, a card that moves away from the
+pointer goes after a moment, and a card laid on top replaces it after a moment without a pointer
+move, as in versions before 0.5.0. Changing it takes effect at once: in a tab where card hovers
+have started, the recognition model starts again, which takes a moment.
+
+While card hovers are off, card language, card size and **Keep the card I'm pointing at** are
+grayed out and can't be changed. They keep your choices for when you turn card hovers back on.
 
 Below them are two links, to the project page and to the open-source toolkit it is built on.
 
@@ -76,8 +90,8 @@ When a video plays on the pages named in
 [Turning card hovers on and off](#turning-card-hovers-on-and-off), the recognition model starts in
 that tab, which takes a moment, so that it is ready by the time you point at a card. Recognition
 runs only while the pointer is over the video, and stops by itself 10 seconds after
-you stop moving it, unless a card is showing under the resting pointer, and always 60 seconds after
-you last moved it. It stops at once when
+you stop moving it. With **Keep the card I'm pointing at** turned off, it goes on while a card is
+showing under the resting pointer, and stops at the latest 60 seconds after you last moved it. It stops at once when
 the pointer leaves the video or the tab goes to the background. While the pointer rests on a spot
 where no card is showing, it looks every 2 seconds instead of once or twice a second, so a card that appears
 under the resting pointer can take a little over 2 seconds to show.
@@ -138,5 +152,6 @@ Kenbunshoku's popup says "New version available" with a link.
 
 **To remove it**, click **Remove** on its card in `chrome://extensions` in Chrome, or choose
 **Remove** from its **⋯** menu in `about:addons` in Firefox. Removing the extension
-deletes its saved settings (the on/off switch, the card language and the card size);
+deletes its saved settings (the on/off switch, the card language, the card size and **Keep the
+card I'm pointing at**);
 installing it again starts fresh.

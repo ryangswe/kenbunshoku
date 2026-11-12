@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // The popup: one switch (the master on/off); under it the settings that only matter while card
-// hovers are on (the card language menu, card-language-control.ts, and the card-size dial,
-// card-size-control.ts), disabled and dimmed while
+// hovers are on (the card language menu, card-language-control.ts, the card-size dial,
+// card-size-control.ts, and the "Keep the card I'm pointing at" switch, keep-card-control.ts),
+// disabled and dimmed while
 // hovers are off; a "New version available" line only when the settings file names a newer
 // version (installs that never update by themselves; never in Firefox, which installs only
 // signed add-ons and updates them itself); and two links (the project page, and the open-source
@@ -14,6 +15,8 @@ import { DISMISSED_UPDATE_KEY, updateNotice } from "../settings/update.js";
 import { ENABLED_KEY, readEnabled } from "../shared/enabled.js";
 import { CARD_SIZE_KEY } from "../shared/card-size.js";
 import { initCardSize } from "./card-size-control.js";
+import { KEEP_CARD_KEY } from "../shared/keep-card.js";
+import { initKeepCard } from "./keep-card-control.js";
 import { CARD_LANGUAGE_KEY } from "../shared/card-language.js";
 import { initCardLanguage } from "./card-language-control.js";
 
@@ -102,6 +105,7 @@ export function initPopup(env: PopupEnv): { renderUpdate(): Promise<void>; rende
   void renderSwitch();
   void renderUpdate();
   const cardSize = initCardSize(env.doc, env.local);
+  const keepCard = initKeepCard(env.doc, env.local);
   const language = initCardLanguage(env.doc, env.local, env.languages ?? (() => []));
   env.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
@@ -110,6 +114,7 @@ export function initPopup(env: PopupEnv): { renderUpdate(): Promise<void>; rende
     if (LAST_GOOD_KEY in changes || CARD_LANGUAGE_KEY in changes) void language.render();
     if (ENABLED_KEY in changes) void renderSwitch();
     if (CARD_SIZE_KEY in changes) void cardSize.render();
+    if (KEEP_CARD_KEY in changes) void keepCard.render();
   });
   return { renderUpdate, renderSwitch, renderLanguage: language.render };
 }
