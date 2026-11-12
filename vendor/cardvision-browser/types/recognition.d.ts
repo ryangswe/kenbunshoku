@@ -92,6 +92,9 @@ export interface ScoredProposal {
      *  true. The face is then not named: `tauPassed` and `accepted` are false and `embedding` is
      *  null, whatever its cosine look was. Absent otherwise. */
     unverified?: true;
+    /** With the tilted retry, on a face it would have tried but its cap (`maxFacesPerFrame`) left
+     *  out on this frame: true. The face is answered by its upright look. Absent otherwise. */
+    tiltedSkipped?: true;
 }
 /** What the tilted retry did with one face (Python: `TiltedOutcome.to_json`). */
 export interface TiltedEvidence {

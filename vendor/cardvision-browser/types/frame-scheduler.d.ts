@@ -87,6 +87,7 @@ export declare class FrameScheduler {
     /** The last pointer activity: a move, press or tap over the picture, or the pointer leaving. */
     private lastPointerAt;
     private tooltipShowing;
+    private readingHoldShowing;
     /** The last time a showing tooltip was reported while the pointer was inside. */
     private lastTooltipAt;
     private lastHoverTriggerAt;
@@ -110,6 +111,9 @@ export declare class FrameScheduler {
     private refused;
     /** Layout mode: the host also wants pointer-driven analysis. */
     private pointerAnalysis;
+    /** The least spacing of a playing relook after the last look, besides `HOVER_TRIGGER_MIN_GAP_MS`
+     *  (measured pacing's share; 0 without it). */
+    private relookSpacingMs;
     /**
      * @param intervalMs The cadence of the mode: the fast cadence in pointer mode, the slow one
      *   in always-on mode (cadence.ts `cadenceMs`).
@@ -126,6 +130,16 @@ export declare class FrameScheduler {
     setPointerAnalysis(on: boolean): void;
     setIntervalMs(ms: number): void;
     setReadingIntervalMs(ms: number): void;
+    /** Measured pacing: the least spacing, after the last look of any kind, of a look on a playing
+     *  picture that `relookDue` allows (`MeasuredPacer.spacingMs`), so that those looks keep
+     *  analysis within the pacer's share. `HOVER_TRIGGER_MIN_GAP_MS` applies when it is shorter.
+     *  0 (the default): that gap alone. */
+    setRelookSpacingMs(ms: number): void;
+    /** A reading hold shows a card (true) or nothing (false, the default). While it does, a
+     *  resting pointer past the grace period is not analyzed: the hold keeps the card until the
+     *  pointer moves, so no look could change it. Report the card the hold shows here, and whether
+     *  the newest analysis sees a card at the pointer with `setTooltipShowing`. */
+    setReadingHoldShowing(showing: boolean): void;
     /** Is a tooltip showing at the resting pointer? Report it before each evaluation and after
      *  each result. `now` is remembered as the last showing, for `READING_LINGER_MS`. */
     setTooltipShowing(showing: boolean, now: number): void;
@@ -226,8 +240,20 @@ export declare class FrameScheduler {
      * at least `HOVER_TRIGGER_MIN_GAP_MS` ago. Unlike `hoverTriggerDue` it does not need a stale frame, and
      * unlike `requestLook` it marks nothing stale and clears nothing: a still picture is analyzed
      * again with the repeats a newly presented one gets (`started` with the "hover" trigger).
+     *
+     * With `videoTimeSec`, the time of the picture on screen (the session gives it while the pointer
+     * is active over the picture, with a ready geometric stage), a playing picture may be looked at again too: a newly
+     * presented frame waits, its time has moved since the newest analyzed frame, and no retry is
+     * waiting out its back-off. The cadence is not consulted, and the stale-frame threshold is not
+     * needed; the last look of any kind must have started at least `HOVER_TRIGGER_MIN_GAP_MS` ago, or
+     * the measured-pacing spacing (`setRelookSpacingMs`) if that is longer.
+     * Without it, a playing picture waits for the cadence, as a still one with repeats left does.
      */
-    relookDue(now: number, inFlight: boolean): boolean;
+    relookDue(now: number, inFlight: boolean, videoTimeSec?: number): boolean;
+    /** Is the picture playing on from the newest analyzed frame: a newly presented frame waits, its
+     *  time has moved since that frame, and no retry is waiting out its back-off? A still picture
+     *  (its repeats, a seek's duplicate reports at the same time) is not. */
+    private playingSinceLast;
     /** An analysis of the current picture was started. */
     started(now: number, info?: StartedInfo): void;
     /** Why the last analysis ran; null before the first. */
