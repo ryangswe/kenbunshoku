@@ -1116,6 +1116,55 @@ describe("Agent and the toolkit's capture control", () => {
     expect(spyOn(compute()).filter((m) => m.kind === "hello")).toHaveLength(1);
   });
 
+  /** Another video element in the page, playing, of the given size at the top left. */
+  function otherVideo(width: number, height: number): HTMLVideoElement {
+    const v = document.createElement("video");
+    Object.defineProperties(v, { videoWidth: { value: 1920 }, videoHeight: { value: 1080 }, paused: { value: false }, readyState: { value: 4 }, currentTime: { value: 3 } });
+    v.getBoundingClientRect = () => ({ left: 0, top: 0, width, height, right: width, bottom: height, x: 0, y: 0, toJSON() {} }) as DOMRect;
+    document.body.appendChild(v);
+    return v;
+  }
+
+  it("play: after an idle unload, a new larger video playing makes nothing; a trusted move over it does", async () => {
+    agent = await startAgent();
+    computeReady();
+    idle();
+    const bigger = otherVideo(1280, 720);
+    playing(bigger);
+    expect(frames()).toEqual([]);
+    move(110, 100);
+    expect(frames()).toHaveLength(2);
+  });
+
+  it("play: a main video replaced by another element loads when the new one plays", async () => {
+    media.paused = true;
+    agent = await startAgent();
+    expect(frames()).toEqual([]);
+    video.remove();
+    const next = otherVideo(960, 540);
+    playing(next);
+    expect(frames()).toHaveLength(2);
+  });
+
+  it("play: the main video starting to play while too small to count loads once it is the main video again", async () => {
+    video.remove();
+    let width = 960;
+    let paused = true;
+    const v = document.createElement("video");
+    Object.defineProperties(v, { videoWidth: { value: 1920 }, videoHeight: { value: 1080 }, paused: { get: () => paused }, readyState: { value: 4 }, currentTime: { value: 3 } });
+    v.getBoundingClientRect = () => ({ left: 0, top: 0, width, height: width * 0.5625, right: width, bottom: width * 0.5625, x: 0, y: 0, toJSON() {} }) as DOMRect;
+    document.body.appendChild(v);
+    agent = await startAgent(); // paused main video: watched, nothing made
+    expect(frames()).toEqual([]);
+    width = 200; // the player shrank (a mini player) and then plays: not the main video now
+    paused = false;
+    playing(v);
+    expect(frames()).toEqual([]);
+    width = 960; // back to full size, still playing
+    playing(v);
+    expect(frames()).toHaveLength(2);
+  });
+
   it("play: a frame the page removed is made again at the pointer, not by the video playing on", async () => {
     agent = await startAgent();
     const first = compute()!;

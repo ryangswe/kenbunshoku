@@ -12,8 +12,9 @@ videos. This page says what it reads, what it sends, and what it keeps.
 - The extension makes requests to two hosts, `cdn.kenbunshoku.com` and `optcgapi.com`, for a
   settings file, card pictures, updated card-recognition data when new cards are published, and,
   where the browser has WebGPU, a card-feature file of about 60 MB, downloaded once and cached. It is
-  downloaded the first time card hovers start on a video, on YouTube or Twitch, which happens when
-  a video plays: you need not point at it, and it may have no cards in it.
+  downloaded the first time card hovers start on a video, on YouTube or Twitch: when a video plays
+  (you need not point at it), or when you first point at one that has not played. The video may
+  have no cards in it.
 
 ## What it reads
 
@@ -34,7 +35,8 @@ videos. This page says what it reads, what it sends, and what it keeps.
 
 Card hovers are on for every supported video, with no per-channel switch. Embedded
 `www.youtube.com` players on any website are included, with no step to turn them on: one playing
-starts card hovers as a video on YouTube itself does. With the toolbar switch off, the
+starts card hovers as a video on YouTube itself does, even one that plays by itself, such as a
+background video. With the toolbar switch off, the
 extension reads no video on any page. The settings check (below) continues.
 
 ## What happens to the picture
@@ -55,7 +57,8 @@ no cards in it counts too. Starting card hovers loads the recognition model and 
 below; it reads no picture of the video. After 10
 minutes in which the pointer has not moved over the video and no card has been showing,
 Kenbunshoku unloads card hovers in that tab to free memory. They start again the next time the
-pointer comes over the video (the video simply playing on does not start them again), and the requests below then follow the same rules: most files come
+pointer comes over the video (the video simply playing on does not start them again), and the
+requests below then follow the same rules: most files come
 from your browser's caches, and the settings file is still checked at most once an hour.
 
 | Request | To | When | What the host learns |

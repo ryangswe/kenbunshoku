@@ -32,7 +32,8 @@
 //   - It is on for every video (owner, 2026-10-27: no per-channel switch; the popup's switch is
 //     the only control). Until the main video plays (or the pointer comes over a paused one) no
 //     frame is made, no model loads and nothing is downloaded for card hovers. The popup's switch
-//     turned off removes the frames again, and turned on loads them again if the video is playing.
+//     turned off removes the frames again, and turned on loads them again if the video is playing,
+//     unless an idle unload is still waiting for the pointer.
 //   - Messages from its frames are taken only when the browser marks them as trusted and they
 //     come from that frame and the extension's origin (fromExtensionFrame): a page cannot make up
 //     a card for the tooltip or a capture request.
@@ -253,9 +254,14 @@ export class Agent {
     this.playWatch?.stop();
     // `loadWhen` calls back at once for a video already playing, before it returns.
     const { stop } = loadWhen(video, "play", () => {
-      // Hovers turned off, another main video since, or an idle unload waiting for the
-      // control's own make(): nothing here.
-      if (!this.enabled || this.video !== video || this.awaitingMake) return;
+      // Hovers turned off, or an idle unload waiting for the control's own make(): nothing here.
+      if (!this.enabled || this.awaitingMake) return;
+      // Not the main video when it started (too small then, or another one picked since): the
+      // spent watch goes, so that this element gets a new one if it becomes the main video.
+      if (this.video !== video) {
+        if (this.playWatch?.video === video) this.playWatch = null;
+        return;
+      }
       if (this.compute?.isConnected && this.tooltip?.isConnected) return;
       this.ensureFrames();
     });
