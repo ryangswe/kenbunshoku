@@ -6,9 +6,10 @@
 // docs/extension-session.md). What stays here: the origins it serves, the release choice and its
 // geometric stage, the card facts for the tooltip frame (facts.ts), and the dev hook.
 //
-// This frame is made on the first pointer move over a video's picture (the page's session
-// starts then), so the release, and after it the geometric stage's card-feature index (about
-// 60 MB, from the image host, kept in the browser's cache), load then and never at install.
+// This frame is made when the page's main video plays, or on the first pointer move over a
+// video that has not played (agent.ts), so the release, and after it the geometric stage's
+// card-feature index (about 60 MB, from the image host, kept in the browser's cache), load then
+// and never at install.
 // Which release: the bundled one, or the one the settings file names (the vendored
 // remote-release.js, cdn/SETTINGS.md "release"), read once per page; for a remote release the
 // stage follows the pointer's own index.

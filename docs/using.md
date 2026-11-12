@@ -20,10 +20,12 @@ How card hovers work once the extension is installed, what to expect, and how to
 ## Turning card hovers on and off
 
 Card hovers are on for all supported videos, embedded YouTube players on other websites
-included: open a One Piece Card Game video on YouTube or Twitch and point at a card. Nothing is
-analyzed and nothing is downloaded for card hovers before the pointer comes over a video, so a
-video you just watch costs nothing. When the pointer first comes over a video, even one
-with no cards, card hovers start there (see [When recognition runs](#when-recognition-runs)). To
+included: open a One Piece Card Game video on YouTube or Twitch and point at a card. Card hovers
+start in a tab when its video plays, so that the first card shows sooner, even if you never point
+at the video and even on a video with no cards. Starting loads the recognition model, which uses
+memory and, the first time, downloads files (see [When recognition runs](#when-recognition-runs)).
+Nothing in the video is analyzed until you point at it. A video that has not played, such as one
+paused when the page opened, starts card hovers when the pointer first comes over it. To
 turn card hovers off everywhere, use the switch in Kenbunshoku's toolbar popup; there is no
 per-channel switch. The extension separately checks its settings file when it is installed or
 updated and when the browser starts, and at most once an hour while you use it.
@@ -66,8 +68,8 @@ Below them are two links, to the project page and to the open-source toolkit it 
 
 ## When recognition runs
 
-The first time you point at a video in a tab, the recognition model starts, which takes a
-moment. Recognition runs only while the pointer is over the video, and stops by itself 10 seconds after
+When a video in a tab plays, the recognition model starts there, which takes a moment, so that it
+is ready by the time you point at a card. Recognition runs only while the pointer is over the video, and stops by itself 10 seconds after
 you stop moving it, unless a card is showing under the resting pointer, and always 60 seconds after
 you last moved it. It stops at once when
 the pointer leaves the video or the tab goes to the background. While the pointer rests on a spot
@@ -77,7 +79,7 @@ under the resting pointer can take a little over 2 seconds to show.
 After 10 minutes in which you have not moved the pointer over the video and no card has been
 showing, Kenbunshoku unloads the recognition model in that tab to give its memory back. A pointer
 resting on a paused video counts as not moving. The next time you point at the video, the model
-starts again, as the first time does. Its files come from the extension itself or from the
+starts again, as the first time does; the video simply playing on does not start it again. Its files come from the extension itself or from the
 browser's caches.
 
 ## Extra accuracy (WebGPU)
@@ -89,10 +91,10 @@ that needs the check shows nothing until it has been checked. On a paused video 
 the other cards in the picture too, which took about a second on our test clips. A move to
 another card after that is answered from those checks. The check runs only when it loads successfully and stays on: it turns itself off when it
 fails or is too slow. For it, Kenbunshoku downloads a card-feature file of about 60 MB from
-`cdn.kenbunshoku.com` once, the first time card hovers start on a video (on YouTube or Twitch,
-even one with no cards), and caches it in the browser's storage; it is downloaded again if that storage is cleared or the file changes. Without
+`cdn.kenbunshoku.com` once, the first time a video plays with card hovers on (on YouTube or
+Twitch, even one with no cards and even if you never point at it), and caches it in the browser's storage; it is downloaded again if that storage is cleared or the file changes. Without
 WebGPU it works without the extra check. Each tab
-in which you have hovered a video holds its own copy of the card features in memory, about
+in which a video has played holds its own copy of the card features in memory, about
 60–70 MB, until the tab is closed or navigates away, or until the model is unloaded after 10 idle
 minutes (above).
 

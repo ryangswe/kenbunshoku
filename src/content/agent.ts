@@ -10,12 +10,18 @@
 //     seconds after it stops showing), and never more than 60 seconds after the last movement;
 //     a tap, for 10 seconds. Pictures go only to that frame, which is the extension's own;
 //     nothing is sent over the network.
-//   - Nothing is analyzed until the pointer first comes over a picture: that is when the two
-//     frames are created and the model loads.
+//   - The two frames are made, and the model loads, when the page's main video plays (owner,
+//     2026-11-10 "Products load at video play", applied to Kenbunshoku on 2026-11-12,
+//     cardvision-hq#117 and #129): at once for a video already playing when card hovers are on,
+//     else at its first `playing` event (the toolkit's `loadWhen`, once per video element). A
+//     video that never plays, such as one paused when the page opens, gets them at the first
+//     trusted pointer move over its picture, as before. Loading reads no picture: a picture is
+//     taken only on the viewer's own pointer activity (above).
 //   - After 10 idle minutes (no pointer move over the picture, no card shown) the compute frame ends
 //     its worker and both frames are removed, which gives their memory back (toolkit 0.12.0,
 //     `whenIdle`). The next trusted pointer move over the video makes them again; the control
-//     calls `make()` for that, and the agent makes no frame of its own meanwhile.
+//     calls `make()` for that, and the agent makes no frame of its own meanwhile, not even when
+//     the video plays again (a looping clip would undo the unload).
 //   - It shows the tooltip frame (the card's picture alone, or its name) beside the card the
 //     compute frame names, placed off the cards around it and scaled down when the page has no
 //     room for it, and hides it shortly after. Nothing it shows takes the pointer: hovering goes
@@ -24,9 +30,9 @@
 //     turned outline when the compute frame sends one, shown and hidden with the tooltip, never
 //     taking the pointer.
 //   - It is on for every video (owner, 2026-10-27: no per-channel switch; the popup's switch is
-//     the only control), but dormant until the pointer first comes over a picture: until then no
-//     frame is made, no model loads and nothing is downloaded, so a video nobody points at costs
-//     nothing. The popup's switch turned off removes the frames again.
+//     the only control). Until the main video plays (or the pointer comes over a paused one) no
+//     frame is made, no model loads and nothing is downloaded for card hovers. The popup's switch
+//     turned off removes the frames again, and turned on loads them again if the video is playing.
 //   - Messages from its frames are taken only when the browser marks them as trusted and they
 //     come from that frame and the extension's origin (fromExtensionFrame): a page cannot make up
 //     a card for the tooltip or a capture request.
@@ -34,7 +40,7 @@
 import { CONFIG } from "../config.js";
 import { MIN_VIDEO_WIDTH } from "../constants.js";
 import { parseTooltipOut, TAG, tag, type TooltipIn, type TooltipSize } from "../shared/messages.js";
-import { type CaptureControl, computeProtocol, createCaptureControl, fromExtensionFrame, type ShownCard } from "../../vendor/cardvision-browser/page-capture.js";
+import { type CaptureControl, computeProtocol, createCaptureControl, fromExtensionFrame, loadWhen, type ShownCard } from "../../vendor/cardvision-browser/page-capture.js";
 import { availableSpace, fitBesideCard, fitTooltipSize, fractionIn, pictureRect, placeTooltipAvoiding, type Rect, scaleTooltipSize, tooltipRadius } from "./geometry.js";
 import { isActivePage } from "./site.js";
 import { CardOutline, outlinePlace } from "./outline.js";
@@ -97,6 +103,8 @@ export class Agent {
   /** The outline around the card the tooltip names (a shadow root in the page). */
   private outline: CardOutline | null = null;
   private stopListening: (() => void) | null = null;
+  /** The toolkit's `loadWhen` on the main video: it makes the frames once, when that video plays. */
+  private playWatch: { video: HTMLVideoElement; stop(): void } | null = null;
 
   /** `chrome-extension://<id>`: the extension's base address without its trailing slash. */
   private readonly extensionOrigin = chrome.runtime.getURL("").replace(/\/$/, "");
@@ -108,6 +116,9 @@ export class Agent {
     // makes the frames, then reaches the control (both on the window, in the capture phase).
     window.addEventListener("pointermove", this.onPointer, { capture: true, passive: true });
     window.addEventListener("pointerdown", this.onPointer, { capture: true, passive: true });
+    // Media events do not bubble, but a capturing listener on the document still hears every
+    // video in it start playing: that is how the main video is found without a pointer event.
+    document.addEventListener("playing", this.onPlaying, { capture: true, passive: true });
     this.control = createCaptureControl({
       protocol: computeProtocol(TAG),
       frame: () => this.compute?.contentWindow ?? null,
@@ -174,6 +185,7 @@ export class Agent {
   stop(): void {
     window.removeEventListener("pointermove", this.onPointer, { capture: true });
     window.removeEventListener("pointerdown", this.onPointer, { capture: true });
+    document.removeEventListener("playing", this.onPlaying, { capture: true });
     window.removeEventListener("message", this.onMessage);
     document.removeEventListener("fullscreenchange", this.onFullscreen);
     window.removeEventListener("resize", this.onLayout);
@@ -199,6 +211,7 @@ export class Agent {
     if (enabled === this.enabled) return;
     this.enabled = enabled;
     if (!enabled) this.teardown();
+    else this.loadAtPlay();
   }
 
   // ------------------------------------------------------------------ the pointer
@@ -219,6 +232,35 @@ export class Agent {
     // The first trusted move over a picture starts the page's session (the frames, the model).
     if (fractionIn(this.pictureOf(video), event.clientX, event.clientY)) this.ensureFrames();
   };
+
+  // ------------------------------------------------------------------ loading at play
+  /** A video in the page started playing: it may be the main video, or make another one the
+   *  largest on show, so the main video is picked again now. A page script's made-up event is
+   *  ignored (a real one comes from the browser). */
+  private readonly onPlaying = (event: Event): void => {
+    if (event.isTrusted !== true || !(event.target instanceof HTMLVideoElement)) return;
+    this.videoPickedAt = -Infinity;
+    this.loadAtPlay();
+  };
+
+  /** Watch the main video with `loadWhen`: the frames are made once it plays (at once if it
+   *  already does). One watch per video element, so its later `playing` events (a loop, a seek,
+   *  the next video in the same element) never make frames again, which keeps an idle unload. */
+  private loadAtPlay(): void {
+    if (!this.enabled || !isActivePage(new URL(location.href), this.options.dev)) return;
+    const video = this.currentVideo();
+    if (!video || this.playWatch?.video === video) return;
+    this.playWatch?.stop();
+    // `loadWhen` calls back at once for a video already playing, before it returns.
+    const { stop } = loadWhen(video, "play", () => {
+      // Hovers turned off, another main video since, or an idle unload waiting for the
+      // control's own make(): nothing here.
+      if (!this.enabled || this.video !== video || this.awaitingMake) return;
+      if (this.compute?.isConnected && this.tooltip?.isConnected) return;
+      this.ensureFrames();
+    });
+    this.playWatch = { video, stop };
+  }
 
   // ------------------------------------------------------------------ the video
   private currentVideo(): HTMLVideoElement | null {
@@ -515,6 +557,8 @@ export class Agent {
     if (this.hideTimer) clearTimeout(this.hideTimer);
     this.hideTimer = null;
     // No video: the gate is cleared, and the frame (going) hears nothing more.
+    this.playWatch?.stop();
+    this.playWatch = null;
     this.attachVideo(null);
     this.compute?.remove();
     this.compute = null;
