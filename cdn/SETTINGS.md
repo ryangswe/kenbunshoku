@@ -198,8 +198,9 @@ nothing (rule 4).
 
 ### Rules the extension enforces
 
-The compute frame reads the settings in effect once per page, at its start (the first hover on a
-page with card hovers on; nothing happens at install). **A page tries the remote release at most
+The compute frame reads the settings in effect once per page, at its start (when card hovers start
+on the page: when its main video plays, or at the first hover where playing does not start them;
+nothing happens at install). **A page tries the remote release at most
 once; every fallback goes to the bundled release and never back.**
 
 | # | Condition | Outcome | Log reason |

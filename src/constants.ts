@@ -59,9 +59,10 @@ export const IDLE_UNLOAD_MS = 10 * 60_000;
  * The runtime's geometric stage (extra accuracy, WebGPU only), or null when the config turns it
  * off. Its settings file is copied into the built extension at GEOMETRIC_SETTINGS_PATH; it names
  * the packed card-feature index (about 60 MB) on an image host. The worker downloads the index
- * once, after the release has loaded, which happens when a video plays (or on the first pointer
- * move over one that has not played; card hovers are on for every video), never at install. The settings file's
- * `geometric: false` turns the stage off without a release.
+ * once, after the release has loaded, which happens when card hovers start on a page (when its
+ * main video plays, or on the first pointer move where playing does not start them: site.ts,
+ * loadsAtPlay), never at install. The settings file's `geometric: false` turns the stage off
+ * without a release.
  */
 export const GEOMETRIC = CONFIG.geometric;
 export const GEOMETRIC_SETTINGS_PATH = "data/geometric.json";

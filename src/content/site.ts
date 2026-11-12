@@ -36,8 +36,9 @@ const TWITCH_PLAYER_PAGE = /^\/(?:videos\/\d+|([A-Za-z0-9_]{1,25})(?:\/clip\/[A-
  *  page's featured stream, a directory's previews, a channel's player shrunk while you browse, a
  *  moderator's view with its small player) a video plays without being what you came to watch, or
  *  not as the page's main picture, so card hovers load there when you first point at a video, as
- *  before. So do the rarer player-only pages (a popout player), which keeps the list short. The main video is picked by size, and a featured stream is the
- *  largest video on its page, so the page decides this, not the size.
+ *  before. So do the rarer player-only pages (a popout player), which keeps the list short. The
+ *  main video is picked by size, and a featured stream is the largest video on its page, so the
+ *  page decides this, not the size.
  *
  *  Twitch changes pages without reloading. A video still playing from the page before, with no new
  *  `playing` event, does not load at play on the new page; the first pointer move over it does. */

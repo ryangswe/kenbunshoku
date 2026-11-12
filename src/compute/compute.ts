@@ -7,8 +7,8 @@
 // geometric stage, the card facts for the tooltip frame (facts.ts), and the dev hook.
 //
 // This frame is made when the page's main video plays, or on the first pointer move over a
-// video that has not played (agent.ts), so the release, and after it the geometric stage's
-// card-feature index (about 60 MB, from the image host, kept in the browser's cache), load then
+// video where playing does not make it (agent.ts; site.ts, loadsAtPlay), so the release, and
+// after it the geometric stage's card-feature index (about 60 MB, from the image host, kept in the browser's cache), load then
 // and never at install.
 // Which release: the bundled one, or the one the settings file names (the vendored
 // remote-release.js, cdn/SETTINGS.md "release"), read once per page; for a remote release the

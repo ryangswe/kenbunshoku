@@ -72,10 +72,10 @@ Below them are two links, to the project page and to the open-source toolkit it 
 
 ## When recognition runs
 
-When a video in a tab plays, the recognition model starts there (on Twitch, on the pages named in
-[Turning card hovers on and off](#turning-card-hovers-on-and-off)), which takes a moment, so that
-it is ready by the time you point at a card. Recognition runs only while the pointer is over the
-video, and stops by itself 10 seconds after
+When a video plays on the pages named in
+[Turning card hovers on and off](#turning-card-hovers-on-and-off), the recognition model starts in
+that tab, which takes a moment, so that it is ready by the time you point at a card. Recognition
+runs only while the pointer is over the video, and stops by itself 10 seconds after
 you stop moving it, unless a card is showing under the resting pointer, and always 60 seconds after
 you last moved it. It stops at once when
 the pointer leaves the video or the tab goes to the background. While the pointer rests on a spot
@@ -103,7 +103,7 @@ fails or is too slow. For it, Kenbunshoku downloads a card-feature file of about
 [Turning card hovers on and off](#turning-card-hovers-on-and-off); even one with no cards), and caches it in the
 browser's storage; it is downloaded again if that storage is cleared or the file changes. Without
 WebGPU it works without the extra check. Each tab
-in which a video has played, or you have pointed at one, holds its own copy of the card features
+in which card hovers have started holds its own copy of the card features
 in memory, about
 60–70 MB, until the tab is closed or navigates away, or until the model is unloaded after 10 idle
 minutes (above).
