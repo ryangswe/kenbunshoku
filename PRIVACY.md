@@ -13,8 +13,8 @@ videos. This page says what it reads, what it sends, and what it keeps.
   settings file, card pictures, updated card-recognition data when new cards are published, and,
   where the browser has WebGPU, a card-feature file of about 60 MB, downloaded once and cached. It is
   downloaded the first time card hovers start on a video, on YouTube or Twitch: when a video plays
-  (you need not point at it), or when you first point at one that has not played. The video may
-  have no cards in it.
+  (you need not point at it; on Twitch, on a channel's page, a video or a clip), or when you first
+  point at one otherwise. The video may have no cards in it.
 
 ## What it reads
 
@@ -52,8 +52,10 @@ is analyzed, then discarded. It is not saved to storage, uploaded or shared.
 
 Card hovers start in a tab when the page's main video plays there, with Kenbunshoku switched on
 in the popup, whether or not you point at it. A video that has not played, such as one paused when
-the page opened, starts them when the pointer first comes over its picture. A supported video with
-no cards in it counts too. Starting card hovers loads the recognition model and makes the requests
+the page opened, starts them when the pointer first comes over its picture. So does a video on a
+Twitch page that is not a channel's page, a video or a clip, such as the featured stream on
+Twitch's front page. A video playing in a tab you are not looking at starts them too. A supported
+video with no cards in it counts too. Starting card hovers loads the recognition model and makes the requests
 below; it reads no picture of the video. After 10
 minutes in which the pointer has not moved over the video and no card has been showing,
 Kenbunshoku unloads card hovers in that tab to free memory. They start again the next time the
@@ -66,7 +68,7 @@ from your browser's caches, and the settings file is still checked at most once 
 | The settings file (`config.json`) | `cdn.kenbunshoku.com` | When the extension is installed or updated and when the browser starts, then at most once an hour while you use it (when you open the popup, or when card hovers start in a tab) | Your IP address and that the extension asked for its settings |
 | A card's picture | `cdn.kenbunshoku.com`, or `optcgapi.com` when the first fails | When a card is shown and its picture is not already loaded | Your IP address and which card picture was asked for; for a picture in your card language, that language (it is part of the picture's address) |
 | The list of cards with a picture in your card language (about 100 KB) | `cdn.kenbunshoku.com` | Only when your card language is one the settings file offers pictures in (French today): when card hovers start in a tab, unless your browser already has it in its cache. Never with card pictures turned off | Your IP address and that the list for that language was downloaded |
-| The card-feature file (a manifest and its parts, about 60 MB in all) | `cdn.kenbunshoku.com` | Once, the first time card hovers start on a video (on YouTube or Twitch, when a video plays; you need not point at it, and it may have no cards in it), in a browser that has WebGPU; never at install. Again only if the browser cleared its storage or the file changes: when new cards are published with a new card-feature file, or after the extension went back to the data built into it | Your IP address and that the file was downloaded |
+| The card-feature file (a manifest and its parts, about 60 MB in all) | `cdn.kenbunshoku.com` | Once, the first time card hovers start on a video (on YouTube or Twitch, when a video plays, on Twitch on a channel's page, a video or a clip; you need not point at it, and it may have no cards in it), in a browser that has WebGPU; never at install. Again only if the browser cleared its storage or the file changes: when new cards are published with a new card-feature file, or after the extension went back to the data built into it | Your IP address and that the file was downloaded |
 | Updated card-recognition data (a release: its card list, card fingerprints, the settings of the card-feature check and, after a model update, the recognition models; data files, never code) | `cdn.kenbunshoku.com` | When card hovers start in a tab and the settings file names a release other than the one built into your version of the extension: a newer one, or an earlier one after a rollback (otherwise never). About 1.5 MB once per release when cards are added, about 12 MB when the models themselves are updated; afterwards it is read from your browser's cache. Your browser may keep a separate copy for each website, so watching on both YouTube and Twitch can download it twice. Nothing is downloaded at install or with card hovers off | Your IP address, the time, your browser's user agent and language, that this browser downloaded that release, and the extension's own id (sent as the request's origin) |
 
 These requests carry no cookies, no account ID or per-user tracking identifier, and not the

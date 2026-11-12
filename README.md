@@ -51,7 +51,8 @@ use the addons.mozilla.org link above.
 - **Two hosts.** The extension makes requests to `cdn.kenbunshoku.com` and `optcgapi.com`, for
   a settings file, card pictures and, where the browser has WebGPU, a card-feature file of about 60 MB,
   downloaded once, the first time a YouTube or Twitch video plays with card hovers on (you need not
-  point at it) or you first point at one that has not played, and cached. The video may have no
+  point at it; on Twitch, on a channel's page, a video or a clip) or you first point at one
+  otherwise, and cached. The video may have no
   cards. These
   requests carry no cookies, no account ID or per-user tracking identifier, and not the address
   of the page you watch.

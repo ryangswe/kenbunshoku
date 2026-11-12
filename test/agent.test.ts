@@ -1165,6 +1165,89 @@ describe("Agent and the toolkit's capture control", () => {
     expect(frames()).toHaveLength(2);
   });
 
+  it("play: on a Twitch page that is not a channel, a clip or a video (the front page's featured stream), playing makes nothing; the pointer does", async () => {
+    vi.stubGlobal("location", new URL("https://www.twitch.tv/"));
+    agent = await startAgent();
+    playing();
+    expect(frames()).toEqual([]);
+    vi.stubGlobal("location", new URL("https://www.twitch.tv/directory/category/one-piece-card-game"));
+    playing();
+    expect(frames()).toEqual([]);
+    move(100, 100);
+    expect(frames()).toHaveLength(2);
+  });
+
+  it("play: a Twitch channel's page, a video or a clip loads at play", async () => {
+    for (const page of ["https://www.twitch.tv/somechannel", "https://www.twitch.tv/videos/123456789", "https://www.twitch.tv/somechannel/clip/SomeClip-Ab_12"]) {
+      agent?.stop();
+      for (const f of frames()) f.remove();
+      vi.stubGlobal("location", new URL(page));
+      media.paused = true;
+      agent = await startAgent();
+      expect(frames()).toEqual([]);
+      media.paused = false;
+      playing();
+      expect(frames(), page).toHaveLength(2);
+    }
+  });
+
+  it("play: a watch started on a channel's page makes nothing if the video first plays after the page changed to the front page; it loads on a channel's page again", async () => {
+    vi.stubGlobal("location", new URL("https://www.twitch.tv/somechannel"));
+    media.paused = true;
+    agent = await startAgent(); // paused: watched, nothing made
+    vi.stubGlobal("location", new URL("https://www.twitch.tv/"));
+    media.paused = false;
+    playing();
+    expect(frames()).toEqual([]);
+    vi.stubGlobal("location", new URL("https://www.twitch.tv/otherchannel"));
+    playing(); // the same element plays on (a seek, a stall): a new watch, already playing
+    expect(frames()).toHaveLength(2);
+  });
+
+  it("play: a video playing in a background tab loads (no visibility filter) but is never captured; coming back invents no authority, and delayed ticks are all refused", async () => {
+    const setVisibility = (state: "hidden" | "visible") => {
+      Object.defineProperty(document, "visibilityState", { value: state, configurable: true });
+      Object.defineProperty(document, "hidden", { value: state === "hidden", configurable: true });
+      document.dispatchEvent(new Event("visibilitychange"));
+    };
+    try {
+      media.paused = true;
+      agent = await startAgent();
+      setVisibility("hidden");
+      media.paused = false;
+      playing();
+      expect(frames()).toHaveLength(2);
+      computeReady();
+      const sent = spyOn(compute());
+      capture(1);
+      expect(refused(sent, 1)).toBe(true);
+      // Back in front, the pointer resting where it was: the frame's late ticks arrive together.
+      setVisibility("visible");
+      for (const id of [2, 3, 4, 5]) capture(id);
+      await settle();
+      for (const id of [2, 3, 4, 5]) expect(refused(sent, id)).toBe(true);
+      expect(sent.some((m) => m.kind === "frame")).toBe(false);
+      // A hover, then the tab hidden and shown again: the hover ended with the hide.
+      move(100, 100);
+      capture(6);
+      await settle();
+      expect(refused(sent, 6)).toBe(false);
+      setVisibility("hidden");
+      setVisibility("visible");
+      for (const id of [7, 8, 9]) capture(id);
+      await settle();
+      for (const id of [7, 8, 9]) expect(refused(sent, id)).toBe(true);
+      // The pointer moves over the video again: allowed again.
+      move(105, 100);
+      capture(10);
+      await settle();
+      expect(refused(sent, 10)).toBe(false);
+    } finally {
+      Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+      Object.defineProperty(document, "hidden", { value: false, configurable: true });
+    }
+  });
+
   it("play: a frame the page removed is made again at the pointer, not by the video playing on", async () => {
     agent = await startAgent();
     const first = compute()!;

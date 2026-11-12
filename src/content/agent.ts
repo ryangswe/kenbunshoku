@@ -15,8 +15,12 @@
 //     cardvision-hq#117 and #129): at once for a video already playing when card hovers are on,
 //     else at its first `playing` event (the toolkit's `loadWhen`, once per video element). A
 //     video that never plays, such as one paused when the page opens, gets them at the first
-//     trusted pointer move over its picture, as before. Loading reads no picture: a picture is
-//     taken only on the viewer's own pointer activity (above).
+//     trusted pointer move over its picture, as before. So does a video on a Twitch page that is
+//     not a channel, a clip or a video, such as the front page's featured stream (site.ts,
+//     loadsAtPlay). A video playing in a background tab loads them too; there is no visibility
+//     filter. Loading reads no picture: a picture is taken only on the viewer's own pointer
+//     activity (above), and the tab going to the background ends that until the pointer moves
+//     over the video again.
 //   - After 10 idle minutes (no pointer move over the picture, no card shown) the compute frame ends
 //     its worker and both frames are removed, which gives their memory back (toolkit 0.12.0,
 //     `whenIdle`). The next trusted pointer move over the video makes them again; the control
@@ -43,7 +47,7 @@ import { MIN_VIDEO_WIDTH } from "../constants.js";
 import { parseTooltipOut, TAG, tag, type TooltipIn, type TooltipSize } from "../shared/messages.js";
 import { type CaptureControl, computeProtocol, createCaptureControl, fromExtensionFrame, loadWhen, type ShownCard } from "../../vendor/cardvision-browser/page-capture.js";
 import { availableSpace, fitBesideCard, fitTooltipSize, fractionIn, pictureRect, placeTooltipAvoiding, type Rect, scaleTooltipSize, tooltipRadius } from "./geometry.js";
-import { isActivePage } from "./site.js";
+import { isActivePage, loadsAtPlay } from "./site.js";
 import { CardOutline, outlinePlace } from "./outline.js";
 
 function sameSize(a: { width: number; height: number }, b: { width: number; height: number }): boolean {
@@ -248,7 +252,7 @@ export class Agent {
    *  already does). One watch per video element, so its later `playing` events (a loop, a seek,
    *  the next video in the same element) never make frames again, which keeps an idle unload. */
   private loadAtPlay(): void {
-    if (!this.enabled || !isActivePage(new URL(location.href), this.options.dev)) return;
+    if (!this.enabled || !this.pageLoadsAtPlay()) return;
     const video = this.currentVideo();
     if (!video || this.playWatch?.video === video) return;
     this.playWatch?.stop();
@@ -256,9 +260,10 @@ export class Agent {
     const { stop } = loadWhen(video, "play", () => {
       // Hovers turned off, or an idle unload waiting for the control's own make(): nothing here.
       if (!this.enabled || this.awaitingMake) return;
-      // Not the main video when it started (too small then, or another one picked since): the
-      // spent watch goes, so that this element gets a new one if it becomes the main video.
-      if (this.video !== video) {
+      // Not the main video when it started (too small then, or another one picked since), or the
+      // page changed to one that does not load at play (site.ts): the spent watch goes, so that
+      // this element gets a new one if it becomes the main video on such a page.
+      if (this.video !== video || !this.pageLoadsAtPlay()) {
         if (this.playWatch?.video === video) this.playWatch = null;
         return;
       }
@@ -266,6 +271,12 @@ export class Agent {
       this.ensureFrames();
     });
     this.playWatch = { video, stop };
+  }
+
+  /** Whether a video playing on this page loads card hovers (site.ts: on Twitch, a channel's page,
+   *  a clip or a video; not the front page's featured stream). */
+  private pageLoadsAtPlay(): boolean {
+    return loadsAtPlay(new URL(location.href), this.options.dev);
   }
 
   // ------------------------------------------------------------------ the video
