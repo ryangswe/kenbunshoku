@@ -23,7 +23,7 @@ Card hovers are on for all supported videos, embedded YouTube players on other w
 included: open a One Piece Card Game video on YouTube or Twitch and point at a card. Card hovers
 start in a tab when its video plays, so that the first card shows sooner, even if you never point
 at the video and even on a video with no cards. Starting loads the recognition model, which uses
-memory and, the first time, downloads files (see [When recognition runs](#when-recognition-runs)).
+memory, and may download updated recognition data (see [PRIVACY.md](../PRIVACY.md)).
 Nothing in the video is analyzed until you point at it. A video that has not played, such as one
 paused when the page opened, starts card hovers when the pointer first comes over it. So does a
 YouTube player embedded in another website, even one that plays by itself. On Twitch, a video
@@ -99,14 +99,13 @@ that needs the check shows nothing until it has been checked. On a paused video 
 the other cards in the picture too, which took about a second on our test clips. A move to
 another card after that is answered from those checks. The check runs only when it loads successfully and stays on: it turns itself off when it
 fails or is too slow. For it, Kenbunshoku downloads a card-feature file of about 60 MB from
-`cdn.kenbunshoku.com` once, the first time card hovers start on a video (see
-[Turning card hovers on and off](#turning-card-hovers-on-and-off); even one with no cards), and caches it in the
-browser's storage; it is downloaded again if that storage is cleared or the file changes. Without
-WebGPU it works without the extra check. Each tab
-in which card hovers have started holds its own copy of the card features
-in memory, about
-60–70 MB, until the tab is closed or navigates away, or until the model is unloaded after 10 idle
-minutes (above).
+`cdn.kenbunshoku.com` once, the first time you point at a video with card hovers on (even one with
+no cards; a video simply playing does not download it), and caches it in the browser's storage; it is downloaded again if that storage is cleared or the file changes. Without
+WebGPU it works without the extra check. Each tab in which you have pointed at a video holds its
+own copy of the card features in memory, about 60–70 MB, until the tab is closed or navigates
+away, or until the model is unloaded after 10 idle minutes (above). Until the check is ready,
+cards are shown without it: a few seconds after you first point at a video, or longer the first
+time, while the file downloads.
 
 ## Known limitations
 

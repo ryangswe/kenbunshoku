@@ -50,9 +50,8 @@ use the addons.mozilla.org link above.
   by the extension itself, temporarily in memory; they are not saved to storage.
 - **Two hosts.** The extension makes requests to `cdn.kenbunshoku.com` and `optcgapi.com`, for
   a settings file, card pictures and, where the browser has WebGPU, a card-feature file of about 60 MB,
-  downloaded once and cached. That happens the first time a video plays with card hovers on, on a
-  YouTube watch or live page or a Twitch channel's page, past broadcast or clip (you need not
-  point at it), or else the first time you point at a video. The video may have no cards. These
+  downloaded once and cached, the first time you point at a YouTube or Twitch video with card
+  hovers on. The video may have no cards. These
   requests carry no cookies, no account ID or per-user tracking identifier, and not the address
   of the page you watch.
 

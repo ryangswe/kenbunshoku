@@ -21,4 +21,9 @@ export const SESSION_OPTIONS = {
   // it. Without the stage (no WebGPU) this changes nothing. It needs the session's pointer mode,
   // the default: another mode makes startComputeFrame throw.
   geometricScope: "focus",
+  // The geometric stage (and its card-feature file, about 60 MB, downloaded once and then held in
+  // memory per tab) loads when the viewer first points at the picture, not with the release when
+  // the video plays (owner, 2026-11-12: "At the first hover"). A tab whose video plays but is never
+  // pointed at holds no copy. Looks before the stage is ready run without it, as at any start.
+  geometricLoad: "pointer",
 } as const;
