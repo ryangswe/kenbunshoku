@@ -24,7 +24,7 @@ These changes are in open pull requests and are not in a release yet.
 
 - A shown card now stays while the pointer stays on it, even after the card moves or another card
   is laid on top. To see the card on top, move the pointer off the card and back on. The popup has
-  a new switch, Keep the card I'm pointing at, which is on unless you turn it off. Turned off, a
+  a new switch, **Keep the card I'm pointing at**, which is on unless you turn it off. Turned off, a
   card laid on top replaces the shown one after a moment, as in earlier versions.
 - The recognition model loads when the main video plays on YouTube watch and live pages and on
   Twitch channel pages, past broadcasts and clips, instead of at the first hover. Loading reads no
@@ -45,8 +45,8 @@ These changes are in open pull requests and are not in a release yet.
 - Tilted cards are hovered on the card itself, and the outline turns with the card.
 - The tooltip flickers less on live streams, and on a slow computer the first card gets more time
   to show.
-- A hovered card's picture no longer stays on its placeholder, or in English instead of the card
-  language, after the settings are read again.
+- A hovered card's picture no longer stays on its placeholder after the settings are read again,
+  and no longer stays in English when the pictures in the card language arrive while it loads.
 - The recognition engine now comes from the cardvision toolkit (0.13.0).
 - With the pointer resting, the video's picture is read at most 60 seconds after the pointer last
   moved.
