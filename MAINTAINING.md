@@ -70,6 +70,9 @@ core-model refresh, below, not a set update.
 - A store build bundles the release the pointer names when it is built, and its geometric pin
   (`geometric.manifestSha256` in `kenbunshoku.config.json`, and `data/geometric.json`) is that
   release's index.
+- Move the Unreleased entries in `CHANGELOG.md` under a heading for the new version, with its
+  date (UTC) and a link to its GitHub release. A pull request that changes what a viewer can
+  notice adds or updates its entry under Unreleased; an entry for a change not merged yet says so.
 - Add a row to `cdn/RUNTIMES.json` for the new version (its runtime commit, ONNX Runtime Web version
   and bundled release), so that `publish-release` knows which versions a pointer reaches.
 - The store version moves in step with the GitHub release: the same version, built from the same
