@@ -58,6 +58,8 @@ const PRODUCT = {
   outlineSelector: '[data-kenbunshoku="outline"]',
   /** The extension's two frames, and the tooltip frame's picture, picture box and name pill. */
   frames: { compute: "compute.html", tooltip: "tooltip.html" },
+  /** An extension page that starts the background worker again when Chrome has stopped it. */
+  wakePage: "popup.html",
   tooltipIds: { img: "img", art: "art", pill: "pill" },
   /** The settings file the stand-in serves, in the product's schema: no release pointer (the
    *  bundled release only), only the given picture address, no update notice, and the geometric
@@ -272,7 +274,7 @@ async function launch(dist, profile, netlog) {
   browsers.add(browser);
   chromeVersion = await browser.version();
   const sw = await browser.waitForTarget((t) => t.type() === "service_worker" && t.url().startsWith("chrome-extension://"), { timeout: 20_000 });
-  return { browser, ext: { origin: sw.url().split("/").slice(0, 3).join("/"), worker: sw } };
+  return { browser, ext: { browser, origin: sw.url().split("/").slice(0, 3).join("/") } };
 }
 
 /** Open the test page with the clip paused at the start. */
@@ -386,11 +388,38 @@ async function hoverCard(page, slot, ms, { wiggle: moveNowAndThen = false } = {}
   return shown ? { ...shown, ms: Date.now() - moved } : null;
 }
 
-/** Set a stored setting as the popup does (chrome.storage.local), from the extension's background. */
+/** The extension's background worker as it is now. Chrome stops an idle worker and starts a new
+ *  one later, so a worker found earlier may be gone. When none is running, opening one of the
+ *  extension's pages starts it again. */
+async function extensionWorker(ext) {
+  const isOurs = (t) => t.type() === "service_worker" && t.url().startsWith(`${ext.origin}/`);
+  let target = ext.browser.targets().find(isOurs);
+  if (!target) {
+    const page = await ext.browser.newPage();
+    try {
+      await page.goto(`${ext.origin}/${PRODUCT.wakePage}`);
+      target = await ext.browser.waitForTarget(isOurs, { timeout: 10_000 });
+    } finally {
+      await page.close();
+    }
+  }
+  return target.worker();
+}
+
+/** Set a stored setting as the popup does (chrome.storage.local), from the extension's background.
+ *  If the worker stops between finding it and using it, the next one is tried once. */
 async function setStored(ext, key, value) {
-  const worker = await ext.worker.worker();
-  if (!worker) throw new Error("setup: the extension's background worker is not running");
-  await worker.evaluate((k, v) => chrome.storage.local.set({ [k]: v }), key, value);
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      const worker = await extensionWorker(ext);
+      if (!worker) throw new Error("setup: the extension's background worker is not running");
+      await worker.evaluate((k, v) => chrome.storage.local.set({ [k]: v }), key, value);
+      break;
+    } catch (error) {
+      if (attempt >= 2) throw error;
+      log("worker-retry", { error: String(error?.message ?? error) });
+    }
+  }
   await sleep(1000);
 }
 
