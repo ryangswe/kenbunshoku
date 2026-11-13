@@ -262,6 +262,7 @@ async function launch(dist, profile, netlog) {
     userDataDir: profile,
     args: [
       "--autoplay-policy=no-user-gesture-required",
+      ...(process.env.DIAG_JS_FLAGS ? [`--js-flags=${process.env.DIAG_JS_FLAGS}`] : []),
       `--host-resolver-rules=MAP ${cdnHost} 127.0.0.1:${standIn.port}, MAP * ~NOTFOUND, EXCLUDE 127.0.0.1`,
       `--ignore-certificate-errors-spki-list=${standIn.spki}`,
       `--log-net-log=${netlog}`,
@@ -436,6 +437,9 @@ try {
     const netlog = join(out, "netlog-main.json");
     netlogs.push(netlog);
     const { browser, ext } = await launch(values.dist, join(work, "profile-main"), netlog);
+    const runSampler = process.env.DIAG_ROUNDS ? await (await import("./diag-second-tab.mjs")).startSampler(browser) : null;
+    const runSamplerAt = Date.now() - startedAt;
+    if (runSampler) log("diag-js-flags", { flags: process.env.DIAG_JS_FLAGS || null });
     try {
       let page = await openPage(browser);
 
@@ -621,6 +625,15 @@ try {
         await tab.close();
       }
     } finally {
+      if (runSampler) {
+        // Seconds in which the extension's renderer process spent 0.5 s or more on its pool threads.
+        const busy = (await runSampler.stop()).map((x) => {
+          const ext = x.top.filter((th) => th.type.includes("extension"));
+          const sum = (re) => ext.filter((th) => re.test(th.thread)).reduce((n, th) => n + th.ms, 0);
+          return { t: runSamplerAt + x.at, pool: sum(/ThreadPool/), worker: sum(/DedicatedWorker/), main: sum(/^chrome$/) };
+        });
+        log("diag-run-busy", { seconds: busy.filter((x) => x.pool >= 500) });
+      }
       await browser.close();
       browsers.delete(browser);
     }

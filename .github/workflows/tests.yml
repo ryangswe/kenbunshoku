@@ -88,8 +88,12 @@ jobs:
         run: npx --yes web-ext@8.10.0 lint --source-dir dist-firefox --output text
 
   hover-browser:
-    name: Hover browser test
+    name: Hover browser test ${{ matrix.jsflags }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        jsflags: ["", "--no-wasm-tier-up"]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
@@ -126,6 +130,7 @@ jobs:
       - name: Run the hover browser test
         env:
           PUPPETEER_CORE_DIR: ${{ runner.temp }}/pcore
+          DIAG_JS_FLAGS: ${{ matrix.jsflags }}
         run: |
           DIAG_ROUNDS=3 node test/browser/hover-browser.mjs --chrome "$CHROME" --release "$RUNNER_TEMP/release" \
             --art "$RUNNER_TEMP/art" --fetch-art --dist dist --dist-idle dist-idle --out "$RUNNER_TEMP/hover-browser"
@@ -133,6 +138,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: hover-browser
+          name: hover-browser-${{ strategy.job-index }}
           path: ${{ runner.temp }}/hover-browser
           if-no-files-found: warn
