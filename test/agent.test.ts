@@ -1403,6 +1403,22 @@ describe("Agent and the toolkit's capture control", () => {
     expect(compute()).not.toBe(first);
   });
 
+  it("play: on a page that does not load at play (an embedded player), a removed frame waits for a move", async () => {
+    vi.stubGlobal("location", new URL("https://www.youtube.com/embed/abc"));
+    agent = new Agent({ dev: false });
+    agent.start();
+    agent.setEnabled(true);
+    await settle();
+    move(100, 100);
+    const first = compute()!;
+    first.remove();
+    playing();
+    expect(compute()).toBeUndefined();
+    move(110, 110);
+    expect(compute()).toBeDefined();
+    expect(compute()).not.toBe(first);
+  });
+
   it("play: another video playing does not make a removed frame again (S-A10)", async () => {
     agent = await startAgent();
     compute()!.remove();

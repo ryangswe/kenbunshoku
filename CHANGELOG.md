@@ -14,9 +14,13 @@ These changes are in open pull requests and are not in a release yet.
   them. A tab in the background that had unloaded waits until it comes to the front.
   ([#44](https://github.com/ryangswe/kenbunshoku/pull/44))
 - On a slower computer, the looks that keep a shown card fresh are spaced by what they cost there,
-  so that looking takes at most about a quarter of the time. A look the viewer waits on is not held
-  back: while the pointer moves over a playing video, the next look starts soon enough that the
-  card it names stays showing. ([#53](https://github.com/ryangswe/kenbunshoku/pull/53))
+  aiming for looking to take about a quarter of the time, with at least one look every 4 seconds
+  while the pointer moves. A look the viewer waits on is not held back: while the pointer moves
+  over a playing video, the next look starts early enough that the card it names stays showing,
+  unless a single look takes longer than that allows. ([#53](https://github.com/ryangswe/kenbunshoku/pull/53))
+- In a browser with WebGPU, when the pointer is on a card of a playing video that the card-feature
+  check has not confirmed yet, the next look for it starts at most every half second instead of
+  every quarter second. ([#53](https://github.com/ryangswe/kenbunshoku/pull/53))
 - If the recognition model finishes loading after the 10 seconds that follow the pointer's last
   move, while the pointer still rests over the video, Kenbunshoku looks once then. If that look
   finds no card, it waits for the pointer to move. A new tab whose model loads slowly can now name
@@ -27,7 +31,8 @@ These changes are in open pull requests and are not in a release yet.
   no longer leads to a picture being read. Before, this was checked only when the pointer moved.
   ([#53](https://github.com/ryangswe/kenbunshoku/pull/53))
 - If the page removes Kenbunshoku's frames, they are made again when the main video next starts
-  playing, as well as at the next pointer move over the video. ([#53](https://github.com/ryangswe/kenbunshoku/pull/53))
+  playing, on pages where playing starts card hovers, as well as at the next pointer move over the
+  video. ([#53](https://github.com/ryangswe/kenbunshoku/pull/53))
 - A `playing` event made up by a page script no longer starts loading card hovers; only the
   browser's own event does. ([#53](https://github.com/ryangswe/kenbunshoku/pull/53))
 

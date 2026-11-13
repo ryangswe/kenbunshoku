@@ -337,9 +337,11 @@ export class Agent {
   };
 
   /** The main video played again (after a pause, a seek or a loop) while a frame the page removed
-   *  is missing: both frames are made again, as at the next trusted move over the picture. Not
-   *  after an idle unload, which waits for a move (the control's make()), and not on a page that
-   *  does not load at play. */
+   *  is missing: the missing frames are made again, as at the next trusted move over the picture.
+   *  Not after an idle unload, which waits for a move (the control's make()). Not on a page that
+   *  does not load at play either (an embedded player, a Twitch page that is not a channel, a
+   *  past broadcast or a clip): there the frames come at the first move over the picture, never
+   *  from the video playing, so a removed frame waits for a move too. */
   private remakeRemovedAtPlay(target: HTMLVideoElement): void {
     if (!this.enabled || this.awaitingMake || !this.pageLoadsAtPlay()) return;
     const removed = (this.compute !== null && !this.compute.isConnected) || (this.tooltip !== null && !this.tooltip.isConnected);
@@ -349,7 +351,8 @@ export class Agent {
 
   /** Watch the main video with `loadWhen`: the frames are made once it plays (at once if it
    *  already does). One watch per video element, so its later `playing` events (a loop, a seek,
-   *  the next video in the same element) never make frames again, which keeps an idle unload. */
+   *  the next video in the same element) never make frames through it again, which keeps an idle
+   *  unload. A frame the page removed is made again at play by remakeRemovedAtPlay instead. */
   private loadAtPlay(): void {
     if (!this.enabled || !this.pageLoadsAtPlay()) return;
     const video = this.currentVideo();

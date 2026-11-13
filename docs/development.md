@@ -96,15 +96,20 @@ writes the folder; see "Vendoring the runtime, and checking it" in the toolkit's
 `browser/README.md`. To update it, in a clean toolkit checkout at the commit:
 
 ```
+mkdir -p <toolkit>/browser/vendor/opencv
+cp vendor/cardvision-browser/opencv.mjs vendor/cardvision-browser/opencv_js.wasm \
+   vendor/cardvision-browser/opencv.mjs.LEGAL.txt <toolkit>/browser/vendor/opencv/
 (cd <toolkit>/browser && npm ci && npm run build)
 npm --prefix <toolkit>/browser run vendor -- --into vendor/cardvision-browser --no-ort-wasm
 npm --prefix <toolkit>/browser run vendor-check -- vendor/cardvision-browser
 ```
 
-Run them from this repository's top folder. The build copies OpenCV.js only when the toolkit
-checkout's `browser/vendor/opencv/` holds the files its `opencv.lock.json` records, which
-`scripts/build-opencv.mjs` makes and git does not keep; the copies already in
-`vendor/cardvision-browser/` match the lock while it is unchanged. `vendor-check` in the toolkit
+Run them from this repository's top folder. The toolkit's build copies OpenCV.js only when its
+`browser/vendor/opencv/` holds the files its `opencv.lock.json` records, which
+`scripts/build-opencv.mjs` makes and git does not keep. The first two commands put the copies
+already in `vendor/cardvision-browser/` there, which works while the lock is unchanged; the
+vendor step checks them against the lock. When the lock changes, build OpenCV.js with the
+toolkit's `scripts/build-opencv.mjs` instead. `vendor-check` in the toolkit
 checkout also compares the folder with that commit's build. `npm run vendor-check` here (and in CI)
 runs the stand-alone checker the folder carries, which checks everything but that comparison.
 

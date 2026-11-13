@@ -18,8 +18,8 @@ nothing when the match is not clear.
 - A hidden **compute frame** (`src/compute/`), an extension page inside the video page, hosts
   the runtime's worker. It decides when to analyze a picture (only around pointer activity,
   with the runtime's scheduler; the looks that keep a card fresh are spaced so that analysis takes
-  at most a quarter of the time it measures on this computer, while a look the viewer waits on is
-  not: `measuredPacing` in `src/compute/session-options.ts`), and which card a tooltip shows at
+  about a quarter of the time it measures on this computer, up to a longest wait, while a look the
+  viewer waits on is not: `measuredPacing` in `src/compute/session-options.ts`), and which card a tooltip shows at
   the pointer (the runtime's
   hover rule). How long a shown card stays is the runtime's hold, picked when the frame starts by
   the popup's **Keep the card I'm pointing at** (`sessionOptions` in

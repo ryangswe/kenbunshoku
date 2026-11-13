@@ -102,10 +102,12 @@ pointer. Either way, it stops at the latest 60 seconds after you last moved it. 
 the pointer leaves the video or the tab goes to the background. While the pointer rests on a spot
 where no card is showing, it looks every 2 seconds instead of once or twice a second, so a card that appears
 under the resting pointer can take a little over 2 seconds to show. On a computer where each look
-takes longer, it waits longer between the looks that keep a card fresh, so that looking takes at
-most about a quarter of the time. A look you are waiting for is not held back that way: while you
-move the pointer, it looks soon enough that the card it names stays showing, and the wait is at
-most 4 seconds.
+takes longer, it waits longer between the looks that keep a card fresh, aiming for looking to take
+about a quarter of the time. The wait has a limit, so on a very slow computer looking can still
+take more than that: while you move the pointer, there is at least one look every 4 seconds.
+A look you are waiting for is not held back that way. While you move the pointer over a playing
+video, the next look starts early enough that the card it names stays showing, unless a single
+look takes longer than that allows.
 
 After 10 minutes in which you have not moved the pointer over the video and no card has been
 showing, Kenbunshoku unloads the recognition model in that tab to give its memory back. A pointer

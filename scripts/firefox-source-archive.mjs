@@ -199,6 +199,6 @@ the package.
 ## Versions
 
 - ${config.name}: commit \`${commit}\`.
-- cardvision-browser (the runtime, Apache-2.0): commit \`${vendor.commit}\` (${vendor.toolkitRelease ?? "the toolkit"}).
+- cardvision-browser (the runtime, Apache-2.0): commit \`${vendor.commit}\` (cardvision ${vendor.version}).
 `;
 }
