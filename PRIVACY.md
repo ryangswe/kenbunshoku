@@ -60,9 +60,11 @@ card-feature file, which waits until you point at the video. Starting card hover
 of the video. After 10
 minutes in which the pointer has not moved over the video and no card has been showing,
 Kenbunshoku unloads card hovers in that tab to free memory. They start again the next time the
-pointer comes over the video, or when you turn card hovers off and on in the popup while the
-video plays (the video simply playing on does not start them again), and the
-requests below then follow the same rules: most files come
+pointer comes over the video; the video simply playing on does not start them again. Turning card
+hovers off and on in the popup starts them afresh, as when the page opens: at once where the main
+video plays on a page where playing starts them, or else when it next plays or the pointer comes
+over it. Each time, the
+requests below follow the same rules: most files come
 from your browser's caches, and the settings file is still checked at most once an hour.
 
 | Request | To | When | What the host learns |

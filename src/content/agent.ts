@@ -26,7 +26,7 @@
 //     `whenIdle`). The next trusted pointer move over the video makes them again; the control
 //     calls `make()` for that, and the agent makes no frame of its own meanwhile, not even when
 //     the video plays again (a looping clip would undo the unload), unless hovers are turned off
-//     and on again (above).
+//     and on again (below).
 //   - It shows the tooltip frame (the card's picture alone, or its name) beside the card the
 //     compute frame names, placed off the cards around it and scaled down when the page has no
 //     room for it, and hides it shortly after. Nothing it shows takes the pointer: hovering goes
@@ -44,7 +44,7 @@
 //     frame is made, no model loads and nothing is downloaded for card hovers. The popup's switch
 //     turned off removes the frames again, and turned on loads them again if the video is playing
 //     (or at its next play), also after an idle unload: turning hovers on is the viewer's own
-//     choice, not one of the page's load triggers (owner, 2026-11-13, as in DuelSight).
+//     choice, not one of the page's load triggers (owner, 2026-11-12).
 //   - Messages from its frames are taken only when the browser marks them as trusted and they
 //     come from that frame and the extension's origin (fromExtensionFrame): a page cannot make up
 //     a card for the tooltip or a capture request.
@@ -109,8 +109,9 @@ export class Agent {
   private hideTimer: ReturnType<typeof setTimeout> | null = null;
   private loadError: string | null = null;
   /** True from an idle removal until the control's `make()`, or until hovers are turned on
-   *  again: the control owes the frames then, so the agent makes none of its own. Once `make()` ran, frames the page or the popup removed
-   *  before their handshake are made again by the agent, as at any time. */
+   *  again: the control owes the frames then, so the agent makes none of its own. Once `make()`
+   *  ran, frames the page or the popup removed before their handshake are made again by the
+   *  agent, as at any time. */
   private awaitingMake = false;
   /** True when "Keep the card I'm pointing at" changed while this tab was in the background: the
    *  compute frame is made again when the tab comes to the front (restartForKeepCard). */
