@@ -385,6 +385,25 @@ describe("Agent", () => {
     expect(frames()).toEqual([]);
   });
 
+  it("refuses a capture under a resting pointer once in-page navigation leaves the active page (S-G5)", async () => {
+    vi.stubGlobal("location", new URL("https://www.youtube.com/watch?v=abc"));
+    agent = new Agent({ dev: false });
+    agent.start();
+    agent.setEnabled(true);
+    await settle();
+    move(100, 100);
+    const sent = spyOn(compute());
+    computeReady();
+    // The viewer goes to the home page; the video plays on in a miniplayer under the resting pointer.
+    vi.stubGlobal("location", new URL("https://www.youtube.com/"));
+    window.dispatchEvent(new Event("popstate"));
+    fromFrame(compute(), { kind: "capture", requestId: 11, analysisWidth: { min: 720, max: 1920 } });
+    await settle();
+    // Refused before any picture is drawn: the pointer no longer counts, and the frame is told so.
+    expect(sent.at(-1)).toMatchObject({ kind: "capture-failed", requestId: 11, reason: "not pointing at the video" });
+    expect(sent.some((m) => m.kind === "leave")).toBe(true);
+  });
+
   it("keeps answering after in-app navigation, pointer resting (no channel to look up)", async () => {
     agent = await startAgent();
     move(100, 100);
@@ -1350,15 +1369,51 @@ describe("Agent and the toolkit's capture control", () => {
     }
   });
 
-  it("play: a frame the page removed is made again at the pointer, not by the video playing on", async () => {
+  it("play: frames the page removed are made again at the main video's next trusted playing (S-A10)", async () => {
+    agent = await startAgent();
+    const first = { compute: compute()!, tooltip: tooltip()! };
+    first.compute.remove();
+    first.tooltip.remove();
+    // A page script's made-up event makes nothing.
+    playing(video, false);
+    expect(frames()).toEqual([]);
+    playing();
+    expect(frames()).toHaveLength(2);
+    expect(compute()).not.toBe(first.compute);
+    expect(tooltip()).not.toBe(first.tooltip);
+  });
+
+  it("play: a tooltip frame the page removed alone is made again at the next trusted playing, and the compute frame kept (S-A10)", async () => {
+    agent = await startAgent();
+    const kept = compute()!;
+    const first = tooltip()!;
+    first.remove();
+    playing();
+    expect(compute()).toBe(kept);
+    expect(tooltip()).toBeDefined();
+    expect(tooltip()).not.toBe(first);
+  });
+
+  it("play: a frame the page removed is also made again at the next trusted move (S-A10)", async () => {
     agent = await startAgent();
     const first = compute()!;
     first.remove();
-    playing();
-    expect(compute()).toBeUndefined();
     move(100, 100);
     expect(compute()).toBeDefined();
     expect(compute()).not.toBe(first);
+  });
+
+  it("play: another video playing does not make a removed frame again (S-A10)", async () => {
+    agent = await startAgent();
+    compute()!.remove();
+    const other = document.createElement("video");
+    document.body.append(other);
+    try {
+      playing(other);
+      expect(compute()).toBeUndefined();
+    } finally {
+      other.remove();
+    }
   });
 
   it("hold: keeps the tooltip but draws no outline for a card the reading hold marks held, and outlines it again once seen there", async () => {

@@ -145,6 +145,9 @@ export class Agent {
       protocol: computeProtocol(TAG),
       frame: () => this.compute?.contentWindow ?? null,
       frameOrigin: this.extensionOrigin,
+      // Asked on every pointer event and again before every capture, so a page left by in-page
+      // navigation (a miniplayer going on) gives no picture, also under a resting pointer.
+      eligible: (x, y, video) => this.eligibleAt(x, y, video),
       onShown: (card) => {
         this.shown = card;
         this.updateTooltip();
@@ -297,6 +300,13 @@ export class Agent {
   };
 
   // ------------------------------------------------------------------ the pointer
+  /** Where a trusted point counts: over the main video's picture, on a page the extension serves,
+   *  while hovers are on. The control asks it on every pointer event and before every capture. */
+  private eligibleAt(clientX: number, clientY: number, video: HTMLVideoElement): { x: number; y: number } | null {
+    if (!this.enabled || video !== this.video || !video.isConnected || !isActivePage(new URL(location.href), this.options.dev)) return null;
+    return fractionIn(this.pictureOf(video), clientX, clientY);
+  }
+
   /** Picks the video and makes the frames; the control itself takes the pointer for the gate. */
   private readonly onPointer = (event: PointerEvent): void => {
     // Only the viewer's own pointer counts: events a page script makes are ignored.
@@ -323,7 +333,19 @@ export class Agent {
     if (event.isTrusted !== true || !(event.target instanceof HTMLVideoElement)) return;
     this.videoPickedAt = -Infinity;
     this.loadAtPlay();
+    this.remakeRemovedAtPlay(event.target);
   };
+
+  /** The main video played again (after a pause, a seek or a loop) while a frame the page removed
+   *  is missing: both frames are made again, as at the next trusted move over the picture. Not
+   *  after an idle unload, which waits for a move (the control's make()), and not on a page that
+   *  does not load at play. */
+  private remakeRemovedAtPlay(target: HTMLVideoElement): void {
+    if (!this.enabled || this.awaitingMake || !this.pageLoadsAtPlay()) return;
+    const removed = (this.compute !== null && !this.compute.isConnected) || (this.tooltip !== null && !this.tooltip.isConnected);
+    if (!removed || target !== this.currentVideo()) return;
+    this.ensureFrames();
+  }
 
   /** Watch the main video with `loadWhen`: the frames are made once it plays (at once if it
    *  already does). One watch per video element, so its later `playing` events (a loop, a seek,
