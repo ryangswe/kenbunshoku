@@ -63,7 +63,8 @@ Kenbunshoku unloads card hovers in that tab to free memory. They start again the
 pointer comes over the video; the video simply playing on does not start them again. Turning card
 hovers off and on in the popup starts them afresh, as when the page opens: at once where the main
 video plays on a page where playing starts them, or else when it next plays or the pointer comes
-over it; in a tab in the background, that waits until you bring the tab to the front. Each time, the
+over it; in a tab in the background that had unloaded, that waits until you bring the tab to
+the front. Each time, the
 requests below follow the same rules: most files come
 from your browser's caches, and the settings file is still checked at most once an hour.
 

@@ -44,9 +44,9 @@
 //     frame is made, no model loads and nothing is downloaded for card hovers. The popup's switch
 //     turned off removes the frames again, and turned on loads them again if the video is playing
 //     (or at its next play), also after an idle unload: turning hovers on is the viewer's own
-//     choice, not one of the page's load triggers (owner, 2026-11-12). After an idle unload, a
-//     tab in the background waits until it next comes to the front, so one flip does not reload
-//     every open tab together.
+//     choice, not one of the page's load triggers (owner, 2026-11-12). A tab in the background
+//     that had unloaded waits until it next comes to the front, so one flip does not reload every
+//     unloaded tab together.
 //   - Messages from its frames are taken only when the browser marks them as trusted and they
 //     come from that frame and the extension's origin (fromExtensionFrame): a page cannot make up
 //     a card for the tooltip or a capture request.
@@ -111,7 +111,7 @@ export class Agent {
   private hideTimer: ReturnType<typeof setTimeout> | null = null;
   private loadError: string | null = null;
   /** True from an idle removal until the control's `make()`, or until hovers are turned on
-   *  again: the control owes the frames then, so the agent makes none of its own. Once `make()`
+   *  again (in a background tab, until it then comes to the front): the control owes the frames then, so the agent makes none of its own. Once `make()`
    *  ran, frames the page or the popup removed before their handshake are made again by the
    *  agent, as at any time. */
   private awaitingMake = false;
