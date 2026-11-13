@@ -58,7 +58,8 @@ const PRODUCT = {
   outlineSelector: '[data-kenbunshoku="outline"]',
   /** The extension's two frames, and the tooltip frame's picture, picture box and name pill. */
   frames: { compute: "compute.html", tooltip: "tooltip.html" },
-  /** An extension page that starts the background worker again when Chrome has stopped it. */
+  /** An extension page that starts the background worker again when Chrome has stopped it. The
+   *  popup does so because it sends the background a settings:refresh message as it opens. */
   wakePage: "popup.html",
   tooltipIds: { img: "img", art: "art", pill: "pill" },
   /** The settings file the stand-in serves, in the product's schema: no release pointer (the
@@ -395,10 +396,13 @@ async function extensionWorker(ext) {
   const isOurs = (t) => t.type() === "service_worker" && t.url().startsWith(`${ext.origin}/`);
   let target = ext.browser.targets().find(isOurs);
   if (!target) {
-    const page = await ext.browser.newPage();
+    // In the background, so the test page stays in front: a hidden page treats some settings
+    // differently.
+    const page = await ext.browser.newPage({ background: true });
     try {
       await page.goto(`${ext.origin}/${PRODUCT.wakePage}`);
       target = await ext.browser.waitForTarget(isOurs, { timeout: 10_000 });
+      log("worker-woken", {});
     } finally {
       await page.close();
     }
