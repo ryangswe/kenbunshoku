@@ -43,6 +43,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
 import { startServer } from "../manual/serve.mjs";
+import { classify, netlogRequests } from "./netlog.mjs";
 
 // ------------------------------------------------------------------ the product (change this block)
 const PRODUCT = {
@@ -54,6 +55,20 @@ const PRODUCT = {
   debugGlobal: "__kenbunshokuDebug",
   /** The outline's wrapper in the page. */
   outlineSelector: '[data-kenbunshoku="outline"]',
+  /** The extension's two frames, and the tooltip frame's picture, picture box and name pill. */
+  frames: { compute: "compute.html", tooltip: "tooltip.html" },
+  tooltipIds: { img: "img", art: "art", pill: "pill" },
+  /** The settings file the stand-in serves, in the product's schema: no release pointer (the
+   *  bundled release only), only the given picture address, no update notice, and the geometric
+   *  stage off. */
+  testSettings: (artTemplate) => ({
+    schemaVersion: 1,
+    updatedAt: "2026-11-13T00:00:00Z",
+    namesOnly: false,
+    primary: { id: "cdn", template: artTemplate },
+    fallbacks: [],
+    geometric: false,
+  }),
   /** Where the settings file puts card pictures, relative to the settings host. */
   artPath: (art) => `/art/${art}`,
   /** The storage keys of the popup's switches. */
@@ -90,7 +105,7 @@ const PLACES = {
 const CHECKS = [
   "frames-at-play", "no-capture-before-pointer", "art-visible", "outline-shows", "move-off-clears",
   "covered-kept", "held-outline-hides", "switch-flips", "fake-pointer-ignored", "off-means-off",
-  "on-while-playing-loads", "cached-reload",
+  "on-while-playing-loads", "second-tab-names-card", "cached-reload",
   "idle-unloads", "loop-no-reload", "idle-reload-on-hover", "switch-on-after-idle-reloads",
 ];
 const IDLE_CHECKS = CHECKS.slice(-4);
@@ -132,6 +147,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const out = resolve(values.out ?? mkdtempSync(join(tmpdir(), "hover-browser-out-")));
 mkdirSync(out, { recursive: true });
 const work = mkdtempSync(join(tmpdir(), "hover-browser-"));
+// The rendered clip (official art), the profiles and the throwaway key go, however the run ends.
+process.on("exit", () => rmSync(work, { recursive: true, force: true }));
 const startedAt = Date.now();
 const eventsFile = join(out, "events.jsonl");
 writeFileSync(eventsFile, "");
@@ -193,16 +210,7 @@ function box(slot) {
   return { x: p.x, y: p.y, w: PRODUCT.cardWidth, h: Math.round(PRODUCT.cardWidth * PRODUCT.cardAspect) };
 }
 
-/** The settings file the stand-in serves: no release pointer (the bundled release only), no other
- *  picture host, no update notice, and the geometric stage off. */
-const testSettings = {
-  schemaVersion: 1,
-  updatedAt: "2026-11-13T00:00:00Z",
-  namesOnly: false,
-  primary: { id: "cdn", template: `https://${cdnHost}${PRODUCT.artPath("{art}")}` },
-  fallbacks: [],
-  geometric: false,
-};
+const testSettings = PRODUCT.testSettings(`https://${cdnHost}${PRODUCT.artPath("{art}")}`);
 
 /** The local stand-in for the settings host: the settings file and the card pictures. */
 function startStandIn() {
@@ -250,6 +258,7 @@ async function launch(dist, profile, netlog) {
     ],
     defaultViewport: { width: 1360, height: 900 },
   });
+  browsers.add(browser);
   chromeVersion = await browser.version();
   const sw = await browser.waitForTarget((t) => t.type() === "service_worker" && t.url().startsWith("chrome-extension://"), { timeout: 20_000 });
   return { browser, ext: { origin: sw.url().split("/").slice(0, 3).join("/"), worker: sw } };
@@ -297,31 +306,31 @@ async function offVideo(page) {
 }
 
 async function extensionFrames(page) {
-  return page.evaluate(() => [...document.querySelectorAll("iframe")].map((f) => f.src.split("/").at(-1)).filter((n) => n === "compute.html" || n === "tooltip.html"));
+  return page.evaluate((names) => [...document.querySelectorAll("iframe")].map((f) => f.src.split("/").at(-1)).filter((n) => names.includes(n)), Object.values(PRODUCT.frames));
 }
 
 async function computeDebug(page) {
-  const f = page.frames().find((fr) => fr.url().startsWith("chrome-extension://") && fr.url().endsWith("/compute.html"));
+  const f = page.frames().find((fr) => fr.url().startsWith("chrome-extension://") && fr.url().endsWith(`/${PRODUCT.frames.compute}`));
   if (!f) return null;
   return f.evaluate((g) => window[g]?.() ?? null, PRODUCT.debugGlobal).catch(() => null);
 }
 
 /** The tooltip as the viewer sees it: visible or not, the card's name, whether its picture shows. */
 async function tooltip(page) {
-  const visible = await page.evaluate(() => {
-    const f = [...document.querySelectorAll("iframe")].find((i) => i.src.endsWith("/tooltip.html"));
+  const visible = await page.evaluate((name) => {
+    const f = [...document.querySelectorAll("iframe")].find((i) => i.src.endsWith(`/${name}`));
     return Boolean(f && getComputedStyle(f).visibility === "visible");
-  });
+  }, PRODUCT.frames.tooltip);
   if (!visible) return { visible: false };
-  const f = page.frames().find((fr) => fr.url().startsWith("chrome-extension://") && fr.url().endsWith("/tooltip.html"));
+  const f = page.frames().find((fr) => fr.url().startsWith("chrome-extension://") && fr.url().endsWith(`/${PRODUCT.frames.tooltip}`));
   const s = f
     ? await f
-        .evaluate(() => {
-          const img = document.getElementById("img");
-          const art = document.getElementById("art");
-          const pill = document.getElementById("pill");
+        .evaluate((ids) => {
+          const img = document.getElementById(ids.img);
+          const art = document.getElementById(ids.art);
+          const pill = document.getElementById(ids.pill);
           return { name: art.hidden ? pill.textContent : img.alt, art: !art.hidden && !art.classList.contains("loading") && img.complete && img.naturalWidth > 0 };
-        })
+        }, PRODUCT.tooltipIds)
         .catch(() => null)
     : null;
   return { visible: true, name: s?.name ?? null, art: s?.art ?? false };
@@ -347,9 +356,11 @@ async function until(probe, ms, every = 100) {
   }
 }
 
-/** Point at a card as a viewer does, the pointer moving a little now and then, until the tooltip
- *  names the card with its picture shown; returns the tooltip and the time, or null. */
-async function hoverCard(page, slot, ms) {
+/** Point at a card with one pointer move and rest there, until the tooltip names the card with its
+ *  picture shown; returns the tooltip and the time, or null. With `wiggle`, the pointer moves a
+ *  few pixels now and then while it waits, as a hand does (for steps where the resting pointer is
+ *  not what is checked). */
+async function hoverCard(page, slot, ms, { wiggle: moveNowAndThen = false } = {}) {
   const p = await pointOf(page, slot);
   const moved = Date.now();
   await page.mouse.move(p.x, p.y, { steps: 4 });
@@ -358,7 +369,7 @@ async function hoverCard(page, slot, ms) {
     const s = await tooltip(page);
     if (s.visible && s.name === cards[slot].name && s.art) return s;
     wiggle += 1;
-    if (wiggle % 4 === 0) await page.mouse.move(p.x + (wiggle % 8 === 0 ? 3 : -3), p.y);
+    if (moveNowAndThen && wiggle % 4 === 0) await page.mouse.move(p.x + (wiggle % 8 === 0 ? 3 : -3), p.y);
     return null;
   }, ms);
   return shown ? { ...shown, ms: Date.now() - moved } : null;
@@ -396,7 +407,8 @@ let finished = false;
 const watchdog = setTimeout(() => {
   fatal = `timeout: the run passed its ${RUN_DEADLINE_MS / 60_000}-minute deadline`;
   log("fatal", { error: fatal });
-  void Promise.allSettled([...browsers].map((b) => b.close())).then(() => finish());
+  const closeOrKill = (b) => Promise.race([b.close(), sleep(10_000).then(() => b.process()?.kill("SIGKILL"))]);
+  void Promise.allSettled([...browsers].map(closeOrKill)).then(() => finish());
 }, RUN_DEADLINE_MS);
 
 try {
@@ -405,7 +417,6 @@ try {
     const netlog = join(out, "netlog-main.json");
     netlogs.push(netlog);
     const { browser, ext } = await launch(values.dist, join(work, "profile-main"), netlog);
-    browsers.add(browser);
     try {
       let page = await openPage(browser);
 
@@ -519,6 +530,20 @@ try {
       const back = await until(async () => ((await extensionFrames(page)).length === 2 ? true : null), 5000);
       if (want("on-while-playing-loads")) record("on-while-playing-loads", "HS-ENABLE (provisional)", back === true, {});
 
+      // A second tab of the same page while the first plays on: one pointer move over its paused
+      // video, then the pointer rests, and the card is named.
+      {
+        const tab = await openPage(browser);
+        await video.seek(tab, 2, false);
+        const readyWatch = until(async () => ((await computeDebug(tab))?.state === "ready" ? Date.now() : null), 60_000, 100);
+        const hoverAt = Date.now();
+        const named = await hoverCard(tab, "B", 60_000);
+        const readyAt = await readyWatch;
+        counts.secondTab = { artVisibleMs: named?.ms ?? null, readyMs: readyAt ? readyAt - hoverAt : null };
+        if (want("second-tab-names-card")) record("second-tab-names-card", "HS-FIRST-HOVER-PAUSED (provisional)", Boolean(named), { ...counts.secondTab, tooltip: named ? undefined : await tooltip(tab), analyzed: (await computeDebug(tab))?.analyzed ?? null });
+        await tab.close();
+      }
+
       // The cached reload: the page closed and opened again in a new tab, the same card again.
       {
         await page.close();
@@ -526,7 +551,11 @@ try {
         const before = standIn.requests.length;
         const tab = await openPage(browser);
         await video.seek(tab, 2, false);
+        const readyWatch = until(async () => ((await computeDebug(tab))?.state === "ready" ? Date.now() : null), 60_000, 100);
+        const hoverAt = Date.now();
         const again = await hoverCard(tab, "B", 60_000);
+        const readyAt = await readyWatch;
+        counts.cachedReloadReadyMs = readyAt ? readyAt - hoverAt : null;
         const fetched = standIn.requests.slice(before).filter((r) => r.path.startsWith(PRODUCT.artPath("")));
         counts.cachedReload = { artRequests: fetched.length, artVisibleMs: again?.ms ?? null };
         if (want("cached-reload")) record("cached-reload", "HS-CACHE (provisional)", Boolean(again) && fetched.length === 0, { shown: Boolean(again), ms: again?.ms ?? null, artRequests: fetched.length, tooltip: again ? undefined : await tooltip(tab) });
@@ -543,14 +572,13 @@ try {
     const netlog = join(out, "netlog-idle.json");
     netlogs.push(netlog);
     const { browser, ext } = await launch(values["dist-idle"], join(work, "profile-idle"), netlog);
-    browsers.add(browser);
     try {
       const page = await openPage(browser);
       const goIdle = async () => {
         await video.seek(page, 1, true);
         await until(async () => ((await extensionFrames(page)).length === 2 ? true : null), 10_000);
         await until(async () => ((await computeDebug(page))?.state === "ready" ? true : null), 60_000, 250);
-        if (!(await hoverCard(page, "B", 30_000))) throw new Error("setup: no card named before the idle unload");
+        if (!(await hoverCard(page, "B", 30_000, { wiggle: true }))) throw new Error("setup: no card named before the idle unload");
         const off = await offVideo(page);
         await page.mouse.move(off.x, off.y, { steps: 4 });
         return until(async () => ((await extensionFrames(page)).length === 0 ? true : null), 30_000, 250);
@@ -593,58 +621,25 @@ try {
 finish();
 
 // ------------------------------------------------------------------ the network scope and the report
-/** Every request in a NetLog: its URL and the origin that started it (null for one the browser
- *  started itself), gathered per request across its events. */
-function netlogRequests(file) {
-  let text = readFileSync(file, "utf-8").trim();
-  // A NetLog is complete JSON only after a clean exit; close an unfinished events list.
-  if (!text.endsWith("}")) text = text.replace(/,?\s*$/, "") + "]}";
-  const doc = JSON.parse(text);
-  const types = Object.fromEntries(Object.entries(doc.constants.logEventTypes).map(([k, v]) => [v, k]));
-  const bySource = new Map();
-  for (const e of doc.events) {
-    const name = types[e.type];
-    if (name !== "URL_REQUEST_START_JOB" && name !== "REQUEST_ALIVE") continue;
-    const r = bySource.get(e.source.id) ?? { url: null, initiator: null };
-    if (e.params?.url) r.url ??= e.params.url;
-    if (e.params?.initiator && e.params.initiator !== "not an origin") r.initiator = e.params.initiator;
-    bySource.set(e.source.id, r);
-  }
-  return [...bySource.values()].filter((r) => r.url);
-}
-
 function finish() {
   if (finished) return;
   finished = true;
   clearTimeout(watchdog);
   server.close();
   standIn.server.close();
-  const allowedScheme = /^(chrome-extension|data|blob):/;
-  const CHROME_OWN = /(^|\.)(google\.com|googleapis\.com|gstatic\.com|gvt1\.com)$/;
-  const violations = [];
-  const exempt = [];
-  const hostsSeen = {};
+  let violations = [];
+  let exempt = [];
+  let hostsSeen = {};
   try {
+    const all = [];
     for (const file of netlogs) {
       if (!existsSync(file)) throw new Error(`no NetLog at ${file}: the network scope cannot be checked`);
-      const requests = netlogRequests(file);
-      const reachedPage = requests.some((r) => r.url.startsWith(pageUrl));
-      if (!reachedPage) throw new Error(`${file} holds no request to the test page: the NetLog is not trustworthy`);
-      for (const r of requests) {
-        if (allowedScheme.test(r.url)) continue;
-        let host;
-        try {
-          host = new URL(r.url).host;
-        } catch {
-          continue;
-        }
-        hostsSeen[host] = (hostsSeen[host] ?? 0) + 1;
-        if (host.startsWith("127.0.0.1:") || host === cdnHost) continue;
-        if (r.initiator === null && CHROME_OWN.test(host.replace(/:\d+$/, ""))) exempt.push(r);
-        else violations.push(r);
-      }
+      const requests = netlogRequests(readFileSync(file, "utf-8"));
+      if (!requests.some((r) => r.urls.some((u) => u.startsWith(pageUrl)))) throw new Error(`${file} holds no request to the test page: the NetLog is not trustworthy`);
+      all.push(...requests);
     }
-    if (netlogs.length > 0 && !Object.keys(hostsSeen).includes(cdnHost)) throw new Error(`no request reached ${cdnHost} in the NetLogs: the network scope cannot be checked`);
+    ({ violations, exempt, hosts: hostsSeen } = classify(all, { standInHost: cdnHost }));
+    if (netlogs.length > 0 && !(cdnHost in hostsSeen)) throw new Error(`no request reached ${cdnHost} in the NetLogs: the network scope cannot be checked`);
   } catch (error) {
     fatal ??= `network scope: ${error?.message ?? error}`;
     log("fatal", { error: fatal });
@@ -679,7 +674,5 @@ function finish() {
   console.log(`network: ${violations.length} violation(s), ${exempt.length} of Chrome's own exempt; hosts ${JSON.stringify(hostsSeen)}`);
   console.log(`counts: ${JSON.stringify(counts)}`);
   console.log(`${report.passed ? "PASS" : "FAIL"} in ${(report.durationMs / 1000).toFixed(0)} s on ${chromeVersion}; report ${join(out, "report.json")}`);
-  // The rendered clip (official art), the profiles and the throwaway key go with the work folder.
-  rmSync(work, { recursive: true, force: true });
   process.exit(report.passed ? 0 : 1);
 }
