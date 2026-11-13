@@ -25,7 +25,7 @@ CDN. Unit tests are the vitest files in `test/`.
 | Card hovers off: no frames, nothing read or fetched | browser test `off-means-off` | none |
 | Card hovers on again while a video plays: it loads at once | browser test `on-while-playing-loads` | none |
 | The popup's settings are grayed out while card hovers are off | unit tests in `popup.test.ts` | the look of the popup |
-| A second tab of the same page names a card while the first tab plays on | browser test `second-tab-names-card` (one pointer move, then a resting pointer; an expected failure, until the planned toolkit 0.14.0, when the tab's model loads more than 9 s after that move) | why the second tab's model sometimes loads 8 to 11 s after the move in CI, when other tabs load in about 1 s |
+| A second tab of the same page names a card while the first tab plays on | browser test `second-tab-names-card` (one pointer move, then a resting pointer; an expected failure, until the planned toolkit 0.14.0, when the tab's model loads more than 9 s after that move and the first tab's model was ready before it opened) | why the second tab's model sometimes loads 8 to 11 s after the move in CI, when other tabs load in about 1 s |
 | The page opened again uses the browser's cache | browser test `cached-reload` | none |
 | After 10 idle minutes the model is unloaded, and a hover loads it again | browser test `idle-unloads`, `loop-no-reload`, `idle-reload-on-hover` (with a 6-second idle time) | the real 10 minutes |
 | Turning hovers off and on after an idle unload loads at once | browser test `switch-on-after-idle-reloads` (an expected failure until it is fixed) | none |

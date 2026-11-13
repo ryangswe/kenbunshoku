@@ -59,12 +59,12 @@ describe("the NetLog network scope", () => {
   const cutAfter = (inner: number) =>
     netlog([start(1, "https://other.example/x", "chrome-extension://abc")]).slice(0, -2) + ',{"type":1,"source":{"id":2},"params":{"list":[' + "{},".repeat(inner);
 
-  it("recovers the last whole event within 50 tries", () => {
-    expect(scope(cutAfter(40)).violations.map((v) => v.url)).toEqual(["https://other.example/x"]);
+  it("recovers the last whole event on the 50th try", () => {
+    expect(scope(cutAfter(48)).violations.map((v) => v.url)).toEqual(["https://other.example/x"]);
   });
 
-  it("gives up after 50 tries", () => {
-    expect(() => netlogRequests(cutAfter(60))).toThrow();
+  it("gives up when the last whole event needs a 51st try", () => {
+    expect(() => netlogRequests(cutAfter(49))).toThrow();
   });
 
   it("fails on a file that is not a NetLog", () => {
