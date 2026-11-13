@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-// The popup: the master switch, the card language menu and the card-size dial (both dimmed while
-// hovers are off), and a "New version available" line when there is one (view.ts).
+// The popup: the master switch, the card language menu, the card-size dial and the "Keep the card
+// I'm pointing at" switch (all three dimmed while hovers are off), and a "New version available"
+// line when there is one (view.ts).
 
 import { initPopup } from "./view.js";
 

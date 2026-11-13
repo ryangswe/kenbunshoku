@@ -11,7 +11,7 @@ import { initPopup } from "../src/popup/view.js";
 import { memoryStorage } from "./helpers/memory-storage.js";
 
 const HTML = `<span id="name"></span><button id="enabled" role="switch" aria-checked="false" aria-busy="true" disabled></button>
-<fieldset id="hover-settings" disabled><select id="card-language" aria-busy="true" disabled></select><input id="card-size" type="range" disabled><output id="card-size-value"></output></fieldset>
+<fieldset id="hover-settings" disabled><select id="card-language" aria-busy="true" disabled></select><input id="card-size" type="range" disabled><output id="card-size-value"></output><button id="keep-card" role="switch" aria-checked="false" aria-busy="true" disabled><span class="knob"></span></button></fieldset>
 <p id="update" hidden><a id="update-link"></a><button id="update-dismiss"></button></p>
 <a id="project"></a><a id="runtime"></a>`;
 
@@ -94,13 +94,16 @@ describe("popup", () => {
       document.body.innerHTML = HTML.replace('aria-busy="true" disabled></button>', 'aria-busy="true" disabled><span class="knob"></span></button>');
       initPopup({ doc: document, local: memoryStorage(), onChanged: listenersOf().onChanged, version: "0.1.0" });
       await settle();
-      const toggle = document.getElementById("enabled")!;
-      expect(toggle.getAttribute("aria-checked")).toBe("true");
-      expect(toggle.hasAttribute("data-ready")).toBe(false);
-      frames.shift()!();
-      expect(toggle.hasAttribute("data-ready")).toBe(false);
-      frames.shift()!();
-      expect(toggle.hasAttribute("data-ready")).toBe(true);
+      // Both switches: the main one and "Keep the card I'm pointing at".
+      const toggles = ["enabled", "keep-card"].map((id) => document.getElementById(id)!);
+      // One animation frame: every callback queued before it runs, none queued during it.
+      const animationFrame = () => frames.splice(0).forEach((f) => f());
+      for (const toggle of toggles) expect(toggle.getAttribute("aria-checked")).toBe("true");
+      for (const toggle of toggles) expect(toggle.hasAttribute("data-ready")).toBe(false);
+      animationFrame();
+      for (const toggle of toggles) expect(toggle.hasAttribute("data-ready")).toBe(false);
+      animationFrame();
+      for (const toggle of toggles) expect(toggle.hasAttribute("data-ready")).toBe(true);
     } finally {
       win.requestAnimationFrame = original;
     }
@@ -115,6 +118,76 @@ describe("popup", () => {
     listeners[0]!({ enabled: { newValue: false } }, "local");
     await settle();
     expect(document.getElementById("enabled")!.getAttribute("aria-checked")).toBe("false");
+  });
+
+  describe("Keep the card I'm pointing at", () => {
+    const keep = () => document.getElementById("keep-card") as HTMLButtonElement;
+
+    it("is on by default, and each press is stored at once", async () => {
+      const local = memoryStorage();
+      initPopup({ doc: document, local, onChanged: listenersOf().onChanged, version: "0.1.0" });
+      await settle();
+      expect(keep().getAttribute("aria-checked")).toBe("true");
+      expect(keep().disabled).toBe(false);
+      expect(keep().hasAttribute("aria-busy")).toBe(false);
+      keep().click();
+      expect(keep().getAttribute("aria-checked")).toBe("false");
+      await settle();
+      expect(local.data.keepCard).toBe(false);
+      keep().click();
+      await settle();
+      expect(local.data.keepCard).toBe(true);
+      expect(keep().getAttribute("aria-checked")).toBe("true");
+    });
+
+    it("shows a stored off, and follows a change made elsewhere", async () => {
+      const local = memoryStorage({ keepCard: false });
+      const { listeners, onChanged } = listenersOf();
+      initPopup({ doc: document, local, onChanged, version: "0.1.0" });
+      await settle();
+      expect(keep().getAttribute("aria-checked")).toBe("false");
+      local.data.keepCard = true;
+      listeners[0]!({ keepCard: { oldValue: false, newValue: true } }, "local");
+      await settle();
+      expect(keep().getAttribute("aria-checked")).toBe("true");
+    });
+
+    it("stays still until the stored state is read, and shows on when the storage cannot be read", async () => {
+      const local = memoryStorage({ keepCard: false });
+      let release: () => void = () => undefined;
+      const gate = new Promise<void>((r) => (release = r));
+      const slow = { ...local, get: async (k: string | string[] | null) => (await gate, local.get(k)), set: local.set };
+      initPopup({ doc: document, local: slow, onChanged: listenersOf().onChanged, version: "0.1.0" });
+      expect(keep().disabled).toBe(true);
+      keep().disabled = false; // even if the press got through, it must not act on an unread state
+      keep().click();
+      keep().disabled = true;
+      await settle();
+      expect(local.data.keepCard).toBe(false);
+      release();
+      await settle();
+      expect(keep().getAttribute("aria-checked")).toBe("false");
+      expect(keep().disabled).toBe(false);
+
+      document.body.innerHTML = HTML;
+      const broken = { get: () => Promise.reject(new Error("no storage")), set: () => Promise.resolve() };
+      initPopup({ doc: document, local: broken, onChanged: listenersOf().onChanged, version: "0.1.0" });
+      await settle();
+      expect(keep().getAttribute("aria-checked")).toBe("true");
+      expect(keep().disabled).toBe(false);
+    });
+
+    it("sits with the settings that are dimmed while card hovers are off, in the owner's words", () => {
+      const html = readFileSync(resolve(process.cwd(), "static/popup.html"), "utf-8");
+      // The panel alone: the page's style sheet and script are not loaded here.
+      document.body.innerHTML = html.slice(html.indexOf("<main"), html.indexOf("</main>") + "</main>".length);
+      const toggle = keep();
+      expect(toggle.closest("#hover-settings")).not.toBeNull();
+      expect(toggle.getAttribute("role")).toBe("switch");
+      expect(toggle.disabled).toBe(true);
+      expect(document.getElementById(toggle.getAttribute("aria-labelledby")!)!.textContent).toBe("Keep the card I'm pointing at");
+      expect(document.getElementById(toggle.getAttribute("aria-describedby")!)!.textContent).toBe("A card laid on top won't replace it until you move.");
+    });
   });
 
   it("shows the stored card size on its dial, 70 % to 130 % in steps of 10 %, 100 % by default", async () => {

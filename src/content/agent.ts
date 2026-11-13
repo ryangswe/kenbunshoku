@@ -32,7 +32,12 @@
 //     on to the card underneath.
 //   - It outlines the card the tooltip names (outline.ts): the same accepted box, or the card's
 //     turned outline when the compute frame sends one, shown and hidden with the tooltip, never
-//     taking the pointer.
+//     taking the pointer. A card the reading hold keeps after it was seen gone (`held`) keeps
+//     its tooltip without an outline.
+//   - The popup's "Keep the card I'm pointing at" (on unless switched off) picks the compute
+//     frame's hold when the frame starts (session-options.ts). Changing it makes a running
+//     compute frame again: at once in the tab in front, and in a background tab when it next
+//     comes to the front.
 //   - It is on for every video (owner, 2026-10-27: no per-channel switch; the popup's switch is
 //     the only control). Until the main video plays (or the pointer comes over a paused one) no
 //     frame is made, no model loads and nothing is downloaded for card hovers. The popup's switch
@@ -105,6 +110,9 @@ export class Agent {
    *  so the agent makes none of its own. Once `make()` ran, frames the page or the popup removed
    *  before their handshake are made again by the agent, as at any time. */
   private awaitingMake = false;
+  /** True when "Keep the card I'm pointing at" changed while this tab was in the background: the
+   *  compute frame is made again when the tab comes to the front (restartForKeepCard). */
+  private keepCardPending = false;
   /** The outline around the card the tooltip names (a shadow root in the page). */
   private outline: CardOutline | null = null;
   private stopListening: (() => void) | null = null;
@@ -117,6 +125,7 @@ export class Agent {
   constructor(private readonly options: AgentOptions) {}
 
   start(): void {
+    document.addEventListener("visibilitychange", this.onVisibility);
     // Ours first: the same trusted event that first comes over a picture attaches the video and
     // makes the frames, then reaches the control (both on the window, in the capture phase).
     window.addEventListener("pointermove", this.onPointer, { capture: true, passive: true });
@@ -195,6 +204,7 @@ export class Agent {
     document.removeEventListener("fullscreenchange", this.onFullscreen);
     window.removeEventListener("resize", this.onLayout);
     document.removeEventListener("scroll", this.onScroll, { capture: true });
+    document.removeEventListener("visibilitychange", this.onVisibility);
     this.enabled = false;
     this.teardown();
     this.stopListening?.();
@@ -218,6 +228,36 @@ export class Agent {
     if (!enabled) this.teardown();
     else this.loadAtPlay();
   }
+
+  /** The popup's "Keep the card I'm pointing at" changed (shared/keep-card.ts). The compute
+   *  frame reads it when it starts, so a running one is made again now, and the next look uses
+   *  the new hold. The card on show goes with it. Nothing is made where no compute frame runs:
+   *  hovers off, no frame yet, or an idle unload waiting for the pointer (which leaves none). A
+   *  frame made again loads the model and the card-feature file again, from the browser's cache,
+   *  so a tab in the background waits until it comes to the front: one change never reloads
+   *  every open tab together. */
+  restartForKeepCard(): void {
+    if (!this.enabled || !this.compute) {
+      this.keepCardPending = false;
+      return;
+    }
+    if (document.visibilityState === "hidden") {
+      this.keepCardPending = true;
+      return;
+    }
+    this.keepCardPending = false;
+    this.hideTooltip();
+    this.shown = null;
+    this.compute.remove();
+    this.compute = null;
+    this.ensureFrames();
+  }
+
+  /** The tab came to the front: a change of "Keep the card I'm pointing at" made while it was in
+   *  the background remakes the compute frame now. */
+  private readonly onVisibility = (): void => {
+    if (this.keepCardPending && document.visibilityState !== "hidden") this.restartForKeepCard();
+  };
 
   // ------------------------------------------------------------------ the pointer
   /** Picks the video and makes the frames; the control itself takes the pointer for the gate. */
@@ -372,6 +412,8 @@ export class Agent {
   }
 
   private createCompute(): void {
+    // A new frame reads the switch as stored now: nothing is owed from an earlier change.
+    this.keepCardPending = false;
     const frame = document.createElement("iframe");
     frame.setAttribute("aria-hidden", "true");
     frame.tabIndex = -1;
@@ -554,8 +596,10 @@ export class Agent {
     }
     // The same box (turned with the card when the frame sent its outline), on the same picture;
     // nothing when the picture's size is not known. A card reported again with only a new
-    // outline comes back here, so the drawn outline follows it.
-    this.outline?.show(ready ? outlinePlace(picture, card, video.videoWidth > 0 && video.videoHeight > 0) : null);
+    // outline comes back here, so the drawn outline follows it. A card the reading hold keeps
+    // after it was seen gone from there (`held`) keeps its tooltip but has no outline: it would
+    // frame another card or nothing.
+    this.outline?.show(ready && card.held !== true ? outlinePlace(picture, card, video.videoWidth > 0 && video.videoHeight > 0) : null);
   }
 
   private hideTooltip(): void {

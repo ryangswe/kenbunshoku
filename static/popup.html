@@ -35,6 +35,15 @@
       </div>
       <input id="card-size" class="slider" type="range" min="70" max="130" step="10" value="100" disabled>
     </div>
+    <div class="option">
+      <div class="row">
+        <span id="keep-card-label" class="label">Keep the card I'm pointing at</span>
+        <button id="keep-card" class="switch" type="button" role="switch" aria-checked="false" aria-labelledby="keep-card-label" aria-describedby="keep-card-hint" aria-busy="true" disabled>
+          <span class="knob" aria-hidden="true"></span>
+        </button>
+      </div>
+      <p id="keep-card-hint" class="hint">A card laid on top won't replace it until you move.</p>
+    </div>
   </fieldset>
   <p id="update" class="update" hidden>
     <a id="update-link" target="_blank" rel="noopener noreferrer"></a>

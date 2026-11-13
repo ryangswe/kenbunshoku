@@ -112,6 +112,7 @@ Stored locally by the extension, not synced to your other devices, and never sen
   - whether it is switched on;
   - the card language you pick in the popup (Automatic unless you change it);
   - the card size you set in the popup (70% to 130%);
+  - whether **Keep the card I'm pointing at** is on in the popup (on unless you turn it off);
   - the last settings file it fetched, and when;
   - if updated recognition data failed its checks, that release's id and why, so that it is not
     downloaded again for a day (after 24 hours it is ignored, and deleted the next time it is read);

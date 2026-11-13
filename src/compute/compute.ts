@@ -18,7 +18,7 @@
 import { CONFIG } from "../config.js";
 import { IDLE_UNLOAD_MS, RELEASE_PATH, SETTINGS_URL, WORKER_PATH } from "../constants.js";
 import { readEffectiveSettings } from "../settings/store.js";
-import { SESSION_OPTIONS } from "./session-options.js";
+import { storedSessionOptions } from "./session-options.js";
 import { allowedParentOrigin, FACTS_CHANNEL, parseFactsRequest, TAG } from "../shared/messages.js";
 import {
   buildCardTable,
@@ -78,6 +78,8 @@ void (async () => {
     .then((r) => r.json() as Promise<{ id?: string }>)
     .then((doc) => doc.id ?? "-")
     .catch(() => "-");
+  // The hold follows the popup's "Keep the card I'm pointing at", as stored now.
+  const options = await storedSessionOptions(chrome.storage.local);
   let lastDecision: ReleaseDecision | null = null;
   const settingsUrl = SETTINGS_URL;
   // `factsFor` reads the release in effect; it is asked only once the frame exists (below).
@@ -91,7 +93,7 @@ void (async () => {
     parentOrigin,
     allowedParentOrigin: (origin) => allowedParentOrigin(origin, __DEV__),
     protocol: computeProtocol(TAG),
-    ...SESSION_OPTIONS,
+    ...options,
     // After 10 idle minutes the worker ends and its memory is given back; agent.ts then removes
     // this frame too (toolkit 0.12.0, idle unload). The next pointer over the video loads again.
     idleUnloadMs: __IDLE_UNLOAD_MS__ ?? IDLE_UNLOAD_MS,
