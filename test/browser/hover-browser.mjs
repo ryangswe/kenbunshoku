@@ -81,12 +81,6 @@ const PRODUCT = {
   cardAspect: 88 / 63,
   /** Checks expected to fail on this product's code, each until the change named fixes it. */
   expectedFail: {
-    "switch-on-after-idle-reloads": {
-      clause: "HS-ENABLE-AFTER-IDLE (provisional)",
-      old: "after an idle unload, switching card hovers off and on while the video plays makes no frame until the pointer moves",
-      intended: "the frames are made again at once",
-      clearedBy: "kenbunshoku#44",
-    },
     // Expected only when its condition holds (`when`). When the new tab's model is ready well
     // within the window, the card must be named.
     "second-tab-names-card": {
@@ -678,7 +672,7 @@ try {
         await setStored(ext, PRODUCT.keys.enabled, true);
         await page.bringToFront();
         const atOnce = await until(async () => ((await extensionFrames(page)).length === 2 ? true : null), 5000);
-        record("switch-on-after-idle-reloads", PRODUCT.expectedFail["switch-on-after-idle-reloads"]?.clause ?? "HS-ENABLE-AFTER-IDLE (provisional)", atOnce === true, {});
+        record("switch-on-after-idle-reloads", "HS-ENABLE-AFTER-IDLE (provisional)", atOnce === true, {});
       }
       await page.close();
     } finally {

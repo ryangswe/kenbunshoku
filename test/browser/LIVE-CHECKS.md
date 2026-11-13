@@ -28,7 +28,7 @@ CDN. Unit tests are the vitest files in `test/`.
 | A second tab of the same page names a card while the first tab plays on | browser test `second-tab-names-card` (one pointer move, then a resting pointer; an expected failure, until the planned toolkit 0.14.0, when the tab's model loads more than 9 s after that move and the first tab's model was ready before the second tab opened) | why the second tab's model sometimes loads 8 to 11 s after the move in CI, when other tabs load in about 1 s |
 | The page opened again uses the browser's cache | browser test `cached-reload` | none |
 | After 10 idle minutes the model is unloaded, and a hover loads it again | browser test `idle-unloads`, `loop-no-reload`, `idle-reload-on-hover` (with a 6-second idle time) | the real 10 minutes |
-| Turning hovers off and on after an idle unload loads at once | browser test `switch-on-after-idle-reloads` (an expected failure until it is fixed) | none |
+| Turning hovers off and on after an idle unload loads at once | browser test `switch-on-after-idle-reloads` | none |
 | Which YouTube and Twitch pages load at play (watch, live, channel, past broadcast, clip; not embeds or Twitch's front page) | unit tests in `agent.test.ts` (`play:` tests) | on the real sites |
 | No request leaves for any host but the settings host | browser test network scope (every Chrome process; Chrome's own sign-in and update traffic to Google's hosts, which no page or extension starts, is exempt and listed in the report) | none |
 | The geometric stage (WebGPU) checks and corrects cards | none: CI has no accelerated WebGPU | yes, on a Mac |
