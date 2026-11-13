@@ -8,8 +8,9 @@
 //   npm run build -- --dev --release <release folder> --idle-unload-ms 6000 --out dist-idle
 //   npm install --no-save --prefix <dir> puppeteer-core     (or set PUPPETEER_CORE_DIR to <dir>)
 //   node test/browser/hover-browser.mjs --chrome <Chrome for Testing> --release <release folder>
-//        --art <folder for the card pictures named below> [--fetch-art] [--dist dist]
-//        [--dist-idle dist-idle] [--out <folder for the report and logs>] [--only <check id,...>]
+//        --art <folder for the card pictures named below, outside this repository> [--fetch-art]
+//        [--dist dist] [--dist-idle dist-idle] [--out <folder for the report and logs>]
+//        [--only <check id,...>]
 //
 // ffmpeg (with libvpx) and openssl must be on the PATH.
 //
@@ -18,24 +19,26 @@
 // stand-in with a throwaway certificate that Chrome trusts by its key's hash. Chrome resolves the
 // settings host to it and every other host to nothing (--host-resolver-rules), and writes a NetLog
 // of every request any of its processes made: the page, the extension's frames, its workers and
-// its background. A request that leaves 127.0.0.1 fails the test.
+// its background. A request that leaves 127.0.0.1 fails the test. One exception: Chrome's own
+// background traffic, which starts in the browser with no origin as its initiator, to Google's
+// hosts (sign-in, updates). It resolves to nothing here, and the report lists it.
 //
 // Recognition is real (the release's own models, on WebAssembly or WebGPU, whichever the browser
 // offers); the clip is synthetic. The geometric stage is turned off by the test's settings file,
 // because CI runners have no accelerated WebGPU.
 //
 // Each check has a provisional clause id (the hover spec's ids replace them). An expected failure
-// is listed in EXPECTED_FAIL with the clause, the old value, the intended value and the task that
-// removes it. A setup failure, a timeout of the whole run, a crash or a network violation is never
-// an expected failure. A listed check that passes is reported as an unexpected pass and fails the
-// run, so the list is reviewed.
+// is listed in the product block with the clause, the old value, the intended value and what
+// removes it. A setup failure, a timeout, a crash, a missing NetLog or a network violation is
+// never an expected failure. A listed check that passes is an unexpected pass and fails the run,
+// so the list is reviewed. Without --only, every check must have run.
 
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:https";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
@@ -44,24 +47,37 @@ import { startServer } from "../manual/serve.mjs";
 // ------------------------------------------------------------------ the product (change this block)
 const PRODUCT = {
   name: "Kenbunshoku",
-  /** The product's config file: the settings host is read from its settingsUrl. */
+  /** The product's config file, and the settings address in it (the stand-in serves that host). */
   config: new URL("../../kenbunshoku.config.json", import.meta.url),
+  settingsUrl: (config) => config.settingsUrl,
   /** The dev builds' debug global in the compute frame: { state, analyzed, ... }. */
   debugGlobal: "__kenbunshokuDebug",
+  /** The outline's wrapper in the page. */
+  outlineSelector: '[data-kenbunshoku="outline"]',
   /** Where the settings file puts card pictures, relative to the settings host. */
   artPath: (art) => `/art/${art}`,
   /** The storage keys of the popup's switches. */
   keys: { enabled: "enabled", keepCard: "keepCard" },
   /** The cards of the clip: catalog ids, each with its picture file named in the release catalog. */
   cards: { A: "OP01-001", B: "OP05-060", C: "ST01-012", D: "OP03-122" },
-  /** Card width in the 1280x720 clip, in pixels; the height follows the picture. */
+  /** Card width in the 1280x720 clip, in pixels, and the card's height over its width. */
   cardWidth: 158,
+  cardAspect: 88 / 63,
+  /** Checks expected to fail on this product's code, each until the change named fixes it. */
+  expectedFail: {
+    "switch-on-after-idle-reloads": {
+      clause: "HS-ENABLE-AFTER-IDLE (provisional)",
+      old: "after an idle unload, switching card hovers off and on while the video plays makes no frame until the pointer moves",
+      intended: "the frames are made again at once",
+      clearedBy: "kenbunshoku#44",
+    },
+  },
 };
 
 // The clip: 20 s at 15 frames a second, looping. Each card's place, and when it is on show.
 //   A  the whole clip; D is laid on top of it from 8 s (a card covering the hovered one)
 //   B  the whole clip
-//   C  until 12 s, then picked up (a card gone from under the pointer)
+//   C  until 12 s, then picked up (not asserted yet)
 const CLIP = { width: 1280, height: 720, fps: 15, seconds: 20 };
 const PLACES = {
   A: { x: 140, y: 250 },
@@ -70,15 +86,16 @@ const PLACES = {
   D: { x: 152, y: 262, from: 8 },
 };
 
-/** Checks expected to fail on this build, each until the named task changes the behavior. */
-const EXPECTED_FAIL = {
-  "switch-on-after-idle-reloads": {
-    clause: "HS-ENABLE-AFTER-IDLE (provisional)",
-    old: "after an idle unload, switching card hovers off and on while the video plays makes no frame until the pointer moves",
-    intended: "the frames are made again at once",
-    clearedBy: "kenbunshoku#44 (or T9)",
-  },
-};
+/** Every check, in the order they run; the last four need --dist-idle. */
+const CHECKS = [
+  "frames-at-play", "no-capture-before-pointer", "art-visible", "outline-shows", "move-off-clears",
+  "covered-kept", "held-outline-hides", "switch-flips", "fake-pointer-ignored", "off-means-off",
+  "on-while-playing-loads", "cached-reload",
+  "idle-unloads", "loop-no-reload", "idle-reload-on-hover", "switch-on-after-idle-reloads",
+];
+const IDLE_CHECKS = CHECKS.slice(-4);
+/** The whole run's deadline: past it the run stops, fails and still writes its report. */
+const RUN_DEADLINE_MS = 12 * 60_000;
 
 // ------------------------------------------------------------------ arguments
 const { values } = parseArgs({
@@ -94,31 +111,42 @@ const { values } = parseArgs({
     headful: { type: "boolean", default: false },
   },
 });
-if (!values.chrome || !values.release || !values.art) {
-  console.error("usage: node test/browser/hover-browser.mjs --chrome <Chrome for Testing> --release <release folder> --art <card pictures> [--dist dist] [--dist-idle dist-idle] [--out folder]");
+const usage = (problem) => {
+  console.error(`${problem}\nusage: node test/browser/hover-browser.mjs --chrome <Chrome for Testing> --release <release folder> --art <card pictures> [--fetch-art] [--dist dist] [--dist-idle dist-idle] [--out folder] [--only ids]`);
   process.exit(2);
-}
+};
+if (!values.chrome || !values.release || !values.art) usage("missing --chrome, --release or --art");
+const only = values.only ? new Set(values.only.split(",")) : null;
+if (only) for (const id of only) if (!CHECKS.includes(id)) usage(`--only: no check ${id}`);
+const want = (id) => !only || only.has(id);
+if (!values["dist-idle"] && IDLE_CHECKS.some(want)) usage("--dist-idle is needed for the idle checks (or leave them out with --only)");
+const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
+if (!relative(repoRoot, resolve(values.art)).startsWith("..")) usage("--art must be outside this repository: official card art is never committed");
+
 const puppeteerDir = process.env.PUPPETEER_CORE_DIR;
 // puppeteer-core is not a dependency of this repository: it is installed beside it (PUPPETEER_CORE_DIR)
 // or into it with --no-save.
 const puppeteerModule = await import(puppeteerDir ? createRequire(join(resolve(puppeteerDir), "index.js")).resolve("puppeteer-core") : "puppeteer-core");
 const puppeteer = puppeteerModule.default?.launch ? puppeteerModule.default : puppeteerModule;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const only = values.only ? new Set(values.only.split(",")) : null;
 const out = resolve(values.out ?? mkdtempSync(join(tmpdir(), "hover-browser-out-")));
 mkdirSync(out, { recursive: true });
 const work = mkdtempSync(join(tmpdir(), "hover-browser-"));
 const startedAt = Date.now();
-const events = [];
+const eventsFile = join(out, "events.jsonl");
+writeFileSync(eventsFile, "");
+/** One line of the event log, written as it happens so a hung run keeps it. */
 const log = (kind, detail = {}) => {
   const line = { t: Date.now() - startedAt, kind, ...detail };
-  events.push(line);
+  appendFileSync(eventsFile, JSON.stringify(line) + "\n");
   console.log(`${String(line.t).padStart(6)} ${kind} ${Object.keys(detail).length ? JSON.stringify(detail) : ""}`);
 };
 
 // ------------------------------------------------------------------ fixtures
 const productConfig = JSON.parse(readFileSync(PRODUCT.config, "utf-8"));
-const cdnHost = new URL(productConfig.settingsUrl).host;
+const settingsUrl = new URL(PRODUCT.settingsUrl(productConfig));
+const cdnHost = settingsUrl.host;
+const releaseDoc = JSON.parse(readFileSync(join(resolve(values.release), "release.json"), "utf-8"));
 const catalog = JSON.parse(readFileSync(join(resolve(values.release), "catalog.json"), "utf-8"));
 const byId = new Map((catalog.cards ?? catalog).map((c) => [c.id, c]));
 // --fetch-art: download the pictures that are missing from the settings host, before the browser
@@ -143,7 +171,7 @@ function renderClip() {
   const clip = join(work, "clip.webm");
   const slots = Object.keys(PLACES);
   const inputs = slots.flatMap((s) => ["-loop", "1", "-i", cards[s].file]);
-  const scaled = slots.map((s, i) => `[${i + 1}]scale=${PRODUCT.cardWidth}:-1[${s}]`);
+  const scaled = slots.map((s, i) => `[${i + 1}]scale=${box(s).w}:${box(s).h}[${s}]`);
   let last = "bg";
   const layered = slots.map((s, i) => {
     const p = PLACES[s];
@@ -159,12 +187,22 @@ function renderClip() {
   return clip;
 }
 
-/** The card's box in the clip, in clip pixels. */
+/** The card's box in the clip, in clip pixels (the picture is scaled to it). */
 function box(slot) {
   const p = PLACES[slot];
-  const ratio = 88 / 63;
-  return { x: p.x, y: p.y, w: PRODUCT.cardWidth, h: Math.round(PRODUCT.cardWidth * ratio) };
+  return { x: p.x, y: p.y, w: PRODUCT.cardWidth, h: Math.round(PRODUCT.cardWidth * PRODUCT.cardAspect) };
 }
+
+/** The settings file the stand-in serves: no release pointer (the bundled release only), no other
+ *  picture host, no update notice, and the geometric stage off. */
+const testSettings = {
+  schemaVersion: 1,
+  updatedAt: "2026-11-13T00:00:00Z",
+  namesOnly: false,
+  primary: { id: "cdn", template: `https://${cdnHost}${PRODUCT.artPath("{art}")}` },
+  fallbacks: [],
+  geometric: false,
+};
 
 /** The local stand-in for the settings host: the settings file and the card pictures. */
 function startStandIn() {
@@ -173,16 +211,6 @@ function startStandIn() {
   execFileSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1", "-keyout", join(certDir, "key.pem"), "-out", join(certDir, "cert.pem"),
     "-subj", `/CN=${cdnHost}`, "-addext", `subjectAltName=DNS:${cdnHost}`], { stdio: "ignore" });
   const spki = execFileSync("sh", ["-c", `openssl x509 -pubkey -noout -in "${join(certDir, "cert.pem")}" | openssl pkey -pubin -outform der | openssl dgst -sha256 -binary | base64`], { encoding: "utf-8" }).trim();
-  // No release pointer (the bundled release only), no other picture host, no update notice, and
-  // the geometric stage off.
-  const settings = {
-    schemaVersion: 1,
-    updatedAt: "2026-11-13T00:00:00Z",
-    namesOnly: false,
-    primary: { id: "cdn", template: `https://${cdnHost}${PRODUCT.artPath("{art}")}` },
-    fallbacks: [],
-    geometric: false,
-  };
   const art = new Map(Object.values(cards).map((c) => [PRODUCT.artPath(c.art), readFileSync(c.file)]));
   const requests = [];
   const server = createServer({ key: readFileSync(join(certDir, "key.pem")), cert: readFileSync(join(certDir, "cert.pem")) }, (req, res) => {
@@ -191,7 +219,7 @@ function startStandIn() {
       requests.push({ t: Date.now() - startedAt, path, status });
       res.writeHead(status, { "content-type": type, "cache-control": cache, "access-control-allow-origin": "*" }).end(body);
     };
-    if (path === new URL(productConfig.settingsUrl).pathname) send(200, JSON.stringify(settings), "application/json", "no-cache");
+    if (path === settingsUrl.pathname) send(200, JSON.stringify(testSettings), "application/json", "no-cache");
     else if (art.has(path)) send(200, art.get(path), "image/jpeg", "public, max-age=86400");
     else send(404, "", "text/plain", "no-store");
   });
@@ -199,6 +227,7 @@ function startStandIn() {
 }
 
 // ------------------------------------------------------------------ the browser
+let chromeVersion = null;
 async function launch(dist, profile, netlog) {
   const browser = await puppeteer.launch({
     executablePath: values.chrome,
@@ -221,22 +250,15 @@ async function launch(dist, profile, netlog) {
     ],
     defaultViewport: { width: 1360, height: 900 },
   });
+  chromeVersion = await browser.version();
   const sw = await browser.waitForTarget((t) => t.type() === "service_worker" && t.url().startsWith("chrome-extension://"), { timeout: 20_000 });
-  const extOrigin = sw.url().split("/").slice(0, 3).join("/");
-  return { browser, extOrigin: { origin: extOrigin, worker: sw } };
+  return { browser, ext: { origin: sw.url().split("/").slice(0, 3).join("/"), worker: sw } };
 }
 
-/** Open the test page with the clip paused at the start; records the compute frame's `shown` messages. */
+/** Open the test page with the clip paused at the start. */
 async function openPage(browser) {
   const page = await browser.newPage();
   page.on("pageerror", (e) => log("page-error", { message: String(e.message ?? e) }));
-  await page.evaluateOnNewDocument(() => {
-    window.__shown = [];
-    window.addEventListener("message", (e) => {
-      const d = e.data;
-      if (d && typeof d === "object" && d.kind === "shown") window.__shown.push({ t: performance.now(), id: d.card?.cardId ?? null, held: d.card?.held === true });
-    });
-  });
   await page.goto(pageUrl);
   await page.waitForFunction(() => document.querySelector("video")?.readyState >= 2, { timeout: 30_000 });
   await page.evaluate(() => document.querySelector("video").pause());
@@ -266,6 +288,12 @@ async function pointOf(page, slot) {
   const r = await video.rect(page);
   const b = box(slot);
   return { x: r.left + ((b.x + b.w / 2) / CLIP.width) * r.width, y: r.top + ((b.y + b.h / 2) / CLIP.height) * r.height };
+}
+
+/** A point below the video, off its picture. */
+async function offVideo(page) {
+  const r = await video.rect(page);
+  return { x: r.left + r.width / 2, y: r.top + r.height + 60 };
 }
 
 async function extensionFrames(page) {
@@ -300,12 +328,12 @@ async function tooltip(page) {
 }
 
 async function outline(page) {
-  return page.evaluate(() => {
-    const el = document.querySelector('[data-kenbunshoku="outline"]');
+  return page.evaluate((selector) => {
+    const el = document.querySelector(selector);
     if (!el || getComputedStyle(el).display === "none") return null;
     const r = el.getBoundingClientRect();
     return { left: r.left, top: r.top, width: r.width, height: r.height };
-  });
+  }, PRODUCT.outlineSelector);
 }
 
 /** Poll until `probe` returns a truthy value or the time runs out; returns it, or null. */
@@ -319,23 +347,39 @@ async function until(probe, ms, every = 100) {
   }
 }
 
+/** Point at a card as a viewer does, the pointer moving a little now and then, until the tooltip
+ *  names the card with its picture shown; returns the tooltip and the time, or null. */
+async function hoverCard(page, slot, ms) {
+  const p = await pointOf(page, slot);
+  const moved = Date.now();
+  await page.mouse.move(p.x, p.y, { steps: 4 });
+  let wiggle = 0;
+  const shown = await until(async () => {
+    const s = await tooltip(page);
+    if (s.visible && s.name === cards[slot].name && s.art) return s;
+    wiggle += 1;
+    if (wiggle % 4 === 0) await page.mouse.move(p.x + (wiggle % 8 === 0 ? 3 : -3), p.y);
+    return null;
+  }, ms);
+  return shown ? { ...shown, ms: Date.now() - moved } : null;
+}
+
 /** Set a stored setting as the popup does (chrome.storage.local), from the extension's background. */
-async function setStored(browser, ext, key, value) {
+async function setStored(ext, key, value) {
   const worker = await ext.worker.worker();
   if (!worker) throw new Error("setup: the extension's background worker is not running");
   await worker.evaluate((k, v) => chrome.storage.local.set({ [k]: v }), key, value);
-  await sleep(300);
+  await sleep(1000);
 }
 
 // ------------------------------------------------------------------ the checks
 const results = [];
 function record(id, clause, ok, detail) {
-  const xf = EXPECTED_FAIL[id];
+  const xf = PRODUCT.expectedFail[id];
   const outcome = ok ? (xf ? "unexpected-pass" : "pass") : xf ? "expected-fail" : "fail";
   results.push({ id, clause, outcome, detail, ...(xf ? { expected: xf } : {}) });
   log(`check ${outcome}`, { id, clause, ...detail });
 }
-const want = (id) => !only || only.has(id);
 
 const clipPath = renderClip();
 const server = await startServer({ video: clipPath, port: 0 });
@@ -346,14 +390,24 @@ log("setup", { clip: clipPath, page: pageUrl, standIn: standIn.port, cards: Obje
 const netlogs = [];
 const counts = {};
 let fatal = null;
+const browsers = new Set();
+let finished = false;
+// The run's deadline: whatever is still running is stopped, and the report says why.
+const watchdog = setTimeout(() => {
+  fatal = `timeout: the run passed its ${RUN_DEADLINE_MS / 60_000}-minute deadline`;
+  log("fatal", { error: fatal });
+  void Promise.allSettled([...browsers].map((b) => b.close())).then(() => finish());
+}, RUN_DEADLINE_MS);
+
 try {
   // ---------------- session 1: a fresh profile, the dev build
   {
     const netlog = join(out, "netlog-main.json");
     netlogs.push(netlog);
-    const { browser, extOrigin } = await launch(values.dist, join(work, "profile-main"), netlog);
+    const { browser, ext } = await launch(values.dist, join(work, "profile-main"), netlog);
+    browsers.add(browser);
     try {
-      const page = await openPage(browser);
+      let page = await openPage(browser);
 
       // Load at play, and no capture before a pointer.
       await sleep(1500);
@@ -363,6 +417,7 @@ try {
       const ready = await until(async () => ((await computeDebug(page))?.state === "ready" ? await computeDebug(page) : null), 60_000, 250);
       log("compute", { state: ready?.state ?? null, backend: ready?.backend ?? null });
       if (!ready) throw new Error("setup: the compute frame never became ready");
+      counts.backend = ready.backend;
       await sleep(3000);
       const analyzedBeforePointer = (await computeDebug(page))?.analyzed ?? -1;
       if (want("frames-at-play")) record("frames-at-play", "HS-LOAD-AT-PLAY (provisional)", beforePlay.length === 0 && atPlay === true, { beforePlay, atPlay: Boolean(atPlay) });
@@ -370,32 +425,22 @@ try {
 
       // A named card's picture, and its outline.
       await video.seek(page, 2, false);
-      const pB = await pointOf(page, "B");
-      const a0 = (await computeDebug(page)).analyzed;
-      const moved = Date.now();
-      await page.mouse.move(pB.x, pB.y, { steps: 4 });
-      const shownB = await until(async () => {
-        const s = await tooltip(page);
-        return s.visible && s.name === cards.B.name && s.art ? s : null;
-      }, 15_000);
-      const artMs = shownB ? Date.now() - moved : null;
-      const a1 = (await computeDebug(page)).analyzed;
-      counts.namedCard = { analyses: a1 - a0, artVisibleMs: artMs };
-      if (want("art-visible")) record("art-visible", "HS-SHOW-ART (provisional)", Boolean(shownB), { want: cards.B.name, got: shownB ?? (await tooltip(page)), artMs, analyses: a1 - a0 });
+      const a0 = (await computeDebug(page))?.analyzed ?? 0;
+      const shownB = await hoverCard(page, "B", 30_000);
+      const a1 = (await computeDebug(page))?.analyzed ?? 0;
+      counts.namedCard = { analyses: a1 - a0, artVisibleMs: shownB?.ms ?? null };
+      if (want("art-visible")) record("art-visible", "HS-SHOW-ART (provisional)", Boolean(shownB), { want: cards.B.name, got: shownB ?? (await tooltip(page)), analyses: a1 - a0 });
       const ol = await outline(page);
-      const vr = await video.rect(page);
-      const bB = box("B");
-      const cx = vr.left + ((bB.x + bB.w / 2) / CLIP.width) * vr.width;
-      const cy = vr.top + ((bB.y + bB.h / 2) / CLIP.height) * vr.height;
-      if (want("outline-shows")) record("outline-shows", "HS-OUTLINE (provisional)", Boolean(ol && cx > ol.left && cx < ol.left + ol.width && cy > ol.top && cy < ol.top + ol.height), { outline: ol });
+      const pB = await pointOf(page, "B");
+      if (want("outline-shows")) record("outline-shows", "HS-OUTLINE (provisional)", Boolean(ol && pB.x > ol.left && pB.x < ol.left + ol.width && pB.y > ol.top && pB.y < ol.top + ol.height), { outline: ol });
 
       // Moving off the video clears the tooltip and the outline.
-      await page.mouse.move(vr.left + vr.width / 2, vr.top + vr.height + 60, { steps: 4 });
+      const off = await offVideo(page);
+      await page.mouse.move(off.x, off.y, { steps: 4 });
       const cleared = await until(async () => (!(await tooltip(page)).visible && !(await outline(page)) ? true : null), 2000);
       if (want("move-off-clears")) record("move-off-clears", "HS-POINTER-LEAVE (provisional)", Boolean(cleared), {});
 
-      // A card laid on top of the hovered one: the hovered card stays (the switch on), its outline
-      // goes once the card is seen gone, and the tooltip stays.
+      // Point at A from 5 s, rest, and watch through 12.5 s while D is laid on top of it at 8 s.
       const covered = async () => {
         await video.seek(page, 5, true);
         const pA = await pointOf(page, "A");
@@ -403,39 +448,47 @@ try {
         const first = await until(async () => {
           const s = await tooltip(page);
           return s.visible && s.name ? s.name : null;
-        }, 6000);
+        }, 10_000);
         const names = new Set();
-        let heldWhileShown = false;
-        while ((await video.time(page)) < 12.5) {
+        let outlineBefore = false;
+        let heldFrom = null;
+        let outlineCameBack = false;
+        const deadline = Date.now() + 25_000;
+        for (;;) {
+          const t = await video.time(page);
+          if (t >= 12.5 || t < 4) break; // past the scene, or the clip looped
+          if (Date.now() > deadline) throw new Error(`setup: the clip did not reach 12.5 s in 25 s (at ${t.toFixed(2)} s)`);
           const s = await tooltip(page);
+          const o = await outline(page);
           if (s.visible && s.name) names.add(s.name);
-          if ((await video.time(page)) > 9 && s.visible && !(await outline(page))) heldWhileShown = true;
+          if (t < 7.8 && s.visible && s.name === cards.A.name && o) outlineBefore = true;
+          if (t > 8.5 && s.visible && !o && heldFrom === null) heldFrom = t;
+          if (heldFrom !== null && s.visible && o) outlineCameBack = true;
           await sleep(200);
         }
         const last = await tooltip(page);
-        return { first, names: [...names], last: last.visible ? last.name : null, heldWhileShown };
+        return { first, names: [...names], last: last.visible ? last.name : null, outlineBefore, heldFrom, outlineCameBack };
       };
+      // The switch on (the default): the hovered card stays, and its outline goes once it is seen
+      // gone and stays gone while the tooltip stays.
       const on = await covered();
       if (want("covered-kept")) record("covered-kept", "HS-READING-HOLD (provisional)", on.first === cards.A.name && on.last === cards.A.name && !on.names.includes(cards.D.name), on);
-      if (want("held-outline-hides")) record("held-outline-hides", "HS-HELD-OUTLINE (provisional)", on.heldWhileShown && on.last === cards.A.name, on);
+      if (want("held-outline-hides")) record("held-outline-hides", "HS-HELD-OUTLINE (provisional)", on.outlineBefore && on.heldFrom !== null && !on.outlineCameBack && on.last === cards.A.name, on);
 
       // The switch off: the card on top replaces the hovered one with no pointer move.
-      await page.mouse.move(vr.left + vr.width / 2, vr.top + vr.height + 60);
-      await setStored(browser, extOrigin, PRODUCT.keys.keepCard, false);
+      await page.mouse.move(off.x, off.y);
+      await setStored(ext, PRODUCT.keys.keepCard, false);
       await page.bringToFront();
-      await until(async () => ((await computeDebug(page))?.state === "ready" ? true : null), 30_000, 250);
-      const off = await covered();
-      if (want("switch-flips")) record("switch-flips", "HS-KEEP-CARD-SWITCH (provisional)", off.first === cards.A.name && off.last === cards.D.name, off);
-      await page.mouse.move(vr.left + vr.width / 2, vr.top + vr.height + 60);
-      await setStored(browser, extOrigin, PRODUCT.keys.keepCard, true);
+      await until(async () => ((await computeDebug(page))?.state === "ready" ? true : null), 60_000, 250);
+      const offRun = await covered();
+      if (want("switch-flips")) record("switch-flips", "HS-KEEP-CARD-SWITCH (provisional)", offRun.first === cards.A.name && offRun.last === cards.D.name, offRun);
+      await page.mouse.move(off.x, off.y);
+      await setStored(ext, PRODUCT.keys.keepCard, true);
       await page.bringToFront();
 
       // A page script's made-up pointer events: no frame, no capture.
       {
-        const tab = await browser.newPage();
-        await tab.goto(pageUrl);
-        await tab.waitForFunction(() => document.querySelector("video")?.readyState >= 2, { timeout: 30_000 });
-        await tab.evaluate(() => document.querySelector("video").pause());
+        const tab = await openPage(browser);
         const p = await pointOf(tab, "B");
         await tab.evaluate(({ x, y }) => {
           for (let i = 0; i < 5; i += 1) window.dispatchEvent(new PointerEvent("pointermove", { clientX: x + i, clientY: y, bubbles: true }));
@@ -451,7 +504,7 @@ try {
       // Off means off: no frames, and nothing captured or fetched for card hovers.
       await page.bringToFront();
       const reqBefore = standIn.requests.length;
-      await setStored(browser, extOrigin, PRODUCT.keys.enabled, false);
+      await setStored(ext, PRODUCT.keys.enabled, false);
       await page.bringToFront();
       const gone = await until(async () => ((await extensionFrames(page)).length === 0 ? true : null), 3000);
       await video.seek(page, 3, true);
@@ -459,56 +512,52 @@ try {
       await page.mouse.move(pB2.x, pB2.y, { steps: 4 });
       await sleep(2500);
       const framesOff = await extensionFrames(page);
-      const fetchedOff = standIn.requests.slice(reqBefore).filter((r) => !r.path.endsWith(".json"));
+      const fetchedOff = standIn.requests.slice(reqBefore).filter((r) => r.path !== settingsUrl.pathname);
       if (want("off-means-off")) record("off-means-off", "HS-OFF (provisional)", gone === true && framesOff.length === 0 && fetchedOff.length === 0, { framesOff, fetchedOff });
-      await setStored(browser, extOrigin, PRODUCT.keys.enabled, true);
+      await setStored(ext, PRODUCT.keys.enabled, true);
       await page.bringToFront();
       const back = await until(async () => ((await extensionFrames(page)).length === 2 ? true : null), 5000);
       if (want("on-while-playing-loads")) record("on-while-playing-loads", "HS-ENABLE (provisional)", back === true, {});
 
-      // The cached reload: a new tab of the same page, and the same card again.
+      // The cached reload: the page closed and opened again in a new tab, the same card again.
       {
+        await page.close();
+        page = null;
         const before = standIn.requests.length;
         const tab = await openPage(browser);
         await video.seek(tab, 2, false);
-        const p = await pointOf(tab, "B");
-        await tab.mouse.move(p.x, p.y, { steps: 4 });
-        const again = await until(async () => {
-          const s = await tooltip(tab);
-          return s.visible && s.name === cards.B.name && s.art ? s : null;
-        }, 60_000);
+        const again = await hoverCard(tab, "B", 60_000);
         const fetched = standIn.requests.slice(before).filter((r) => r.path.startsWith(PRODUCT.artPath("")));
-        counts.cachedReload = { artRequests: fetched.length };
-        if (want("cached-reload")) record("cached-reload", "HS-CACHE (provisional)", Boolean(again) && fetched.length === 0, { shown: Boolean(again), artRequests: fetched.length });
+        counts.cachedReload = { artRequests: fetched.length, artVisibleMs: again?.ms ?? null };
+        if (want("cached-reload")) record("cached-reload", "HS-CACHE (provisional)", Boolean(again) && fetched.length === 0, { shown: Boolean(again), ms: again?.ms ?? null, artRequests: fetched.length, tooltip: again ? undefined : await tooltip(tab) });
         await tab.close();
       }
-      await page.close();
     } finally {
       await browser.close();
+      browsers.delete(browser);
     }
   }
 
   // ---------------- session 2: the idle unload, with a short idle time (a separate dev build)
-  if (values["dist-idle"] && (want("idle-unloads") || want("loop-no-reload") || want("idle-reload-on-hover") || want("switch-on-after-idle-reloads"))) {
+  if (values["dist-idle"] && IDLE_CHECKS.some(want)) {
     const netlog = join(out, "netlog-idle.json");
     netlogs.push(netlog);
-    const { browser, extOrigin } = await launch(values["dist-idle"], join(work, "profile-idle"), netlog);
+    const { browser, ext } = await launch(values["dist-idle"], join(work, "profile-idle"), netlog);
+    browsers.add(browser);
     try {
       const page = await openPage(browser);
       const goIdle = async () => {
         await video.seek(page, 1, true);
         await until(async () => ((await extensionFrames(page)).length === 2 ? true : null), 10_000);
         await until(async () => ((await computeDebug(page))?.state === "ready" ? true : null), 60_000, 250);
-        const p = await pointOf(page, "B");
-        await page.mouse.move(p.x, p.y, { steps: 4 });
-        await until(async () => ((await tooltip(page)).name === cards.B.name ? true : null), 15_000);
-        const vr = await video.rect(page);
-        await page.mouse.move(vr.left + vr.width / 2, vr.top + vr.height + 60, { steps: 4 });
+        if (!(await hoverCard(page, "B", 30_000))) throw new Error("setup: no card named before the idle unload");
+        const off = await offVideo(page);
+        await page.mouse.move(off.x, off.y, { steps: 4 });
         return until(async () => ((await extensionFrames(page)).length === 0 ? true : null), 30_000, 250);
       };
       const idle = await goIdle();
       if (want("idle-unloads")) record("idle-unloads", "HS-IDLE-UNLOAD (provisional)", idle === true, {});
-      // The video playing again (a loop, a pause and play) makes nothing.
+      // The video playing again (a pause and play, and the clip looping) makes nothing.
       await page.evaluate(async () => {
         const v = document.querySelector("video");
         v.pause();
@@ -519,88 +568,118 @@ try {
       const afterLoop = await extensionFrames(page);
       if (want("loop-no-reload")) record("loop-no-reload", "HS-IDLE-NO-RELOAD (provisional)", afterLoop.length === 0, { afterLoop });
       // The next pointer move over the video makes them again, and names the card.
-      const p = await pointOf(page, "B");
       await video.seek(page, 2, true);
-      await page.mouse.move(p.x, p.y, { steps: 4 });
-      const reloaded = await until(async () => ((await tooltip(page)).name === cards.B.name ? true : null), 60_000);
-      if (want("idle-reload-on-hover")) record("idle-reload-on-hover", "HS-IDLE-RELOAD (provisional)", reloaded === true, {});
+      const reloaded = await hoverCard(page, "B", 60_000);
+      if (want("idle-reload-on-hover")) record("idle-reload-on-hover", "HS-IDLE-RELOAD (provisional)", Boolean(reloaded), { ms: reloaded?.ms ?? null });
       // Switched off and on after an idle unload, while the video plays.
-      const idle2 = await goIdle();
-      if (!idle2) throw new Error("setup: the second idle unload did not happen");
-      await setStored(browser, extOrigin, PRODUCT.keys.enabled, false);
-      await setStored(browser, extOrigin, PRODUCT.keys.enabled, true);
-      await page.bringToFront();
-      const atOnce = await until(async () => ((await extensionFrames(page)).length === 2 ? true : null), 5000);
-      if (want("switch-on-after-idle-reloads")) record("switch-on-after-idle-reloads", EXPECTED_FAIL["switch-on-after-idle-reloads"].clause, atOnce === true, {});
+      if (want("switch-on-after-idle-reloads")) {
+        if (!(await goIdle())) throw new Error("setup: the second idle unload did not happen");
+        await setStored(ext, PRODUCT.keys.enabled, false);
+        await setStored(ext, PRODUCT.keys.enabled, true);
+        await page.bringToFront();
+        const atOnce = await until(async () => ((await extensionFrames(page)).length === 2 ? true : null), 5000);
+        record("switch-on-after-idle-reloads", PRODUCT.expectedFail["switch-on-after-idle-reloads"]?.clause ?? "HS-ENABLE-AFTER-IDLE (provisional)", atOnce === true, {});
+      }
       await page.close();
     } finally {
       await browser.close();
+      browsers.delete(browser);
     }
   }
 } catch (error) {
-  fatal = String(error?.stack ?? error);
+  fatal ??= String(error?.stack ?? error);
   log("fatal", { error: fatal });
-} finally {
-  server.close();
-  standIn.server.close();
 }
+finish();
 
-// ------------------------------------------------------------------ the network scope
-/** Every URL any process of Chrome requested, from its NetLog, with the request's initiator. */
+// ------------------------------------------------------------------ the network scope and the report
+/** Every request in a NetLog: its URL and the origin that started it (null for one the browser
+ *  started itself), gathered per request across its events. */
 function netlogRequests(file) {
   let text = readFileSync(file, "utf-8").trim();
   // A NetLog is complete JSON only after a clean exit; close an unfinished events list.
   if (!text.endsWith("}")) text = text.replace(/,?\s*$/, "") + "]}";
   const doc = JSON.parse(text);
   const types = Object.fromEntries(Object.entries(doc.constants.logEventTypes).map(([k, v]) => [v, k]));
-  const urls = [];
+  const bySource = new Map();
   for (const e of doc.events) {
     const name = types[e.type];
-    if ((name === "URL_REQUEST_START_JOB" || name === "REQUEST_ALIVE") && e.params?.url) urls.push({ url: e.params.url, initiator: e.params.initiator ?? null });
+    if (name !== "URL_REQUEST_START_JOB" && name !== "REQUEST_ALIVE") continue;
+    const r = bySource.get(e.source.id) ?? { url: null, initiator: null };
+    if (e.params?.url) r.url ??= e.params.url;
+    if (e.params?.initiator && e.params.initiator !== "not an origin") r.initiator = e.params.initiator;
+    bySource.set(e.source.id, r);
   }
-  return urls;
+  return [...bySource.values()].filter((r) => r.url);
 }
-const allowedScheme = /^(chrome-extension|data|blob):/;
-const CHROME_OWN = /(^|\.)(google\.com|googleapis\.com|gstatic\.com|gvt1\.com)$/;
-const violations = [];
-const hostsSeen = new Map();
-for (const file of netlogs) {
-  if (!existsSync(file)) continue;
-  for (const r of netlogRequests(file)) {
-    if (allowedScheme.test(r.url)) continue;
-    let host;
-    try {
-      host = new URL(r.url).host;
-    } catch {
-      continue;
-    }
-    hostsSeen.set(host, (hostsSeen.get(host) ?? 0) + 1);
-    const local = host.startsWith("127.0.0.1:") || host === cdnHost;
-    // Chrome's own background requests (sign-in, updates) start in the browser, with no origin as
-    // their initiator, and resolve to nothing here. Any other request that leaves 127.0.0.1 is a
-    // violation, whoever made it.
-    const chromeOwn = (r.initiator === null || r.initiator === "not an origin") && CHROME_OWN.test(host.replace(/:\d+$/, ""));
-    if (!local && !chromeOwn) violations.push(r);
-  }
-}
-counts.standIn = standIn.requests.reduce((m, r) => ((m[`${r.status} ${r.path}`] = (m[`${r.status} ${r.path}`] ?? 0) + 1), m), {});
-counts.hosts = Object.fromEntries(hostsSeen);
 
-// ------------------------------------------------------------------ the report
-const failed = results.filter((r) => r.outcome === "fail" || r.outcome === "unexpected-pass");
-const report = {
-  product: PRODUCT.name,
-  passed: !fatal && violations.length === 0 && failed.length === 0 && results.length > 0,
-  fatal,
-  violations,
-  results,
-  counts,
-  durationMs: Date.now() - startedAt,
-};
-writeFileSync(join(out, "report.json"), JSON.stringify(report, null, 2));
-writeFileSync(join(out, "events.jsonl"), events.map((e) => JSON.stringify(e)).join("\n") + "\n");
-console.log(`\n${results.map((r) => `${r.outcome.padEnd(15)} ${r.id}`).join("\n")}`);
-console.log(`network: ${violations.length} violation(s); hosts ${JSON.stringify(counts.hosts)}`);
-console.log(`counts: ${JSON.stringify(counts)}`);
-console.log(`${report.passed ? "PASS" : "FAIL"} in ${(report.durationMs / 1000).toFixed(0)} s; report ${join(out, "report.json")}`);
-process.exit(report.passed ? 0 : 1);
+function finish() {
+  if (finished) return;
+  finished = true;
+  clearTimeout(watchdog);
+  server.close();
+  standIn.server.close();
+  const allowedScheme = /^(chrome-extension|data|blob):/;
+  const CHROME_OWN = /(^|\.)(google\.com|googleapis\.com|gstatic\.com|gvt1\.com)$/;
+  const violations = [];
+  const exempt = [];
+  const hostsSeen = {};
+  try {
+    for (const file of netlogs) {
+      if (!existsSync(file)) throw new Error(`no NetLog at ${file}: the network scope cannot be checked`);
+      const requests = netlogRequests(file);
+      const reachedPage = requests.some((r) => r.url.startsWith(pageUrl));
+      if (!reachedPage) throw new Error(`${file} holds no request to the test page: the NetLog is not trustworthy`);
+      for (const r of requests) {
+        if (allowedScheme.test(r.url)) continue;
+        let host;
+        try {
+          host = new URL(r.url).host;
+        } catch {
+          continue;
+        }
+        hostsSeen[host] = (hostsSeen[host] ?? 0) + 1;
+        if (host.startsWith("127.0.0.1:") || host === cdnHost) continue;
+        if (r.initiator === null && CHROME_OWN.test(host.replace(/:\d+$/, ""))) exempt.push(r);
+        else violations.push(r);
+      }
+    }
+    if (netlogs.length > 0 && !Object.keys(hostsSeen).includes(cdnHost)) throw new Error(`no request reached ${cdnHost} in the NetLogs: the network scope cannot be checked`);
+  } catch (error) {
+    fatal ??= `network scope: ${error?.message ?? error}`;
+    log("fatal", { error: fatal });
+  }
+  counts.standIn = standIn.requests.reduce((m, r) => ((m[`${r.status} ${r.path}`] = (m[`${r.status} ${r.path}`] ?? 0) + 1), m), {});
+  counts.hosts = hostsSeen;
+  const missing = only ? [] : CHECKS.filter((id) => !results.some((r) => r.id === id));
+  const failed = results.filter((r) => r.outcome === "fail" || r.outcome === "unexpected-pass");
+  const manifest = JSON.parse(readFileSync(join(resolve(values.dist), "manifest.json"), "utf-8"));
+  const report = {
+    product: PRODUCT.name,
+    passed: !fatal && violations.length === 0 && failed.length === 0 && missing.length === 0 && results.length > 0,
+    fatal,
+    missing,
+    violations,
+    exemptChromeOwn: exempt,
+    results,
+    counts,
+    measuredOn: {
+      chrome: chromeVersion,
+      extensionVersion: manifest.version,
+      release: releaseDoc.id ?? null,
+      settings: testSettings,
+      platform: `${process.platform} ${process.arch}`,
+      node: process.version,
+    },
+    durationMs: Date.now() - startedAt,
+  };
+  writeFileSync(join(out, "report.json"), JSON.stringify(report, null, 2));
+  console.log(`\n${results.map((r) => `${r.outcome.padEnd(15)} ${r.id}`).join("\n")}`);
+  if (missing.length) console.log(`missing (never ran): ${missing.join(", ")}`);
+  console.log(`network: ${violations.length} violation(s), ${exempt.length} of Chrome's own exempt; hosts ${JSON.stringify(hostsSeen)}`);
+  console.log(`counts: ${JSON.stringify(counts)}`);
+  console.log(`${report.passed ? "PASS" : "FAIL"} in ${(report.durationMs / 1000).toFixed(0)} s on ${chromeVersion}; report ${join(out, "report.json")}`);
+  // The rendered clip (official art), the profiles and the throwaway key go with the work folder.
+  rmSync(work, { recursive: true, force: true });
+  process.exit(report.passed ? 0 : 1);
+}

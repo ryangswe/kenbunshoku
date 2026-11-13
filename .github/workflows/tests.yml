@@ -117,7 +117,8 @@ jobs:
         run: |
           set -eu
           npm install --no-save --prefix "$RUNNER_TEMP/pcore" puppeteer-core@25.17.0
-          npx --yes @puppeteer/browsers@2 install chrome@stable --path "$RUNNER_TEMP/cft" | tee "$RUNNER_TEMP/cft.txt"
+          # Pinned, so a new Chrome release never changes a run on its own: move both pins together.
+          npx --yes @puppeteer/browsers@3.2.7 install chrome@157.0.8103.78 --path "$RUNNER_TEMP/cft" | tee "$RUNNER_TEMP/cft.txt"
           echo "CHROME=$(tail -n1 "$RUNNER_TEMP/cft.txt" | cut -d' ' -f2-)" >> "$GITHUB_ENV"
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg
