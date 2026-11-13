@@ -1019,6 +1019,100 @@ describe("Agent and the toolkit's capture control", () => {
     expect(sent.map((m) => m.kind)).toEqual(expect.arrayContaining(["presented", "pointer"]));
   });
 
+  it("idle: hovers turned off and on while the video plays load both frames at once, and the next idle unloads them again", async () => {
+    agent = await startAgent();
+    move(100, 100);
+    computeReady();
+    idle();
+    expect(frames()).toEqual([]);
+    agent.setEnabled(false);
+    agent.setEnabled(true);
+    expect(frames().filter((f) => f.src.endsWith("/compute.html"))).toHaveLength(1);
+    expect(frames().filter((f) => f.src.endsWith("/tooltip.html"))).toHaveLength(1);
+    const sent = spyOn(compute());
+    expect(sent.some((m) => m.kind === "hello")).toBe(true);
+    // The next move over the picture (the control's make()) makes no second pair.
+    move(110, 100);
+    expect(frames()).toHaveLength(2);
+    computeReady("fedcba9876543210");
+    idle();
+    expect(frames()).toEqual([]);
+    // Unloaded again: the video playing on (a loop) makes nothing.
+    playing();
+    expect(frames()).toEqual([]);
+  });
+
+  it("idle: hovers turned off and on while the video is paused load at its next play, and only once", async () => {
+    agent = await startAgent();
+    move(100, 100);
+    computeReady();
+    idle();
+    media.paused = true;
+    agent.setEnabled(false);
+    agent.setEnabled(true);
+    expect(frames()).toEqual([]);
+    media.paused = false;
+    playing();
+    expect(frames()).toHaveLength(2);
+    computeReady("fedcba9876543210");
+    idle();
+    playing();
+    expect(frames()).toEqual([]);
+  });
+
+  it("idle: hovers turned off and on in a background tab load nothing until the tab comes to the front", async () => {
+    const setVisibility = (state: "hidden" | "visible") => {
+      Object.defineProperty(document, "visibilityState", { value: state, configurable: true });
+      Object.defineProperty(document, "hidden", { value: state === "hidden", configurable: true });
+      document.dispatchEvent(new Event("visibilitychange"));
+    };
+    try {
+      agent = await startAgent();
+      move(100, 100);
+      computeReady();
+      idle();
+      setVisibility("hidden");
+      agent.setEnabled(false);
+      agent.setEnabled(true);
+      expect(frames()).toEqual([]);
+      // The video playing on in the background (a loop) makes nothing either.
+      playing();
+      expect(frames()).toEqual([]);
+      setVisibility("visible");
+      expect(frames().filter((f) => f.src.endsWith("/compute.html"))).toHaveLength(1);
+      expect(frames().filter((f) => f.src.endsWith("/tooltip.html"))).toHaveLength(1);
+      // Nothing more is owed: hiding and showing again makes no second pair.
+      setVisibility("hidden");
+      setVisibility("visible");
+      expect(frames()).toHaveLength(2);
+      // Turned off again before coming to the front: nothing is made on return.
+      computeReady("fedcba9876543210");
+      idle();
+      setVisibility("hidden");
+      agent.setEnabled(false);
+      agent.setEnabled(true);
+      agent.setEnabled(false);
+      setVisibility("visible");
+      expect(frames()).toEqual([]);
+    } finally {
+      Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+      Object.defineProperty(document, "hidden", { value: false, configurable: true });
+    }
+  });
+
+  it("hovers turned off and on in a background tab with no idle unload load at once, as before", async () => {
+    try {
+      agent = await startAgent();
+      move(100, 100);
+      Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
+      agent.setEnabled(false);
+      agent.setEnabled(true);
+      expect(frames()).toHaveLength(2);
+    } finally {
+      Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+    }
+  });
+
   it("idle: a full-screen change while the frames are removed makes no frame", async () => {
     agent = await startAgent();
     move(100, 100);
