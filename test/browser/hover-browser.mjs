@@ -39,7 +39,7 @@ import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSyn
 import { createServer } from "node:https";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { join, relative, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
@@ -97,7 +97,7 @@ const PRODUCT = {
       // outcome is accepted. A model never ready within 60 s (readyMs null), or a first tab whose
       // model was not ready before the second tab opened, is a real failure, not this limit.
       when: (detail, ok) => detail.firstReady === true && detail.readyMs !== null && detail.readyMs > (ok ? 10_500 : 9_000),
-      condition: "the new tab's model was ready more than 9 s after the pointer's one move for a failure, or more than 10.5 s after it for a pass (the window is 10 s)",
+      condition: "the new tab's model was ready more than 9 s after the pointer's one move for a failure, or more than 10.5 s after it for a pass (the window is 10 s), and the first tab's model was ready before the second tab opened",
       old: "nothing is read once 10 s have passed since the pointer's last move, so a resting pointer gets no card when the model loads later than that",
       intended: "a look when the model becomes ready while the pointer still rests on the picture",
       clearedBy: "the planned toolkit 0.14.0, which will take one look when the model becomes ready while the pointer still rests",
@@ -191,6 +191,7 @@ for (const [slot, id] of Object.entries(PRODUCT.cards)) {
   if (!card) throw new Error(`setup: ${id} is not in the release's catalog`);
   const file = join(resolve(values.art), card.art);
   if (!existsSync(file) && values["fetch-art"]) {
+    mkdirSync(dirname(file), { recursive: true });
     const response = await fetch(`https://${cdnHost}${PRODUCT.artPath(card.art)}`);
     if (!response.ok) throw new Error(`setup: ${id}'s picture: HTTP ${response.status}`);
     writeFileSync(file, Buffer.from(await response.arrayBuffer()));
@@ -551,7 +552,7 @@ try {
       // video, then the pointer rests, and the card is named.
       // The first tab's model is ready before the second tab opens, so the two never load at once.
       // Both tabs' visibility, the first tab's state, and each change in the second tab's load
-      // state, backend or restarts are logged with its time. The debug global reports a load as
+      // state, backend or restarts are logged with their times. The debug global reports a load as
       // one "loading" step, so this shows when a load ended, not where its time went.
       {
         const firstReady = await until(async () => ((await computeDebug(page))?.state === "ready" ? true : null), 30_000);
