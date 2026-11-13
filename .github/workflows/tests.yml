@@ -127,7 +127,7 @@ jobs:
         env:
           PUPPETEER_CORE_DIR: ${{ runner.temp }}/pcore
         run: |
-          node test/browser/hover-browser.mjs --chrome "$CHROME" --release "$RUNNER_TEMP/release" \
+          DIAG_ROUNDS=3 node test/browser/hover-browser.mjs --chrome "$CHROME" --release "$RUNNER_TEMP/release" \
             --art "$RUNNER_TEMP/art" --fetch-art --dist dist --dist-idle dist-idle --out "$RUNNER_TEMP/hover-browser"
       - name: Keep the report, the event log and the NetLogs
         if: always()

@@ -587,6 +587,11 @@ try {
         await tab.close();
       }
 
+      if (process.env.DIAG_ROUNDS) {
+        const { diagSecondTab } = await import("./diag-second-tab.mjs");
+        counts.diagSecondTab = await diagSecondTab({ browser, rounds: Number(process.env.DIAG_ROUNDS), getPage: () => page, setPage: (p) => { page = p; }, openPage, video, pointOf, computeDebug, until, log });
+      }
+
       // The cached reload: the page closed and opened again in a new tab, the same card again.
       {
         await page.close();
