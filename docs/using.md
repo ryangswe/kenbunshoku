@@ -101,7 +101,8 @@ for a few seconds. With
 pointer. Either way, it stops at the latest 60 seconds after you last moved it. It stops at once when
 the pointer leaves the video or the tab goes to the background. While the pointer rests on a spot
 where no card is showing, it looks every 2 seconds instead of once or twice a second, so a card that appears
-under the resting pointer can take a little over 2 seconds to show. On a computer where each look
+under the resting pointer can take a little over 2 seconds to show, or up to about 4 seconds on a
+slow computer. On a computer where each look
 takes longer, it waits longer between the looks that keep a card fresh, aiming for looking to take
 about a quarter of the time. The wait has a limit, so on a very slow computer looking can still
 take more than that: while you move the pointer, there is at least one look every 4 seconds.
