@@ -32,6 +32,7 @@ use the addons.mozilla.org link above.
 | I want to… | Read |
 | --- | --- |
 | Learn how card hovers work, what to expect, and how to update or remove it | [docs/using.md](docs/using.md) |
+| See what changed in each version | [CHANGELOG.md](CHANGELOG.md) |
 | Install from a release zip, or load your own build with Load unpacked | [docs/install-from-zip.md](docs/install-from-zip.md) |
 | See how accurate it is and what it does not recognize | [docs/accuracy.md](docs/accuracy.md) |
 | Know what it reads, sends and keeps | [PRIVACY.md](PRIVACY.md) |
