@@ -29,10 +29,10 @@
 //
 // Each check has a provisional clause id (the hover spec's ids replace them). An expected failure
 // is listed in the product block with the clause, the old value, the intended value and what
-// removes it, and, where it fails only on a slow computer, the condition it is expected under
-// (it must pass when the condition does not hold). A setup failure, a timeout, a crash, a missing
-// NetLog or a network violation is never an expected failure. A listed check that passes is an unexpected pass and fails the run,
-// so the list is reviewed. Without --only, every check must have run.
+// removes it, and, where it fails only under a timing condition, that condition (it must pass when
+// the condition does not hold). A setup failure, a timeout, a crash, a missing NetLog or a network
+// violation is never an expected failure. A listed check that passes is an unexpected pass and
+// fails the run, so the list is reviewed. Without --only, every check must have run.
 
 import { execFileSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -91,12 +91,15 @@ const PRODUCT = {
     // within the window and the card must be named.
     "second-tab-names-card": {
       clause: "HS-FIRST-HOVER-PAUSED (provisional)",
-      // 9 s, not 10: a model ready just inside the window may still miss it by the time it looks.
-      when: (detail) => detail.readyMs === null || detail.readyMs > 9_000,
-      condition: "the new tab's model was ready more than 9 s after the pointer's one move (the window is 10 s)",
+      // The measured time runs a little long (it starts before the move and is polled), so a
+      // failure counts as this limit from 9 s on and a pass counts as unexpected only after 10.5 s.
+      // Between the two, either outcome is accepted. A model never ready within 60 s (readyMs null)
+      // is a real failure, not this limit.
+      when: (detail, ok) => detail.readyMs !== null && detail.readyMs > (ok ? 10_500 : 9_000),
+      condition: "the new tab's model was ready more than 9 s after the pointer's one move for a failure, or more than 10.5 s after it for a pass (the window is 10 s)",
       old: "nothing is read once 10 s have passed since the pointer's last move, so a resting pointer gets no card when the model loads later than that",
       intended: "a look when the model becomes ready while the pointer still rests on the picture",
-      clearedBy: "a toolkit change (reported for the standard hover spec)",
+      clearedBy: "toolkit 0.14.0, which takes one look when the model becomes ready while the pointer still rests",
     },
   },
 };
@@ -399,7 +402,7 @@ async function setStored(ext, key, value) {
 const results = [];
 function record(id, clause, ok, detail) {
   const listed = PRODUCT.expectedFail[id];
-  const xf = listed && (!listed.when || listed.when(detail)) ? { ...listed, when: listed.condition } : null;
+  const xf = listed && (!listed.when || listed.when(detail, ok)) ? { ...listed, when: listed.condition } : null;
   const outcome = ok ? (xf ? "unexpected-pass" : "pass") : xf ? "expected-fail" : "fail";
   results.push({ id, clause, outcome, detail, ...(xf ? { expected: xf } : {}) });
   log(`check ${outcome}`, { id, clause, ...detail });
@@ -545,15 +548,37 @@ try {
 
       // A second tab of the same page while the first plays on: one pointer move over its paused
       // video, then the pointer rests, and the card is named.
+      // The first tab's model is ready before the second tab opens, so the two never load at once.
+      // The states of both tabs and each step of the second tab's load are logged, so a late load
+      // can be traced to its cause.
       {
+        const firstReady = await until(async () => ((await computeDebug(page))?.state === "ready" ? true : null), 30_000);
         const tab = await openPage(browser);
+        const visibility = (p) => p.evaluate(() => document.visibilityState).catch(() => null);
+        const atOpen = { firstReady: Boolean(firstReady), firstVisibility: await visibility(page), secondVisibility: await visibility(tab), first: await computeDebug(page) };
+        log("second-tab-open", { ...atOpen, first: atOpen.first && { state: atOpen.first.state, analyzed: atOpen.first.analyzed, stopped: atOpen.first.stopped } });
         await video.seek(tab, 2, false);
-        const readyWatch = until(async () => ((await computeDebug(tab))?.state === "ready" ? Date.now() : null), 60_000, 100);
         const hoverAt = Date.now();
+        const steps = [];
+        const readyWatch = until(async () => {
+          const d = await computeDebug(tab);
+          const state = d ? d.state : "no frame";
+          if (steps.at(-1)?.state !== state) steps.push({ ms: Date.now() - hoverAt, state, ...(d?.error ? { error: d.error } : {}) });
+          return state === "ready" ? Date.now() : null;
+        }, 60_000, 100);
         const named = await hoverCard(tab, "B", 60_000);
         const readyAt = await readyWatch;
+        const last = await computeDebug(tab);
         counts.secondTab = { artVisibleMs: named?.ms ?? null, readyMs: readyAt ? readyAt - hoverAt : null };
-        if (want("second-tab-names-card")) record("second-tab-names-card", "HS-FIRST-HOVER-PAUSED (provisional)", Boolean(named), { ...counts.secondTab, analyzed: (await computeDebug(tab))?.analyzed ?? null });
+        if (want("second-tab-names-card"))
+          record("second-tab-names-card", "HS-FIRST-HOVER-PAUSED (provisional)", Boolean(named), {
+            ...counts.secondTab,
+            analyzed: last?.analyzed ?? null,
+            steps,
+            release: last?.release?.source ?? null,
+            firstReady: atOpen.firstReady,
+            visibility: { first: atOpen.firstVisibility, second: atOpen.secondVisibility },
+          });
         await tab.close();
       }
 

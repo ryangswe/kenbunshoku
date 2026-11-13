@@ -44,9 +44,15 @@ describe("the NetLog network scope", () => {
   });
 
   it("reads a NetLog cut short, up to its last whole event", () => {
-    const whole = netlog([start(1, "https://other.example/x", "chrome-extension://abc"), start(2, "https://cdn.example.com/y", "chrome-extension://abc")]);
+    const whole = netlog([start(1, "https://cdn.example.com/y", "chrome-extension://abc"), start(2, "https://other.example/x", "chrome-extension://abc")]);
     const cut = whole.slice(0, whole.length - 2) + ',{"type":1,"source":{"id":3},"par';
     expect(scope(cut).violations.map((v) => v.url)).toEqual(["https://other.example/x"]);
+    expect(scope(cut).hosts).toEqual({ "cdn.example.com": 1, "other.example": 1 });
+  });
+
+  it("fails on a cut-short NetLog it cannot close within its tries", () => {
+    const cut = JSON.stringify({ constants }).slice(0, -1) + ',"events":[{"type":1,"source":{"id":1},"params":{"list":[' + "{},".repeat(60);
+    expect(() => netlogRequests(cut)).toThrow();
   });
 
   it("fails on a file that is not a NetLog", () => {
