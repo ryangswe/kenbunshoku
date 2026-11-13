@@ -7,7 +7,9 @@ check is still done by hand.
 
 The hover browser test is `test/browser/hover-browser.mjs`. It runs in CI on every pull request,
 with a synthetic clip on a local page, so it never sees YouTube, Twitch, real footage or the real
-CDN. Unit tests are the vitest files in `test/`.
+CDN. Each browser check names the clause it covers in the toolkit's hover spec
+([docs/hover-spec.md](https://github.com/ryangswe/riftsight-vision/blob/main/docs/hover-spec.md)),
+in the `CLAUSES` table of the test. Unit tests are the vitest files in `test/`.
 
 | Step done by hand | Covered by | Still by hand |
 | --- | --- | --- |
