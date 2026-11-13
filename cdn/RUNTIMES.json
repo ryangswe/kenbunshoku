@@ -44,5 +44,14 @@
       "detectorSha256": "e8b36a038a6d4603c9a431834919afbeca85513dfca240bd967270b6aefe61ea",
       "recognizerSha256": "c65b12e322f025db111993c1424e29addda8063a0540cc9fa958a3dade856f4c"
     }
+  },
+  "0.6.0": {
+    "vendoredCommit": "4d04d1d777a35980c613b9d2a8243785f599bc95",
+    "ortWeb": "1.29.0",
+    "bundledRelease": {
+      "id": "f80d5b56cd907f03",
+      "detectorSha256": "e8b36a038a6d4603c9a431834919afbeca85513dfca240bd967270b6aefe61ea",
+      "recognizerSha256": "c65b12e322f025db111993c1424e29addda8063a0540cc9fa958a3dade856f4c"
+    }
   }
 }
