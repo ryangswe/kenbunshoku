@@ -29,10 +29,11 @@
 //
 // Each check names the clause it covers in the toolkit's hover spec (docs/hover-spec.md in
 // ryangswe/riftsight-vision), in the table of checks below. An expected failure is listed in the
-// product block with the old value, the intended value and what removes it, and, where it fails only under a timing condition, that condition (it must pass when
-// the condition does not hold). A setup failure, a timeout, a crash, a missing NetLog or a network
-// violation is never an expected failure. A listed check that passes is an unexpected pass and
-// fails the run, so the list is reviewed. Without --only, every check must have run.
+// product block with the old value, the intended value and what removes it, and, where it fails
+// only under a timing condition, that condition (it must pass when the condition does not hold).
+// A setup failure, a timeout, a crash, a missing NetLog or a network violation is never an
+// expected failure. A listed check that passes is an unexpected pass and fails the run, so the
+// list is reviewed. Without --only, every check must have run.
 
 import { execFileSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -120,11 +121,11 @@ const CLAUSES = {
   "no-capture-before-pointer": "S-B7",
   "art-visible": "S-W1",
   "outline-shows": "S-F1",
-  "move-off-clears": "S-B6",
+  "move-off-clears": "S-W4",
   "covered-kept": "S-W5",
   "held-outline-hides": "S-F4",
-  "switch-flips": "S-H3",
-  "fake-pointer-ignored": "S-B1",
+  "switch-flips": "S-H2",
+  "fake-pointer-ignored": "S-A2",
   "off-means-off": "S-B11",
   "on-while-playing-loads": "S-A7",
   "second-tab-names-card": "S-B13",
