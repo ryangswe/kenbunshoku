@@ -555,7 +555,10 @@ try {
       // state, backend or restarts are logged with their times. The debug global reports a load as
       // one "loading" step, so this shows when a load ended, not where its time went.
       {
+        const diagSampler = process.env.DIAG_ROUNDS ? await (await import("./diag-second-tab.mjs")).startSampler(browser) : null;
+        const firstWait = Date.now();
         const firstReady = await until(async () => ((await computeDebug(page))?.state === "ready" ? true : null), 30_000);
+        if (diagSampler) log("diag-first-tab-wait", { ms: Date.now() - firstWait });
         const tab = await openPage(browser);
         const visibility = (p) => p.evaluate(() => document.visibilityState).catch(() => null);
         const atOpen = { firstReady: Boolean(firstReady), firstVisibility: await visibility(page), secondVisibility: await visibility(tab), first: await computeDebug(page) };
@@ -574,6 +577,7 @@ try {
         }, 60_000, 100);
         const named = await hoverCard(tab, "B", 60_000);
         const readyAt = await readyWatch;
+        if (diagSampler) log("diag-second-tab-timeline", { sinceFirstWait: hoverAt - firstWait, samples: await diagSampler.stop() });
         const last = await computeDebug(tab);
         counts.secondTab = { artVisibleMs: named?.ms ?? null, readyMs: readyAt ? readyAt - hoverAt : null };
         if (want("second-tab-names-card"))

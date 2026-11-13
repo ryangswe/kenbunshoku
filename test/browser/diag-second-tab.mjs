@@ -14,7 +14,8 @@ function readThreads(pids) {
   for (const pid of pids) {
     let type = "?";
     try {
-      const args = readFileSync(`/proc/${pid}/cmdline`, "utf8").split("\0");
+      // Chrome rewrites its command line on Linux, so the arguments may be joined by spaces.
+      const args = readFileSync(`/proc/${pid}/cmdline`, "utf8").split(/[\0 ]/);
       type = (args.find((a) => a.startsWith("--type="))?.slice(7) ?? "browser") + (args.includes("--extension-process") ? "+extension" : "");
       for (const tid of readdirSync(`/proc/${pid}/task`)) {
         const stat = readFileSync(`/proc/${pid}/task/${tid}/stat`, "utf8");
@@ -117,4 +118,37 @@ export async function diagSecondTab({ browser, rounds, getPage, setPage, openPag
   log("diag-summary", summary);
   await cdp.detach().catch(() => {});
   return results;
+}
+
+/** Sample every Chrome thread's CPU time once a second until stopped; each sample lists the
+ *  busiest threads in that second. Linux only (null elsewhere). */
+export async function startSampler(browser, every = 1000) {
+  if (process.platform !== "linux") return { stop: async () => null };
+  const cdp = await browser.target().createCDPSession();
+  const pids = async () => (await cdp.send("SystemInfo.getProcessInfo")).processInfo.map((p) => String(p.id));
+  const start = Date.now();
+  const samples = [];
+  let prev = readThreads(await pids());
+  let running = true;
+  const loop = (async () => {
+    while (running) {
+      await new Promise((r) => setTimeout(r, every));
+      const now = readThreads(await pids().catch(() => []));
+      const top = Object.entries(now ?? {})
+        .map(([k, t]) => ({ pid: t.pid, type: t.type, thread: t.comm, ms: (t.ticks - (prev?.[k]?.ticks ?? 0)) * TICK_MS }))
+        .filter((t) => t.ms >= 50)
+        .sort((x, y) => y.ms - x.ms)
+        .slice(0, 6);
+      samples.push({ at: Date.now() - start, totalMs: top.reduce((n, t) => n + t.ms, 0), top });
+      prev = now;
+    }
+  })();
+  return {
+    async stop() {
+      running = false;
+      await loop;
+      await cdp.detach().catch(() => {});
+      return samples;
+    },
+  };
 }
