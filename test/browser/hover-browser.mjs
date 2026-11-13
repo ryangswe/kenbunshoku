@@ -257,7 +257,10 @@ async function launch(dist, profile, netlog) {
     args: [
       "--autoplay-policy=no-user-gesture-required",
       ...(process.env.DIAG_JS_FLAGS ? [`--js-flags=${process.env.DIAG_JS_FLAGS}`] : []),
-      `--host-resolver-rules=MAP ${cdnHost} 127.0.0.1:${standIn.port}, MAP * ~NOTFOUND, EXCLUDE 127.0.0.1`,
+      ...(process.env.DIAG_CHROME_ARGS ? process.env.DIAG_CHROME_ARGS.split(" ") : []),
+      process.env.DIAG_REAL_CDN
+        ? `--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1, EXCLUDE ${cdnHost}`
+        : `--host-resolver-rules=MAP ${cdnHost} 127.0.0.1:${standIn.port}, MAP * ~NOTFOUND, EXCLUDE 127.0.0.1`,
       `--ignore-certificate-errors-spki-list=${standIn.spki}`,
       `--log-net-log=${netlog}`,
       "--net-log-capture-mode=Default",
@@ -627,7 +630,7 @@ try {
     } finally {
       if (runSampler) {
         // Seconds in which the extension's renderer process spent 0.5 s or more on its pool threads.
-        const busy = (await runSampler.stop()).map((x) => {
+        const busy = ((await runSampler.stop()) ?? []).map((x) => {
           const ext = x.top.filter((th) => th.type.includes("extension"));
           const sum = (re) => ext.filter((th) => re.test(th.thread)).reduce((n, th) => n + th.ms, 0);
           return { t: runSamplerAt + x.at, pool: sum(/ThreadPool/), worker: sum(/DedicatedWorker/), main: sum(/^chrome$/) };
