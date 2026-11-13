@@ -29,6 +29,11 @@ describe("compute frame session options", () => {
     expect(SESSION_OPTIONS.geometricScope).toBe("focus");
   });
 
+  it("pace analyses from their measured cost (owner, 2026-11-12)", () => {
+    expect(SESSION_OPTIONS.measuredPacing).toBe(true);
+    for (const on of [true, false]) expect(sessionOptions(on).measuredPacing).toBe(true);
+  });
+
   it("start the toolkit's compute frame in its default pointer mode", () => {
     expect(start()).not.toBeNull();
   });
