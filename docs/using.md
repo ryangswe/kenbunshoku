@@ -109,7 +109,8 @@ pointer off the card. The next time you point at the video, the model
 starts again, as the first time does; the video simply playing on does not start it again.
 Turning **Card hovers** off and on in the popup starts it afresh, as when the page opens: at once if
 the video plays on a page where playing starts card hovers, or else when it next plays or when you
-next point at it. Its
+next point at it. A tab in the background that had unloaded starts again when you bring it to the
+front. Its
 files come from the extension itself or from the
 browser's caches. In a tab you are not looking at, the browser may run Kenbunshoku's timers less
 often, so the unload can come later there.
