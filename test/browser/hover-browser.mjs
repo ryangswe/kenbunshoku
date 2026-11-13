@@ -30,8 +30,8 @@
 // Each check has a provisional clause id (the hover spec's ids replace them). An expected failure
 // is listed in the product block with the clause, the old value, the intended value and what
 // removes it, and, where it fails only on a slow computer, the condition it is expected under
-// (it must pass when the condition does not hold). A setup failure, a timeout, a crash, a missing NetLog or a network violation is
-// never an expected failure. A listed check that passes is an unexpected pass and fails the run,
+// (it must pass when the condition does not hold). A setup failure, a timeout, a crash, a missing
+// NetLog or a network violation is never an expected failure. A listed check that passes is an unexpected pass and fails the run,
 // so the list is reviewed. Without --only, every check must have run.
 
 import { execFileSync } from "node:child_process";
@@ -91,8 +91,9 @@ const PRODUCT = {
     // within the window and the card must be named.
     "second-tab-names-card": {
       clause: "HS-FIRST-HOVER-PAUSED (provisional)",
-      when: (detail) => detail.readyMs === null || detail.readyMs > 10_000,
-      condition: "the new tab's model was ready more than 10 s after the pointer's one move",
+      // 9 s, not 10: a model ready just inside the window may still miss it by the time it looks.
+      when: (detail) => detail.readyMs === null || detail.readyMs > 9_000,
+      condition: "the new tab's model was ready more than 9 s after the pointer's one move (the window is 10 s)",
       old: "nothing is read once 10 s have passed since the pointer's last move, so a resting pointer gets no card when the model loads later than that",
       intended: "a look when the model becomes ready while the pointer still rests on the picture",
       clearedBy: "a toolkit change (reported for the standard hover spec)",
