@@ -25,7 +25,8 @@
 //     its worker and both frames are removed, which gives their memory back (toolkit 0.12.0,
 //     `whenIdle`). The next trusted pointer move over the video makes them again; the control
 //     calls `make()` for that, and the agent makes no frame of its own meanwhile, not even when
-//     the video plays again (a looping clip would undo the unload).
+//     the video plays again (a looping clip would undo the unload), unless hovers are turned off
+//     and on again (above).
 //   - It shows the tooltip frame (the card's picture alone, or its name) beside the card the
 //     compute frame names, placed off the cards around it and scaled down when the page has no
 //     room for it, and hides it shortly after. Nothing it shows takes the pointer: hovering goes
@@ -41,8 +42,9 @@
 //   - It is on for every video (owner, 2026-10-27: no per-channel switch; the popup's switch is
 //     the only control). Until the main video plays (or the pointer comes over a paused one) no
 //     frame is made, no model loads and nothing is downloaded for card hovers. The popup's switch
-//     turned off removes the frames again, and turned on loads them again if the video is playing,
-//     unless an idle unload is still waiting for the pointer.
+//     turned off removes the frames again, and turned on loads them again if the video is playing
+//     (or at its next play), also after an idle unload: turning hovers on is the viewer's own
+//     choice, not one of the page's load triggers (owner, 2026-11-13, as in DuelSight).
 //   - Messages from its frames are taken only when the browser marks them as trusted and they
 //     come from that frame and the extension's origin (fromExtensionFrame): a page cannot make up
 //     a card for the tooltip or a capture request.
@@ -106,8 +108,8 @@ export class Agent {
   private placedFor: { cardId: string; rect: Rect } | null = null;
   private hideTimer: ReturnType<typeof setTimeout> | null = null;
   private loadError: string | null = null;
-  /** True from an idle removal until the control's `make()`: the control owes the frames then,
-   *  so the agent makes none of its own. Once `make()` ran, frames the page or the popup removed
+  /** True from an idle removal until the control's `make()`, or until hovers are turned on
+   *  again: the control owes the frames then, so the agent makes none of its own. Once `make()` ran, frames the page or the popup removed
    *  before their handshake are made again by the agent, as at any time. */
   private awaitingMake = false;
   /** True when "Keep the card I'm pointing at" changed while this tab was in the background: the
@@ -225,8 +227,15 @@ export class Agent {
   setEnabled(enabled: boolean): void {
     if (enabled === this.enabled) return;
     this.enabled = enabled;
-    if (!enabled) this.teardown();
-    else this.loadAtPlay();
+    if (!enabled) {
+      this.teardown();
+      return;
+    }
+    // Turning hovers on is the viewer's own choice, so it starts afresh even after an idle
+    // unload: a playing main video loads at once, a paused one at its next play, as before any
+    // unload. The frames this makes end the control's removed state at their handshake.
+    this.awaitingMake = false;
+    this.loadAtPlay();
   }
 
   /** The popup's "Keep the card I'm pointing at" changed (shared/keep-card.ts). The compute

@@ -105,7 +105,9 @@ the rest is the base pipeline. An arrow into `cdn.kenbunshoku.com` or
   After 10 idle minutes (the pointer not moved over the picture, no card shown, no analysis in
   flight) the compute frame ends its worker and the content script removes both frames, giving
   their memory back; the next pointer move over the picture makes them again, and the video
-  playing on does not (toolkit 0.12.0, `idleUnloadMs` and `whenIdle`).
+  playing on does not (toolkit 0.12.0, `idleUnloadMs` and `whenIdle`). Card hovers turned off
+  and on in the popup start afresh: a playing main video loads them at once, as it does before
+  any unload.
 - **The compute frame** decides when to analyze and runs the hover rule; its worker runs the
   vendored runtime on the release bundled in the extension, or on a newer release the settings
   file names (the toolkit's remote-release module, vendored): the frame downloads that release's files once, checks each against

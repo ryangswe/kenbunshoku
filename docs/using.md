@@ -106,7 +106,8 @@ showing, Kenbunshoku unloads the recognition model in that tab to give its memor
 resting on a paused video counts as not moving. With **Keep the card I'm pointing at** on, a card
 stays showing while the pointer rests on it, so the 10 minutes start only once you move the
 pointer off the card. The next time you point at the video, the model
-starts again, as the first time does; the video simply playing on does not start it again. Its
+starts again, as the first time does; the video simply playing on does not start it again.
+Turning **Card hovers** off and on in the popup starts it again at once while the video plays. Its
 files come from the extension itself or from the
 browser's caches. In a tab you are not looking at, the browser may run Kenbunshoku's timers less
 often, so the unload can come later there.
