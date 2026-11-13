@@ -282,9 +282,10 @@ async function launch(dist, profile, netlog) {
 }
 
 /** Open the test page with the clip paused at the start. */
-async function openPage(browser) {
+async function openPage(browser, before) {
   const page = await browser.newPage();
   page.on("pageerror", (e) => log("page-error", { message: String(e.message ?? e) }));
+  if (before) await before(page);
   await page.goto(pageUrl);
   await page.waitForFunction(() => document.querySelector("video")?.readyState >= 2, { timeout: 30_000 });
   await page.evaluate(() => document.querySelector("video").pause());
@@ -559,12 +560,16 @@ try {
         const firstWait = Date.now();
         const firstReady = await until(async () => ((await computeDebug(page))?.state === "ready" ? true : null), 30_000);
         if (diagSampler) log("diag-first-tab-wait", { ms: Date.now() - firstWait });
-        const tab = await openPage(browser);
+        let diagWatch = null;
+        const tab = await openPage(browser, diagSampler ? async (p) => {
+          diagWatch = await (await import("./diag-second-tab.mjs")).watchTab(browser, p);
+        } : undefined);
         const visibility = (p) => p.evaluate(() => document.visibilityState).catch(() => null);
         const atOpen = { firstReady: Boolean(firstReady), firstVisibility: await visibility(page), secondVisibility: await visibility(tab), first: await computeDebug(page) };
         log("second-tab-open", { ...atOpen, first: atOpen.first && { state: atOpen.first.state, analyzed: atOpen.first.analyzed, stopped: atOpen.first.stopped } });
         await video.seek(tab, 2, false);
         const hoverAt = Date.now();
+        diagWatch?.at("move (harness)", { swRunning: diagWatch.swRunning() });
         const steps = [];
         const readyWatch = until(async () => {
           const d = await computeDebug(tab);
@@ -578,6 +583,7 @@ try {
         const named = await hoverCard(tab, "B", 60_000);
         const readyAt = await readyWatch;
         if (diagSampler) log("diag-second-tab-timeline", { sinceFirstWait: hoverAt - firstWait, samples: await diagSampler.stop() });
+        if (diagWatch) log("diag-second-tab-steps", { steps: (await diagWatch.stop(tab)).map((e) => ({ ...e, ms: e.ms - (hoverAt - diagWatch.t0) })) });
         const last = await computeDebug(tab);
         counts.secondTab = { artVisibleMs: named?.ms ?? null, readyMs: readyAt ? readyAt - hoverAt : null };
         if (want("second-tab-names-card"))

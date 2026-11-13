@@ -54,9 +54,13 @@ export async function diagSecondTab({ browser, rounds, getPage, setPage, openPag
   async function measure(label) {
     const p0 = await procs();
     const t0 = readThreads(Object.keys(p0));
-    const tab = await openPage(browser);
+    let watch = null;
+    const tab = await openPage(browser, async (p) => {
+      watch = await watchTab(browser, p);
+    });
     await video.seek(tab, 2, false);
     const start = Date.now();
+    watch.at("move (harness)", { swRunning: watch.swRunning() });
     const pt = await pointOf(tab, "B");
     await tab.mouse.move(pt.x, pt.y, { steps: 4 });
     const readyAt = await until(async () => ((await computeDebug(tab))?.state === "ready" ? Date.now() : null), 60_000, 100);
@@ -75,7 +79,8 @@ export async function diagSecondTab({ browser, rounds, getPage, setPage, openPag
           .slice(0, 12)
       : null;
     const workerThreads = t1 ? Object.values(t1).filter((t) => /Worker/i.test(t.comm)).map((t) => `${t.pid}:${t.type}:${t.comm}`) : null;
-    const r = { label, readyMs: readyAt ? readyAt - start : null, wallMs: Date.now() - start, procMs, threads, workerThreads, iso };
+    const steps = (await watch.stop(tab)).map((e) => ({ ...e, ms: e.ms - (start - watch.t0) }));
+    const r = { label, readyMs: readyAt ? readyAt - start : null, wallMs: Date.now() - start, steps, procMs, threads, workerThreads, iso };
     results.push(r);
     log("diag", r);
     await tab.close();
@@ -149,6 +154,58 @@ export async function startSampler(browser, every = 1000) {
       await loop;
       await cdp.detach().catch(() => {});
       return samples;
+    },
+  };
+}
+
+/** Watch a tab from before it navigates: the extension's content-script context, frames attached
+ *  and navigated, new targets (a service worker started again shows here), and, in the page's
+ *  own world, the first trusted pointer move and each iframe inserted and loaded. */
+export async function watchTab(browser, page) {
+  const t0 = Date.now();
+  const events = [];
+  const at = (name, extra = {}) => events.push({ ms: Date.now() - t0, name, ...extra });
+  const cdp = await page.createCDPSession();
+  cdp.on("Runtime.executionContextCreated", ({ context }) => {
+    if (context.name?.includes("puppeteer")) return;
+    if (context.auxData?.type === "isolated" || context.origin?.startsWith("chrome-extension://")) at("context created", { name: context.name, type: context.auxData?.type ?? null });
+  });
+  await cdp.send("Runtime.enable");
+  page.on("frameattached", (f) => at("frame attached", { url: f.url().split("/").at(-1) }));
+  page.on("framenavigated", (f) => {
+    if (f !== page.mainFrame()) at("frame navigated", { url: f.url().split("/").at(-1) });
+  });
+  const onTarget = (t) => at("target created", { type: t.type(), url: t.url().split("/").at(-1) });
+  browser.on("targetcreated", onTarget);
+  await page.evaluateOnNewDocument(() => {
+    const marks = (window.__diagMarks = []);
+    const m = (name, extra = {}) => marks.push({ t: Date.now(), name, ...extra });
+    addEventListener("pointermove", (e) => {
+      if (e.isTrusted && !marks.some((x) => x.name === "first trusted pointermove")) m("first trusted pointermove");
+    }, true);
+    new MutationObserver((list) => {
+      for (const r of list)
+        for (const n of r.addedNodes)
+          if (n.tagName === "IFRAME") {
+            const src = String(n.src).split("/").at(-1);
+            m("iframe inserted", { src });
+            n.addEventListener("load", () => m("iframe load", { src }));
+          }
+    }).observe(document, { childList: true, subtree: true });
+    document.addEventListener("DOMContentLoaded", () => m("DOMContentLoaded"));
+    addEventListener("load", () => m("page load"));
+  });
+  const swRunning = () => browser.targets().some((t) => t.type() === "service_worker" && t.url().startsWith("chrome-extension://"));
+  return {
+    t0,
+    at,
+    swRunning,
+    async stop(tab) {
+      browser.off("targetcreated", onTarget);
+      const marks = await tab.evaluate(() => window.__diagMarks ?? []).catch(() => []);
+      for (const k of marks) events.push({ ms: k.t - t0, name: `page: ${k.name}`, ...(k.src ? { src: k.src } : {}) });
+      await cdp.detach().catch(() => {});
+      return events.sort((a, b) => a.ms - b.ms);
     },
   };
 }
