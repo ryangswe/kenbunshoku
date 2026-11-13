@@ -29,7 +29,8 @@
 //
 // Each check has a provisional clause id (the hover spec's ids replace them). An expected failure
 // is listed in the product block with the clause, the old value, the intended value and what
-// removes it. A setup failure, a timeout, a crash, a missing NetLog or a network violation is
+// removes it, and, where it fails only on a slow computer, the condition it is expected under
+// (it must pass when the condition does not hold). A setup failure, a timeout, a crash, a missing NetLog or a network violation is
 // never an expected failure. A listed check that passes is an unexpected pass and fails the run,
 // so the list is reviewed. Without --only, every check must have run.
 
@@ -85,6 +86,16 @@ const PRODUCT = {
       old: "after an idle unload, switching card hovers off and on while the video plays makes no frame until the pointer moves",
       intended: "the frames are made again at once",
       clearedBy: "kenbunshoku#44",
+    },
+    // Expected only when its condition holds (`when`): on a fast computer the model is ready
+    // within the window and the card must be named.
+    "second-tab-names-card": {
+      clause: "HS-FIRST-HOVER-PAUSED (provisional)",
+      when: (detail) => detail.readyMs === null || detail.readyMs > 10_000,
+      condition: "the new tab's model was ready more than 10 s after the pointer's one move",
+      old: "nothing is read once 10 s have passed since the pointer's last move, so a resting pointer gets no card when the model loads later than that",
+      intended: "a look when the model becomes ready while the pointer still rests on the picture",
+      clearedBy: "a toolkit change (reported for the standard hover spec)",
     },
   },
 };
@@ -386,7 +397,8 @@ async function setStored(ext, key, value) {
 // ------------------------------------------------------------------ the checks
 const results = [];
 function record(id, clause, ok, detail) {
-  const xf = PRODUCT.expectedFail[id];
+  const listed = PRODUCT.expectedFail[id];
+  const xf = listed && (!listed.when || listed.when(detail)) ? { ...listed, when: listed.condition } : null;
   const outcome = ok ? (xf ? "unexpected-pass" : "pass") : xf ? "expected-fail" : "fail";
   results.push({ id, clause, outcome, detail, ...(xf ? { expected: xf } : {}) });
   log(`check ${outcome}`, { id, clause, ...detail });
@@ -540,7 +552,7 @@ try {
         const named = await hoverCard(tab, "B", 60_000);
         const readyAt = await readyWatch;
         counts.secondTab = { artVisibleMs: named?.ms ?? null, readyMs: readyAt ? readyAt - hoverAt : null };
-        if (want("second-tab-names-card")) record("second-tab-names-card", "HS-FIRST-HOVER-PAUSED (provisional)", Boolean(named), { ...counts.secondTab, tooltip: named ? undefined : await tooltip(tab), analyzed: (await computeDebug(tab))?.analyzed ?? null });
+        if (want("second-tab-names-card")) record("second-tab-names-card", "HS-FIRST-HOVER-PAUSED (provisional)", Boolean(named), { ...counts.secondTab, analyzed: (await computeDebug(tab))?.analyzed ?? null });
         await tab.close();
       }
 
