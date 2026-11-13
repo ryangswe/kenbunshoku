@@ -14,8 +14,8 @@ These changes are in open pull requests and are not in a release yet.
   them. A tab in the background that had unloaded waits until it comes to the front.
   ([#44](https://github.com/ryangswe/kenbunshoku/pull/44))
 - On a slower computer, the looks that keep a shown card fresh are spaced by what they cost there,
-  aiming for looking to take about a quarter of the time, with at least one look every 4 seconds
-  while the pointer moves. A look the viewer waits on is not held back: while the pointer moves
+  aiming for looking to take about a quarter of the time. While the pointer moves, the wait
+  between those looks is at most 4 seconds. A look the viewer waits on is not held back: while the pointer moves
   over a playing video, the next look starts early enough that the card it names stays showing,
   unless a single look takes longer than that allows. ([#53](https://github.com/ryangswe/kenbunshoku/pull/53))
 - In a browser with WebGPU, when the pointer is on a card of a playing video that the card-feature

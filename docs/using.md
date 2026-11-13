@@ -105,7 +105,7 @@ under the resting pointer can take a little over 2 seconds to show, or up to abo
 slow computer. On a computer where each look
 takes longer, it waits longer between the looks that keep a card fresh, aiming for looking to take
 about a quarter of the time. The wait has a limit, so on a very slow computer looking can still
-take more than that: while you move the pointer, there is at least one look every 4 seconds.
+take more than that. While you move the pointer, the wait between those looks is at most 4 seconds.
 A look you are waiting for is not held back that way. While you move the pointer over a playing
 video, the next look starts early enough that the card it names stays showing, unless a single
 look takes longer than that allows.
