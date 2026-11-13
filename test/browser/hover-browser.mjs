@@ -433,7 +433,13 @@ try {
     const { browser, ext } = await launch(values.dist, join(work, "profile-main"), netlog);
     const runSampler = process.env.DIAG_ROUNDS ? await (await import("./diag-second-tab.mjs")).startSampler(browser) : null;
     const runSamplerAt = Date.now() - startedAt;
-    if (runSampler) log("diag-js-flags", { flags: process.env.DIAG_JS_FLAGS || null });
+    const runTrace = runSampler ? await (await import("./diag-second-tab.mjs")).startTrace(browser, () => Date.now() - startedAt) : null;
+    if (runSampler) {
+      log("diag-js-flags", { flags: process.env.DIAG_JS_FLAGS || null });
+      browser.on("targetcreated", (t) => {
+        if (t.type() === "worker" || t.type() === "service_worker" || /\.html$/.test(t.url())) log("diag-target", { type: t.type(), url: t.url().split("/").at(-1) });
+      });
+    }
     try {
       let page = await openPage(browser);
 
@@ -627,6 +633,10 @@ try {
           return { t: runSamplerAt + x.at, pool: sum(/ThreadPool/), worker: sum(/DedicatedWorker/), main: sum(/^chrome$/) };
         });
         log("diag-run-busy", { seconds: busy.filter((x) => x.pool >= 500) });
+      }
+      if (runTrace) {
+        const summary = await runTrace.stop(join(out, "trace-main.json")).catch((e) => ({ error: String(e) }));
+        log("diag-trace", summary);
       }
       await browser.close();
       browsers.delete(browser);

@@ -209,3 +209,70 @@ export async function watchTab(browser, page) {
     },
   };
 }
+
+/** A Chrome trace of V8's wasm and compile events in every process, from now until stopped. The
+ *  raw trace is written to `file`; the summary lists each event name (count, total time, first and
+ *  last time, processes) and, one by one, the events about streaming, caching and whole-module
+ *  compiles. Times are in ms on the event log's clock (`nowT`). */
+export async function startTrace(browser, nowT) {
+  const { createWriteStream } = await import("node:fs");
+  const cdp = await browser.target().createCDPSession();
+  await cdp.send("Tracing.start", {
+    transferMode: "ReturnAsStream",
+    traceConfig: { includedCategories: ["v8.wasm", "disabled-by-default-v8.wasm.detailed", "v8.compile", "disabled-by-default-v8.compile"], recordMode: "recordContinuously" },
+  });
+  await cdp.send("Tracing.recordClockSyncMarker", { syncId: "diag-start" });
+  const syncT = nowT();
+  return {
+    async stop(file) {
+      const done = new Promise((r) => cdp.once("Tracing.tracingComplete", r));
+      await cdp.send("Tracing.end");
+      const { stream } = await done;
+      const out = createWriteStream(file);
+      let text = "";
+      for (;;) {
+        const { data, eof, base64Encoded } = await cdp.send("IO.read", { handle: stream, size: 1 << 20 });
+        const chunk = base64Encoded ? Buffer.from(data, "base64").toString("utf8") : data;
+        out.write(chunk);
+        text += chunk;
+        if (eof) break;
+      }
+      await cdp.send("IO.close", { handle: stream }).catch(() => {});
+      out.end();
+      await cdp.detach().catch(() => {});
+      const parsed = JSON.parse(text);
+      const events = Array.isArray(parsed) ? parsed : parsed.traceEvents ?? [];
+      const sync = events.find((e) => e.name === "clock_sync" && e.args?.sync_id === "diag-start");
+      const toT = (ts) => (sync ? Math.round(syncT + (ts - sync.ts) / 1000) : null);
+      const byName = {};
+      const notable = [];
+      const open = new Map();
+      for (const e of events) {
+        if (!e.name || e.ph === "M" || e.name === "clock_sync") continue;
+        let dur = e.dur ?? null;
+        if (e.ph === "B") {
+          open.set(`${e.pid}/${e.tid}/${e.name}`, e.ts);
+          continue;
+        }
+        if (e.ph === "E") {
+          const b = open.get(`${e.pid}/${e.tid}/${e.name}`);
+          if (b === undefined) continue;
+          dur = e.ts - b;
+          e.ts = b;
+        }
+        const n = (byName[e.name] ??= { count: 0, ms: 0, first: null, last: null, pids: [] });
+        n.count += 1;
+        n.ms += (dur ?? 0) / 1000;
+        const t = toT(e.ts);
+        n.first = n.first === null ? t : Math.min(n.first, t);
+        n.last = n.last === null ? t : Math.max(n.last, t);
+        if (!n.pids.includes(e.pid)) n.pids.push(e.pid);
+        if (/stream|cache|serial|deserial|compile(?!function)|instantiate|tier|module/i.test(e.name) && !/CompileFunction|ExecuteCompilationUnits/i.test(e.name))
+          notable.push({ t, name: e.name, pid: e.pid, tid: e.tid, ms: dur === null ? null : Math.round(dur / 1000), ...(e.args && Object.keys(e.args).length ? { args: e.args } : {}) });
+      }
+      for (const n of Object.values(byName)) n.ms = Math.round(n.ms);
+      notable.sort((a, b) => a.t - b.t);
+      return { synced: Boolean(sync), events: events.length, byName, notable: notable.slice(0, 400) };
+    },
+  };
+}

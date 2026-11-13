@@ -93,7 +93,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        jsflags: ["", "--no-wasm-tier-up"]
+        jsflags: ["", "--no-wasm-tier-up", "--no-liftoff"]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
