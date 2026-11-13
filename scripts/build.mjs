@@ -102,7 +102,7 @@ const legalDir = join(root, "release-legal");
 const out = resolve(root, values.out);
 const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf-8"));
 const vendorDir = join(root, "vendor", "cardvision-browser");
-// The vendored runtime is checked against VENDOR.json before any of it runs.
+// The vendored runtime is checked against its manifest before any of it runs.
 const vendor = checkVendoredRuntime();
 const { buildCardTable } = await import("../vendor/cardvision-browser/remote-release.js");
 
@@ -276,7 +276,7 @@ const kind = firefox
   : values.dev ? "(dev build) " : values.store ? "(Web Store build, no key) " : "(unpacked build, fixed ID) ";
 console.log(`dist/ ${kind}${config.name} ${pkg.version} at ${commit}`);
 console.log(`  release ${release.id} (${release.game}, ${release.bank.cardCount} cards in the bank), verified by the runtime`);
-console.log(`  runtime ${vendor.package} ${vendor.version} at ${vendor.commit.slice(0, 7)}, onnxruntime-web ${ortVersion}`);
+console.log(`  runtime cardvision-browser from toolkit ${vendor.version} at ${vendor.commit.slice(0, 7)}, onnxruntime-web ${ortVersion}`);
 console.log(`  content.js ${kb("content.js")}, compute.js ${kb("compute.js")}, tooltip.js ${kb("tooltip.js")}, runtime/worker.js ${kb("runtime/worker.js")}`);
 console.log(`  ${mapSummary}`);
 // A dev build may hold them (a smoke on an unconverted release); `npm run package` refuses them.

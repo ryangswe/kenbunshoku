@@ -8,7 +8,7 @@
 // tracked files. It writes <packageName>-<version>-firefox-source.zip holding:
 //   <packageName>/        this repository at HEAD (git archive)
 //   cardvision-browser/   the vendored runtime's source: the toolkit's browser/ folder, LICENSE
-//                         and NOTICE at the commit vendor/cardvision-browser/VENDOR.json records
+//                         and NOTICE at the commit vendor/cardvision-browser/cardvision-vendor.json records
 //                         (OpenCV.js, a pinned third-party build, comes from the vendored copy:
 //                         build-firefox.sh checks it against the commit's opencv.lock.json)
 //   release/<id>/         the release the package bundles (models and card data: data, not code)
@@ -25,6 +25,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
 import { loadForkConfig } from "./fork-config.mjs";
+import { readVendorManifest } from "./vendor-check.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const { values } = parseArgs({
@@ -51,12 +52,12 @@ if (dirty) {
 }
 const commit = git(root, "rev-parse", "HEAD");
 const version = JSON.parse(readFileSync(join(root, "package.json"), "utf-8")).version;
-const vendor = JSON.parse(readFileSync(join(root, "vendor", "cardvision-browser", "VENDOR.json"), "utf-8"));
+const vendor = readVendorManifest();
 const runtimeRepo = resolve(values["runtime-repo"]);
 try {
   git(runtimeRepo, "cat-file", "-e", `${vendor.commit}^{commit}`);
 } catch {
-  console.error(`${runtimeRepo} does not have the runtime's commit ${vendor.commit} (vendor/cardvision-browser/VENDOR.json)`);
+  console.error(`${runtimeRepo} does not have the runtime's commit ${vendor.commit} (vendor/cardvision-browser/cardvision-vendor.json)`);
   process.exit(1);
 }
 const releaseDir = resolve(values.release);
@@ -139,7 +140,6 @@ echo "    $here/out/${packageZip}"
 }
 
 function readme({ commit, version, vendor, releaseId, packageZip, dir }) {
-  const cv = vendor.opencv?.lock;
   return `# ${config.name} ${version} for Firefox: source for review
 
 This archive rebuilds \`${packageZip}\`, the package uploaded to addons.mozilla.org.
@@ -169,8 +169,8 @@ It does three things:
 
 ## OpenCV.js
 
-\`runtime/opencv.mjs\` and \`runtime/opencv_js.wasm\` are OpenCV ${cv?.opencv?.tag ?? ""} compiled to
-WebAssembly with Emscripten ${cv?.emsdk?.tag ?? ""}, unmodified apart from the build options. The
+\`runtime/opencv.mjs\` and \`runtime/opencv_js.wasm\` are OpenCV ${vendor.opencvTag ?? ""} compiled to
+WebAssembly with Emscripten ${vendor.opencvEmsdk ?? ""}, unmodified apart from the build options. The
 build is not rerun here (it needs the Emscripten SDK and about an hour); the script checks both
 files against \`cardvision-browser/browser/opencv.lock.json\`, which records the OpenCV and
 Emscripten commits, the options and the SHA-256 of each file. To rebuild them:

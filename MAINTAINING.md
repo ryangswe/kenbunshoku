@@ -86,10 +86,10 @@ When the cardvision toolkit publishes a better detector or recognizer, or a new 
    it on a fresh held-out set before shipping; a release that was not measured says so in
    [docs/accuracy.md](docs/accuracy.md). A new recognizer means a new bank, so a new geometric
    index too.
-2. If the runtime changed, vendor the new commit: `node scripts/vendor-runtime.mjs --repo <toolkit
-   checkout> --commit <sha> --opencv <OpenCV.js build>` (see [docs/development.md](docs/development.md)).
-   Keep `onnxruntime-web` in `package.json` at the version `vendor/cardvision-browser/VENDOR.json`
-   names. Run `npm test`.
+2. If the runtime changed, vendor the new commit with the toolkit's vendor tool (see
+   [docs/development.md](docs/development.md)). Keep `onnxruntime-web` in `package.json` at the
+   version the `ort` entry of `vendor/cardvision-browser/cardvision-vendor.json` names. Run
+   `npm run vendor-check` and `npm test`.
 3. Update `release-legal/` (license, notice, provenance of the models). A release with new models
    can be published through the pointer like a set update (`publish-release --sessions`, after its
    held-out measurement), or bundled in a store release: one that needs a newer runtime ships

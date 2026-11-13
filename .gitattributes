@@ -3,5 +3,5 @@
 docs/store/ export-ignore
 media/ export-ignore
 
-# The vendored runtime is checked byte for byte against VENDOR.json: never convert its line endings.
+# The vendored runtime is checked byte for byte against its manifest (cardvision-vendor.json): never convert its line endings.
 vendor/cardvision-browser/** -text

@@ -85,24 +85,32 @@ archive into an empty folder, run `./build-firefox.sh`, and `diff -r` the unzipp
 
 ## The runtime
 
-`vendor/cardvision-browser/` holds the runtime's built modules at the commit recorded in its
-`VENDOR.json`, with its license and notice: the worker and the runtime, and the toolkit's
-entries for extensions (`compute-session.js` for the compute frame, `page-capture.js` for the
-content script, `remote-release.js` for remote releases; their contract is the toolkit's
-`docs/extension-session.md`). To update it:
+`vendor/cardvision-browser/` holds the runtime's built modules from one toolkit commit, with its
+license and notices: the worker and the runtime, and the toolkit's entries for extensions
+(`compute-session.js` for the compute frame, `page-capture.js` for the content script,
+`remote-release.js` for remote releases; their contract is the toolkit's
+`docs/extension-session.md`), their TypeScript declarations, OpenCV.js for the geometric stage, and
+`hover-spec.json`, the index of the toolkit's hover spec. `cardvision-vendor.json` records the
+toolkit version and commit, the ONNX Runtime pin and each file's SHA-256. The toolkit's own tool
+writes the folder; see "Vendoring the runtime, and checking it" in the toolkit's
+`browser/README.md`. To update it, in a clean toolkit checkout at the commit:
 
 ```
-node scripts/vendor-runtime.mjs --repo <path to a cardvision toolkit checkout> --commit <sha> \
-    --opencv <folder with the runtime's OpenCV.js build>
+(cd <toolkit>/browser && npm ci && npm run build)
+npm --prefix <toolkit>/browser run vendor -- --into vendor/cardvision-browser --no-ort-wasm
+npm --prefix <toolkit>/browser run vendor-check -- vendor/cardvision-browser
 ```
 
-It builds the runtime from that commit in a temporary folder (its own `npm ci` and `npm run
-build`) and copies the result here. OpenCV.js (`opencv.mjs`, `opencv_js.wasm`, their
-`opencv.mjs.LEGAL.txt`) is built by the runtime's `scripts/build-opencv.mjs`, which git does not
-keep; `--opencv` names that build, which must match the commit's `opencv.lock.json` (recorded in
-`VENDOR.json`). ONNX Runtime Web's WebAssembly files are not vendored; the
-build copies them from this repository's `onnxruntime-web` dependency, which must be the version
-`VENDOR.json` names.
+Run them from this repository's top folder. The build copies OpenCV.js only when the toolkit
+checkout's `browser/vendor/opencv/` holds the files its `opencv.lock.json` records, which
+`scripts/build-opencv.mjs` makes and git does not keep; the copies already in
+`vendor/cardvision-browser/` match the lock while it is unchanged. `vendor-check` in the toolkit
+checkout also compares the folder with that commit's build. `npm run vendor-check` here (and in CI)
+runs the stand-alone checker the folder carries, which checks everything but that comparison.
+
+ONNX Runtime Web's WebAssembly files are not vendored (`--no-ort-wasm`): the build copies them from
+this repository's `onnxruntime-web` dependency, which must be the version the manifest's `ort`
+entry names.
 
 ## Manual check on a local video
 
