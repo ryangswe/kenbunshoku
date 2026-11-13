@@ -25,7 +25,9 @@ These changes are in open pull requests and are not in a release yet.
   move, while the pointer still rests over the video, Kenbunshoku looks once then. If that look
   finds no card, it waits for the pointer to move. A new tab whose model loads slowly can now name
   the card under a resting pointer. ([#53](https://github.com/ryangswe/kenbunshoku/pull/53))
-- While a look that got no answer waits to be tried again, no other look starts. ([#53](https://github.com/ryangswe/kenbunshoku/pull/53))
+- While a look that got no answer waits to be tried again, no other look starts unless the pointer
+  moves onto a different card. Moving within the same card waits for the retry.
+  ([#53](https://github.com/ryangswe/kenbunshoku/pull/53))
 - After the site moves to a page where card hovers do not run (for example from a YouTube video to
   the home page, with the video playing on in a small player), a pointer resting over that player
   no longer leads to a picture being read. Before, this was checked only when the pointer moved.
