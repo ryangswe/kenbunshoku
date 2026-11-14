@@ -1,0 +1,16 @@
+{
+  "$comment": "The model release the extension bundles, pinned once for the tests workflow and the store build (scripts/fetch-release.mjs). It is downloaded from the public model repository at this commit, and release.json is checked against this SHA-256 (the build then checks every file against release.json). When the bundled release moves (release-legal/NOTICE names it), move the commit and the SHA-256 together.",
+  "repo": "https://huggingface.co/JuicyKaraageNo1/kenbunshoku-onepiece",
+  "commit": "5526f531863381745780f4377f1cae767077ca77",
+  "releaseJsonSha256": "843f35d77f7bf3b833713e19372e5f6af95f95fb70d62d068861de142f894f63",
+  "files": [
+    "release.json",
+    "catalog.json",
+    "bank.json",
+    "bank.identity-groups.json",
+    "accept.json",
+    "detector.onnx",
+    "recognizer.onnx",
+    "SHA256SUMS"
+  ]
+}
