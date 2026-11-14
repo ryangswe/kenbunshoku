@@ -7,7 +7,11 @@ which has the full notes and the download. Versions before 0.5.0 are described o
 
 ## Unreleased
 
-These changes are in open pull requests and are not in a release yet.
+Nothing yet.
+
+## 0.6.0 (2026-11-14)
+
+[GitHub release](https://github.com/ryangswe/kenbunshoku/releases/tag/v0.6.0)
 
 - Turning card hovers off and on in the popup after they were unloaded for being idle starts them
   again, as when the page opens: at once if the main video plays on a page where playing starts
@@ -15,18 +19,22 @@ These changes are in open pull requests and are not in a release yet.
   ([#44](https://github.com/ryangswe/kenbunshoku/pull/44))
 - On a slower computer, the looks that keep a shown card fresh are spaced by what they cost there,
   aiming for looking to take about a quarter of the time. While the pointer moves, the wait
-  between those looks is at most 4 seconds. A look the viewer waits on is not held back: while the pointer moves
-  over a playing video, the next look starts early enough that the card it names stays showing,
-  unless a single look takes longer than that allows. ([#53](https://github.com/ryangswe/kenbunshoku/pull/53))
+  between those looks is at most 4 seconds. A look the viewer waits on is not held back: while the
+  pointer moves over a playing video, the next look starts early enough that the card it names
+  stays showing, unless a single look takes longer than that allows. On a slow computer, a card
+  that arrives under a resting pointer can take up to about 4 seconds to show.
+  ([#53](https://github.com/ryangswe/kenbunshoku/pull/53))
 - In a browser with WebGPU, when the pointer is on a card of a playing video that the card-feature
   check has not confirmed yet, the next look for it starts at most every half second instead of
   every quarter second. ([#53](https://github.com/ryangswe/kenbunshoku/pull/53))
 - If the recognition model finishes loading after the 10 seconds that follow the pointer's last
-  move, while the pointer still rests over the video, Kenbunshoku looks once then. If that look
-  finds no card, it waits for the pointer to move. A new tab whose model loads slowly can now name
-  the card under a resting pointer. ([#53](https://github.com/ryangswe/kenbunshoku/pull/53))
-- While a look that got no answer waits to be tried again, no other look starts unless the pointer
-  moves onto a different card. Moving within the same card waits for the retry.
+  move, while the pointer still rests over the video, Kenbunshoku looks once then, still within 60
+  seconds of that move. If that look finds no card, it waits for the pointer to move. A new tab
+  whose model loads slowly can now name the card under a resting pointer.
+  ([#53](https://github.com/ryangswe/kenbunshoku/pull/53))
+- While a look that got no answer waits to be tried again, no other look starts unless a pointer
+  move or tap puts the pointer on a different card. Moving within the same card waits for the
+  retry.
   ([#53](https://github.com/ryangswe/kenbunshoku/pull/53))
 - After the site moves to a page where card hovers do not run (for example from a YouTube video to
   the home page, with the video playing on in a small player), a pointer resting over that player
@@ -37,6 +45,8 @@ These changes are in open pull requests and are not in a release yet.
   video. ([#53](https://github.com/ryangswe/kenbunshoku/pull/53))
 - A `playing` event made up by a page script no longer starts loading card hovers; only the
   browser's own event does. ([#53](https://github.com/ryangswe/kenbunshoku/pull/53))
+- It runs on the cardvision toolkit 0.14.0rc2. It ships the same recognition release as 0.5.0,
+  B2.1, and asks for the same permissions.
 
 ## 0.5.0 (2026-11-13)
 
