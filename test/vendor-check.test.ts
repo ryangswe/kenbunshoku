@@ -1,57 +1,46 @@
 // SPDX-License-Identifier: Apache-2.0
-import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 // @ts-expect-error: a plain .mjs build script, without declarations.
-import { vendoredFiles, vendorProblems } from "../scripts/vendor-check.mjs";
-
-const sha = (text: string): string => createHash("sha256").update(text).digest("hex");
+import { readVendorManifest, vendorDir } from "../scripts/vendor-check.mjs";
+// @ts-expect-error: the toolkit's stand-alone checker, a plain .mjs file without declarations.
+import { checkVendor } from "../vendor/cardvision-browser/cardvision-vendor-check.mjs";
 
 describe("the vendored runtime check", () => {
-  let dir: string;
-  let recorded: Record<string, string>;
-
-  beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "vendor-check-"));
-    mkdirSync(join(dir, "types"));
-    writeFileSync(join(dir, "worker.js"), "worker");
-    writeFileSync(join(dir, "types", "index.d.ts"), "types");
-    writeFileSync(join(dir, "VENDOR.json"), "{}");
-    writeFileSync(join(dir, ".DS_Store"), "finder");
-    recorded = { "types/index.d.ts": sha("types"), "worker.js": sha("worker") };
-  });
-  afterEach(() => rmSync(dir, { recursive: true, force: true }));
-
-  it("lists every file but VENDOR.json and hidden ones, with forward slashes", () => {
-    expect(vendoredFiles(dir)).toEqual(["types/index.d.ts", "worker.js"]);
+  it("finds the repository's own vendored runtime as its manifest records it", () => {
+    expect(checkVendor(vendorDir)).toEqual([]);
   });
 
-  it("finds nothing wrong with the folder as recorded", () => {
-    expect(vendorProblems(dir, recorded)).toEqual([]);
+  it("reads the toolkit commit and the ONNX Runtime pin the build uses", () => {
+    const vendor = readVendorManifest();
+    expect(vendor.commit).toMatch(/^[0-9a-f]{40}$/);
+    expect(vendor.version).toMatch(/^\d+\.\d+\.\d+/);
+    expect(vendor.ortFiles).toEqual(["ort-wasm-simd-threaded.jsep.mjs", "ort-wasm-simd-threaded.jsep.wasm"]);
+    const pkg = JSON.parse(readFileSync(join(import.meta.dirname, "..", "package.json"), "utf-8")) as { dependencies: Record<string, string> };
+    expect(pkg.dependencies["onnxruntime-web"]).toBe(vendor.onnxruntimeWeb);
   });
 
-  it("names a changed file", () => {
-    writeFileSync(join(dir, "worker.js"), `${readFileSync(join(dir, "worker.js"), "utf-8")}\n// edited`);
-    expect(vendorProblems(dir, recorded)).toEqual(["worker.js differs from its recorded SHA-256"]);
-  });
+  describe("on a copy of the folder", () => {
+    let dir: string;
+    beforeEach(() => {
+      dir = join(mkdtempSync(join(tmpdir(), "vendor-check-")), "cardvision-browser");
+      cpSync(vendorDir, dir, { recursive: true });
+    });
+    afterEach(() => rmSync(join(dir, ".."), { recursive: true, force: true }));
 
-  it("names a missing file and one that is not listed", () => {
-    rmSync(join(dir, "worker.js"));
-    writeFileSync(join(dir, "types", "extra.d.ts"), "extra");
-    expect(vendorProblems(dir, recorded)).toEqual(["types/extra.d.ts is not in VENDOR.json", "worker.js is missing"]);
-  });
+    it("names a changed file", () => {
+      appendFileSync(join(dir, "worker.js"), "\n// edited");
+      const problems = checkVendor(dir) as string[];
+      expect(problems.length).toBeGreaterThan(0);
+      expect(problems.join("\n")).toContain("worker.js");
+    });
 
-  it("refuses a VENDOR.json without hashes", () => {
-    expect(vendorProblems(dir, undefined)).toHaveLength(1);
-    expect(vendorProblems(dir, {})).toHaveLength(1);
-  });
-
-  it("checks the repository's own vendored runtime clean", () => {
-    const own = join(import.meta.dirname, "..", "vendor", "cardvision-browser");
-    const vendor = JSON.parse(readFileSync(join(own, "VENDOR.json"), "utf-8")) as { sha256: Record<string, string> };
-    expect(vendorProblems(own, vendor.sha256)).toEqual([]);
+    it("names a file the manifest does not list", () => {
+      writeFileSync(join(dir, "extra.js"), "extra");
+      expect((checkVendor(dir) as string[]).join("\n")).toContain("extra.js");
+    });
   });
 });

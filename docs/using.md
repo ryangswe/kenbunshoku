@@ -93,13 +93,22 @@ When a video plays on the pages named in
 [Turning card hovers on and off](#turning-card-hovers-on-and-off), the recognition model starts in
 that tab, which takes a moment, so that it is ready by the time you point at a card. Recognition
 runs only while the pointer is over the video, and stops by itself about 10 seconds after
-you stop moving it. If the video jumps to another point while a card is showing, it looks again
+you stop moving it. If the model is still starting when those 10 seconds pass and the pointer
+still rests over the video, it looks once when it is ready; if that look finds no card, it waits
+until you move the pointer. If the video jumps to another point while a card is showing, it looks again
 for a few seconds. With
 **Keep the card I'm pointing at** turned off, it goes on while a card is showing under the resting
 pointer. Either way, it stops at the latest 60 seconds after you last moved it. It stops at once when
 the pointer leaves the video or the tab goes to the background. While the pointer rests on a spot
 where no card is showing, it looks every 2 seconds instead of once or twice a second, so a card that appears
-under the resting pointer can take a little over 2 seconds to show.
+under the resting pointer can take a little over 2 seconds to show, or up to about 4 seconds on a
+slow computer. On a computer where each look
+takes longer, it waits longer between the looks that keep a card fresh, aiming for looking to take
+about a quarter of the time. The wait has a limit, so on a very slow computer looking can still
+take more than that. While you move the pointer, the wait between those looks is at most 4 seconds.
+A look you are waiting for is not held back that way. While you move the pointer over a playing
+video, the next look starts early enough that the card it names stays showing, unless a single
+look takes longer than that allows.
 
 After 10 minutes in which you have not moved the pointer over the video and no card has been
 showing, Kenbunshoku unloads the recognition model in that tab to give its memory back. A pointer

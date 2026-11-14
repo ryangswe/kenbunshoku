@@ -7,7 +7,7 @@
 # they arrive apart from everything else (a major update of one still goes to the main group).
 #
 # Held:
-#   - onnxruntime-web: it must match the vendored runtime (vendor/cardvision-browser/VENDOR.json)
+#   - onnxruntime-web: it must match the vendored runtime (vendor/cardvision-browser/cardvision-vendor.json)
 #     and the release it was measured on; the build refuses a mismatch. Moving it means
 #     re-vendoring the runtime, which is its own change.
 #   - @types/node 25 and later: the types stay on the Node versions CI runs (22 and 24).

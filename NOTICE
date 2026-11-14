@@ -25,7 +25,7 @@ Upstream: https://github.com/ryangswe/riftsight-vision (the cardvision toolkit, 
 
 The card detection and recognition runtime this extension runs on. Its own LICENSE and NOTICE
 are kept beside it, in vendor/cardvision-browser/ and in the built extension's runtime/ folder.
-The commit it was built from is recorded in vendor/cardvision-browser/VENDOR.json.
+The commit it was built from is recorded in vendor/cardvision-browser/cardvision-vendor.json.
 runtime/NOTICE is the cardvision toolkit's notice for its own code and its own Riftbound release,
 kept as published; the One Piece Card Game card names, ids and art in this extension belong to
 their owners, as "Not affiliated" above says, and its models and card data are covered by
@@ -49,7 +49,7 @@ Upstream: https://github.com/opencv/opencv, https://github.com/emscripten-core/e
 
 Used by the runtime's geometric stage, and shipped in the built extension's runtime/ folder.
 The copyright notices and license texts are in opencv.mjs.LEGAL.txt beside it; the build it
-came from is pinned in vendor/cardvision-browser/VENDOR.json (opencv.lock).
+came from is pinned in vendor/cardvision-browser/cardvision-vendor.json (opencv).
 
 ------------------------------------------------------------------------------
 One Piece Card Game models (shipped in the built extension's release/ folder)

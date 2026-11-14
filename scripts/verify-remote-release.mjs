@@ -37,7 +37,7 @@ if (!values.dir === !values.url) {
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const vendorDir = join(root, "vendor", "cardvision-browser");
-// The vendored runtime is checked against VENDOR.json before any of it runs.
+// The vendored runtime is checked against its manifest before any of it runs.
 const vendor = checkVendoredRuntime();
 const { loadReleaseData, loadRelease } = await import(pathToFileURL(join(vendorDir, "cardvision.js")).href);
 
@@ -68,7 +68,7 @@ if (!checked.ok) {
   else if (values.sessions) {
     try {
       // ONNX Runtime's wasm files: this repository's pinned onnxruntime-web, the pair the build
-      // copies beside the worker (VENDOR.json ortFiles).
+      // copies beside the worker (the manifest's ort.files).
       const ortDist = join(dirname(createRequire(import.meta.url).resolve("onnxruntime-web")), "..", "dist");
       const loaded = await loadRelease(releaseUrl, { providers: ["wasm"], deps, wasmPaths: `${pathToFileURL(ortDist).href}/` });
       out.sessions = `ok (detector ${loaded.backend.detector}, recognizer ${loaded.backend.recognizer})`;

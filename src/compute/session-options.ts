@@ -26,6 +26,13 @@ export const SESSION_OPTIONS = {
   // the video plays (owner, 2026-11-12: "At the first hover"). A tab whose video plays but is never
   // pointed at holds no copy. Looks before the stage is ready run without it, as at any start.
   geometricLoad: "pointer",
+  // Analyses are spaced from what they cost on this computer: the wait between the looks that keep
+  // a card fresh lets analysis take at most a quarter of the time (the toolkit's default share),
+  // never shorter than the fixed cadence, so a slow computer is not kept busy analyzing (owner,
+  // 2026-11-12: both products pace). Since toolkit 0.14.0 a look the viewer waits on is not paced,
+  // and a pointer move over a stale picture looks within the budget that keeps its answer on screen.
+  // The analysis time is measured within the session and not stored.
+  measuredPacing: true,
 } as const;
 
 /**
