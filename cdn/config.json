@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-13T00:00:00Z",
+  "updatedAt": "2026-11-14T00:00:00Z",
   "namesOnly": false,
   "primary": {
     "id": "cdn",
@@ -21,8 +21,8 @@
     }
   },
   "update": {
-    "latest": "0.5.0",
-    "url": "https://github.com/ryangswe/kenbunshoku/releases/tag/v0.5.0"
+    "latest": "0.6.0",
+    "url": "https://github.com/ryangswe/kenbunshoku/releases/tag/v0.6.0"
   },
   "release": {
     "id": "0aa3e56d7c3dde5d",
