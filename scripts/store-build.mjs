@@ -11,21 +11,24 @@
 //
 // Before building, it checks that cdn/RUNTIMES.json has a row for this version that names the
 // vendored toolkit commit, the ONNX Runtime Web version and the bundled release. After building,
-// it unpacks the source archive, runs its build-firefox.sh and checks that the package it makes
-// holds the same files, byte for byte, as out/firefox.zip.
+// it unpacks the source archive in a temporary folder outside this repository (so nothing here can
+// stand in for a missing dependency), runs its build-firefox.sh and checks that the package it
+// makes holds the same files, byte for byte, as out/firefox.zip. It refuses to start when tracked
+// files have uncommitted changes, since Mozilla's reviewers rebuild from one commit.
 //
-// Without --release it downloads the pinned release (scripts/fetch-release.mjs) into
-// out/release. Without --runtime-repo it clones the toolkit into out/toolkit, for the source
-// archive. It uploads nothing.
+// Without --release it downloads the pinned release (scripts/fetch-release.mjs) into out/release;
+// a folder given with --release must match the same pin. Without --runtime-repo it clones the
+// toolkit into out/toolkit, for the source archive. It uploads nothing.
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
-import { fetchRelease } from "./fetch-release.mjs";
+import { fetchRelease, readReleasePin, releaseProblems } from "./fetch-release.mjs";
 import { loadForkConfig } from "./fork-config.mjs";
 import { readVendorManifest } from "./vendor-check.mjs";
 
@@ -52,12 +55,19 @@ const version = pkg.version;
 const config = loadForkConfig();
 const vendor = readVendorManifest();
 
+// 0. A clean tree, checked before minutes of building: the packages and the source archive must
+// come from the same commit. No package from an earlier run is left in out/.
+const dirty = capture("git", ["status", "--porcelain", "--untracked-files=no"]).trimEnd();
+if (dirty) fail(`uncommitted changes to tracked files; commit first:\n${dirty}`);
 mkdirSync(out, { recursive: true });
+for (const zip of ["chrome.zip", "firefox.zip", "firefox-source.zip"]) rmSync(join(out, zip), { force: true });
 
 // 1. The release.
 let releaseDir;
 if (values.release) {
   releaseDir = resolve(values.release);
+  const problems = releaseProblems(releaseDir, readReleasePin());
+  if (problems.length > 0) fail(`${releaseDir} is not the release pinned in scripts/bundled-release.json:\n  ${problems.join("\n  ")}`);
 } else {
   try {
     releaseDir = (await fetchRelease(join(out, "release"))).dir;
@@ -110,13 +120,11 @@ if (values["runtime-repo"]) {
   }
 }
 const sourceZip = join(out, "firefox-source.zip");
-rmSync(sourceZip, { force: true });
 run(process.execPath, ["scripts/firefox-source-archive.mjs", "--release", releaseDir, "--runtime-repo", runtimeRepo, "--out", sourceZip]);
 
 // 5. The round trip: the archive's own build-firefox.sh must make the same files.
-const check = join(out, "source-check");
-rmSync(check, { recursive: true, force: true });
-mkdirSync(check);
+const check = mkdtempSync(join(tmpdir(), `${config.packageName}-source-check-`));
+process.on("exit", () => rmSync(check, { recursive: true, force: true }));
 run("unzip", ["-q", sourceZip, "-d", check]);
 run("./build-firefox.sh", [], check);
 const rebuilt = join(check, "out", `${config.packageName}-${version}-firefox.zip`);
@@ -142,6 +150,5 @@ for (const [name, hash] of a) {
 for (const name of b.keys()) if (!a.has(name)) differences.push(`${name}: only in the rebuilt package`);
 if (differences.length > 0) fail(`the source archive does not rebuild out/firefox.zip:\n  ${differences.join("\n  ")}`);
 console.log(`the source archive rebuilds out/firefox.zip: the same ${a.size} files, byte for byte`);
-rmSync(check, { recursive: true, force: true });
 
 console.log(`wrote out/chrome.zip, out/firefox.zip and out/firefox-source.zip for ${version}`);

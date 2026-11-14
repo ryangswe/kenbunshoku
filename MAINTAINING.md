@@ -77,6 +77,12 @@ core-model refresh, below, not a set update.
   and bundled release), so that `publish-release` knows which versions a pointer reaches.
 - The store version moves in step with the GitHub release: the same version, built from the same
   commit. Submitting, and every declaration in the store's dashboard, is the owner's.
+- For the store release workflow, add `store/releases/<version>.json` with its notes for
+  addons.mozilla.org, and update `store/permissions.json` and `store/lint-baseline.json` when the
+  packages change them. The store check on pull requests stays red until they match the version
+  in `package.json`. `npm run store:build` builds the packages the workflow uploads, and the
+  release tag starts the workflow, whose upload waits for the owner's approval. See "Store
+  packages" in `docs/development.md` and the toolkit's `docs/store-uploads.md`.
 
 ## A core-model refresh
 

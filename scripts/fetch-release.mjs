@@ -5,7 +5,9 @@
 //
 //   node scripts/fetch-release.mjs --out <folder>
 //
-// A file already in the folder is kept if it passes the checks, so a second run downloads nothing.
+// A folder that already passes every check is kept as it is, so a second run downloads nothing;
+// otherwise all the files are downloaded again. Each download gives up after two minutes, and is
+// tried three times.
 
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -40,7 +42,7 @@ export function releaseProblems(dir, pin) {
   if (sha256(releaseJson) !== pin.releaseJsonSha256) problems.push("release.json does not match the pinned SHA-256");
   const sums = read("SHA256SUMS");
   if (!sums) return [...problems, "SHA256SUMS is missing"];
-  for (const line of sums.toString("utf-8").split("\n")) {
+  for (const line of sums.toString("utf-8").split(/\r?\n/)) {
     if (!line.trim()) continue;
     const m = line.match(/^([0-9a-f]{64}) [ *](.+)$/);
     if (!m) {
@@ -54,7 +56,7 @@ export function releaseProblems(dir, pin) {
   return problems;
 }
 
-/** Download what the folder lacks (or holds with the wrong bytes), then check everything. */
+/** Keep the folder if it passes every check; otherwise download every file, then check again. */
 export async function fetchRelease(outDir) {
   const pin = readReleasePin();
   const dir = resolve(outDir);
@@ -66,7 +68,7 @@ export async function fetchRelease(outDir) {
     let lastError;
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
-        const res = await fetch(url, { redirect: "follow" });
+        const res = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(120_000) });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         writeFileSync(join(dir, name), Buffer.from(await res.arrayBuffer()));
         lastError = undefined;
