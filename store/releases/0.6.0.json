@@ -1,0 +1,10 @@
+{
+  "version": "0.6.0",
+  "chrome": { "submit": "auto", "publish": "default" },
+  "firefox": {
+    "releaseNotes": { "en-US": "0.6.0/amo-release-notes.en-US.md" },
+    "approvalNotes": "0.6.0/amo-approval-notes.md"
+  },
+  "permissionsChanged": false,
+  "before": [{ "url": "https://cdn.kenbunshoku.com/config.json", "why": "the settings file every install reads" }]
+}

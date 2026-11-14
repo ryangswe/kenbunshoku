@@ -1,0 +1,14 @@
+{
+  "chrome": { "publisherId": "2539681c-12da-4a7a-944a-4bd2b3d052c1", "itemId": "gndfmgcngfebiiiioddngmifddjiiabf" },
+  "firefox": { "addon": "kenbunshoku@kenbunshoku.com" },
+  "deny": [
+    "OPCDN",
+    "opcdn.py",
+    "cdn/.env",
+    "publish-release",
+    "publish-geo",
+    "publish-l10n",
+    "publish-webp",
+    "verify-release-live"
+  ]
+}

@@ -7,7 +7,7 @@
   "options": {
     "opencv": true,
     "ortWasm": false,
-    "nodeTools": false
+    "nodeTools": true
   },
   "unmanaged": [],
   "ort": {
@@ -73,6 +73,18 @@
     "hover-spec.json": {
       "bytes": 42974,
       "sha256": "bf1219d38e799461018df56931251c0d25b1ebe6b17ad819be54dddd8e3c600e"
+    },
+    "node/package-zip.mjs": {
+      "bytes": 2861,
+      "sha256": "b8b644c82a2cddfac0ba62b89565fb67faf65436f7386da84bab8126966b790d"
+    },
+    "node/store-upload.mjs": {
+      "bytes": 37507,
+      "sha256": "384a13a2f9ef0a0b5e517eb66bfb7148517e69f317bbe3cac9accd04dd0d5cea"
+    },
+    "node/verify-release.mjs": {
+      "bytes": 5989,
+      "sha256": "52ba206a64931e79cd12009436c0551255576c9d3019909896ccaab19af992b3"
     },
     "opencv.mjs": {
       "bytes": 125547,

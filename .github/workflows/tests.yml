@@ -8,9 +8,11 @@
 # Firefox build. The build itself refuses a text file too large for that linter
 # (scripts/package-size.mjs).
 #
-# The release is downloaded from the public model repository on Hugging Face at a pinned commit,
-# and release.json is checked against a pinned SHA-256 (the build then checks every file against
-# release.json). When the bundled release moves (release-legal/NOTICE names it), move both pins.
+# The release is downloaded from the public model repository on Hugging Face at the commit pinned
+# in scripts/bundled-release.json, and release.json is checked against the SHA-256 pinned there
+# (scripts/fetch-release.mjs; the build then checks every file against release.json). The store
+# build reads the same pin. When the bundled release moves (release-legal/NOTICE names it), move
+# both values in that file.
 #
 # The hover browser test (test/browser/hover-browser.mjs) loads a dev build in headless Chrome for
 # Testing on a local page with a clip rendered from official card pictures fetched at setup, and
@@ -31,11 +33,6 @@ permissions:
 concurrency:
   group: tests-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
-env:
-  RELEASE_REPO: https://huggingface.co/JuicyKaraageNo1/kenbunshoku-onepiece
-  RELEASE_COMMIT: 5526f531863381745780f4377f1cae767077ca77
-  RELEASE_JSON_SHA256: 843f35d77f7bf3b833713e19372e5f6af95f95fb70d62d068861de142f894f63
 
 jobs:
   tests:
@@ -71,16 +68,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Download the bundled model release
-        run: |
-          set -eu
-          mkdir -p "$RUNNER_TEMP/release"
-          cd "$RUNNER_TEMP/release"
-          for file in release.json catalog.json bank.json bank.identity-groups.json accept.json \
-            detector.onnx recognizer.onnx SHA256SUMS; do
-            curl -sSfL --retry 3 -o "$file" "$RELEASE_REPO/resolve/$RELEASE_COMMIT/$file"
-          done
-          echo "$RELEASE_JSON_SHA256  release.json" | sha256sum -c -
-          sha256sum -c SHA256SUMS
+        run: node scripts/fetch-release.mjs --out "$RUNNER_TEMP/release"
       - name: Build for Chrome
         run: npm run build -- --release "$RUNNER_TEMP/release" --out dist
       - name: Build for Firefox
@@ -102,16 +90,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Download the bundled model release
-        run: |
-          set -eu
-          mkdir -p "$RUNNER_TEMP/release"
-          cd "$RUNNER_TEMP/release"
-          for file in release.json catalog.json bank.json bank.identity-groups.json accept.json \
-            detector.onnx recognizer.onnx SHA256SUMS; do
-            curl -sSfL --retry 3 -o "$file" "$RELEASE_REPO/resolve/$RELEASE_COMMIT/$file"
-          done
-          echo "$RELEASE_JSON_SHA256  release.json" | sha256sum -c -
-          sha256sum -c SHA256SUMS
+        run: node scripts/fetch-release.mjs --out "$RUNNER_TEMP/release"
       - name: Build two dev builds (the second unloads after 6 idle seconds)
         run: |
           npm run build -- --dev --release "$RUNNER_TEMP/release" --out dist

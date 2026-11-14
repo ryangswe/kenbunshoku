@@ -83,6 +83,32 @@ for the source archive Mozilla's reviewers rebuild from (the bundles are minifie
 archive into an empty folder, run `./build-firefox.sh`, and `diff -r` the unzipped
 `out/kenbunshoku-<version>-firefox.zip` against the unzipped upload: every file must match.
 
+## Store packages
+
+`npm run store:build` builds what the store release workflow uploads, from the current commit:
+
+- `out/chrome.zip`, the Chrome Web Store package (the `--store` build);
+- `out/firefox.zip`, the addons.mozilla.org package;
+- `out/firefox-source.zip`, the source archive for Mozilla's reviewers (never publish it).
+
+It downloads the bundled release pinned in `scripts/bundled-release.json`, the same pin the tests
+workflow uses (`node scripts/fetch-release.mjs --out <folder>` downloads it alone), unless
+`--release <folder>` names one. For the source archive it clones the toolkit into `out/toolkit`,
+unless `--runtime-repo <toolkit checkout>` names one. It refuses to build when
+`cdn/RUNTIMES.json` has no row for the version, or the row names a different toolkit commit,
+ONNX Runtime Web version or bundled release. After building, it unpacks the source archive, runs
+its `./build-firefox.sh`, and fails unless the rebuilt package holds the same files, byte for
+byte, as `out/firefox.zip`. It needs a clean working tree, since reviewers rebuild from one commit.
+
+The workflows are the toolkit's template, with every action pinned to a commit
+(`.github/workflows/store-release.yml`), and a pull request check that runs the same build and
+checks with the tag the version would get (`.github/workflows/store-check.yml`). The `store/`
+folder holds what the toolkit's `store-upload.mjs check` compares the packages with: the store
+items and the words no workflow may contain (`store.config.json`), the permissions of this
+release (`permissions.json`), the Firefox lint warnings already read and accepted, with the
+linter version they come from (`lint-baseline.json`), and one file per release with its notes for
+addons.mozilla.org (`releases/<version>.json`). See the toolkit's `docs/store-uploads.md`.
+
 ## The runtime
 
 `vendor/cardvision-browser/` holds the runtime's built modules from one toolkit commit, with its
@@ -100,7 +126,7 @@ mkdir -p <toolkit>/browser/vendor/opencv
 cp vendor/cardvision-browser/opencv.mjs vendor/cardvision-browser/opencv_js.wasm \
    vendor/cardvision-browser/opencv.mjs.LEGAL.txt <toolkit>/browser/vendor/opencv/
 (cd <toolkit>/browser && npm ci && npm run build)
-npm --prefix <toolkit>/browser run vendor -- --into vendor/cardvision-browser --no-ort-wasm
+npm --prefix <toolkit>/browser run vendor -- --into vendor/cardvision-browser --no-ort-wasm --node-tools
 npm --prefix <toolkit>/browser run vendor-check -- vendor/cardvision-browser
 ```
 
@@ -116,6 +142,9 @@ runs the stand-alone checker the folder carries, which checks everything but tha
 ONNX Runtime Web's WebAssembly files are not vendored (`--no-ort-wasm`): the build copies them from
 this repository's `onnxruntime-web` dependency, which must be the version the manifest's `ort`
 entry names.
+
+`--node-tools` adds the toolkit's Node tools in `vendor/cardvision-browser/node/`. The store
+workflows run its `store-upload.mjs`; the extension's packages do not include that folder.
 
 ## Manual check on a local video
 

@@ -1,0 +1,26 @@
+{
+  "$comment": "The Firefox lint warnings of web-ext 10.8.0 (addons-linter 10.14.0) that this extension has read and accepts, one entry per warning, by rule and file. The store workflows pin the same web-ext version: move the version and this list together.",
+  "webExt": "10.8.0",
+  "warnings": [
+    {
+      "code": "DANGEROUS_EVAL",
+      "file": "runtime/ort-wasm-simd-threaded.jsep.mjs",
+      "why": "ONNX Runtime Web 1.29.0's own code (the Function constructor), bundled unmodified to run the recognition models"
+    },
+    {
+      "code": "DANGEROUS_EVAL",
+      "file": "runtime/worker.js",
+      "why": "ONNX Runtime Web 1.29.0's code (the Function constructor), bundled into the runtime's worker"
+    },
+    {
+      "code": "UNSAFE_VAR_ASSIGNMENT",
+      "file": "runtime/worker.js",
+      "why": "dynamic import of a file inside the package: ONNX Runtime Web loading its own module"
+    },
+    {
+      "code": "UNSAFE_VAR_ASSIGNMENT",
+      "file": "runtime/worker.js",
+      "why": "dynamic import of a file inside the package: the runtime loading the packaged OpenCV.js (runtime/opencv.mjs)"
+    }
+  ]
+}
