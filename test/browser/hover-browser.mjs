@@ -352,6 +352,40 @@ async function tooltip(page) {
   return { visible: true, name: s?.name ?? null, art: s?.art ?? false };
 }
 
+/** What a failed check records about the tooltip, to tell where its picture stopped: the frame's
+ *  visibility, which of the picture box and the name pill shows, whether the box is still in its
+ *  loading state, and whether the picture element has a source, finished loading and decoded. */
+async function tooltipState(page) {
+  const shown = await tooltip(page);
+  const f = page.frames().find((fr) => fr.url().startsWith("chrome-extension://") && fr.url().endsWith(`/${PRODUCT.frames.tooltip}`));
+  const inner = f
+    ? await f
+        .evaluate((ids) => {
+          const img = document.getElementById(ids.img);
+          const art = document.getElementById(ids.art);
+          const pill = document.getElementById(ids.pill);
+          const src = img.getAttribute("src");
+          return {
+            artHidden: art.hidden,
+            loading: art.classList.contains("loading"),
+            src: src === null ? "none" : src.startsWith("blob:") ? "blob" : "other",
+            complete: img.complete,
+            naturalWidth: img.naturalWidth,
+            pillHidden: pill.hidden,
+            frameSize: { width: innerWidth, height: innerHeight },
+          };
+        }, PRODUCT.tooltipIds)
+        .catch((error) => ({ error: String(error?.message ?? error) }))
+    : null;
+  return { ...shown, frame: Boolean(f), inner };
+}
+
+/** The compute frame's own account, for a check's record: its load state, its last error, the
+ *  last look's error and how long the worker took on it, whether it stopped or restarted, and how
+ *  many looks it analyzed. */
+const computeState = (d) =>
+  d ? { state: d.state, error: d.error, lastFrameError: d.lastFrameError, lastWorkerMs: d.lastWorkerMs, analyzed: d.analyzed, restarts: d.restarts, stopped: d.stopped } : null;
+
 async function outline(page) {
   return page.evaluate((selector) => {
     const el = document.querySelector(selector);
@@ -610,7 +644,11 @@ try {
           record("second-tab-names-card", Boolean(named), {
             ...counts.secondTab,
             analyzed: last?.analyzed ?? null,
+            // The first step after "no frame" is about when the compute frame started: a frame
+            // that starts more than 10 s after the pointer's last move is not told of the pointer
+            // when it connects, so it gets no slow-start look.
             steps,
+            compute: computeState(last),
             release: last?.release ? { source: last.release.source, reason: last.release.reason ?? null } : null,
             firstReady: atOpen.firstReady,
             visibility: { first: atOpen.firstVisibility, second: atOpen.secondVisibility },
@@ -632,7 +670,14 @@ try {
         counts.cachedReloadReadyMs = readyAt ? readyAt - hoverAt : null;
         const fetched = standIn.requests.slice(before).filter((r) => r.path.startsWith(PRODUCT.artPath("")));
         counts.cachedReload = { artRequests: fetched.length, artVisibleMs: again?.ms ?? null };
-        if (want("cached-reload")) record("cached-reload", Boolean(again) && fetched.length === 0, { shown: Boolean(again), ms: again?.ms ?? null, artRequests: fetched.length, tooltip: again ? undefined : await tooltip(tab) });
+        if (want("cached-reload"))
+          record("cached-reload", Boolean(again) && fetched.length === 0, {
+            shown: Boolean(again),
+            ms: again?.ms ?? null,
+            artRequests: fetched.length,
+            readyMs: counts.cachedReloadReadyMs,
+            ...(again ? {} : { tooltip: await tooltipState(tab), compute: computeState(await computeDebug(tab)) }),
+          });
         await tab.close();
       }
     } finally {
