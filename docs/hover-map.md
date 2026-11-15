@@ -59,6 +59,9 @@ The diagrams follow two rules:
 - **Overview first, then detail.** Layer 1 is the overview. Layers 2 and 3 zoom in. Each split
   follows a seam in the code: a separate policy, phase or component.
 
+On GitHub, a diagram taller than its frame can be zoomed, moved, or opened full screen from the
+buttons that appear over it.
+
 ## Layer 1: the parts
 
 ### 1a. Who talks to whom
