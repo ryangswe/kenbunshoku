@@ -17,6 +17,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 const ROOT = join(import.meta.dirname, "..");
 const MAP = join(ROOT, "docs", "hover-map.md");
 const SPEC = join(ROOT, "vendor", "cardvision-browser", "hover-spec.json");
+const VENDOR = join(ROOT, "vendor", "cardvision-browser", "cardvision-vendor.json");
+/** The map's link to the toolkit's hover spec, at a commit. */
+const SPEC_LINK = /\]\(https:\/\/github\.com\/ryangswe\/riftsight-vision\/blob\/([0-9a-f]{7,40})\/docs\/hover-spec\.md\)/g;
 
 const FIX = "update docs/hover-map.md in the same change (names it anchors, the clause ids it cites, its coverage list)";
 
@@ -141,6 +144,13 @@ describe("the hover map", () => {
   it("matches the code", () => {
     const found = problemsOf(readFileSync(MAP, "utf-8"), ROOT, readFileSync(SPEC, "utf-8"));
     expect(found, `docs/hover-map.md is out of date with the code: ${FIX}\n  ${found.join("\n  ")}`).toEqual([]);
+  });
+
+  it("links the hover spec at the vendored toolkit commit", () => {
+    const vendored = (JSON.parse(readFileSync(VENDOR, "utf-8")) as { toolkit: { commit: string } }).toolkit.commit;
+    const linked = [...readFileSync(MAP, "utf-8").matchAll(SPEC_LINK)].map((m) => m[1]);
+    expect(linked.length, `the map has no hover spec link: ${FIX}`).toBeGreaterThan(0);
+    for (const commit of linked) expect(commit, `the hover spec link is not at the vendored commit: ${FIX}`).toBe(vendored);
   });
 
   it("lists each covered file once", () => {

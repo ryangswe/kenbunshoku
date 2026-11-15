@@ -221,7 +221,7 @@ flowchart TD
   ON -->|yes| RECENT
   PLAY --> RESET --> LAP
   LAP -->|no| LATER
-  LAP -->|yes| RECENT
+  LAP -->|yes| PICK
   RECENT -->|yes| KEEP
   RECENT -->|no| PICK --> ATTACH
 ```
@@ -229,7 +229,7 @@ flowchart TD
 | Element | Anchors | Spec |
 | --- | --- | --- |
 | The main video | `src/content/agent.ts#Agent.currentVideo`, `src/content/agent.ts#VIDEO_RECHECK_MS` | S-G4 |
-| On a pointer event | `src/content/agent.ts#Agent.onPointer` | S-B1, S-G4 |
+| On a pointer event | `src/content/agent.ts#Agent.onPointer` | S-G4 |
 | On a playing event | `src/content/agent.ts#Agent.onPlaying`, `src/content/agent.ts#Agent.loadAtPlay`, `src/content/agent.ts#Agent.remakeRemovedAtPlay` | S-G4 |
 | Hand to the control, follow its box | `src/content/agent.ts#Agent.attachVideo`, `src/content/agent.ts#Agent.onLayout` | S-B6 |
 
@@ -326,6 +326,7 @@ flowchart TD
   FRONT -->|yes| REMAKE_C
   FRONT -->|no| OWED
   OWED -->|"the tab comes to the front"| RUNNING
+  OWED -->|"a compute frame made meanwhile read the new hold"| NOTHING
   FS --> EXISTS
   EXISTS -->|no| NOTHING
   EXISTS -->|yes| REMAKE_T

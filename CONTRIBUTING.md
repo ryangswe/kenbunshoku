@@ -31,8 +31,9 @@ bundled release and lint the Firefox build.
 
 A change to a file in the coverage list of [docs/hover-map.md](docs/hover-map.md) updates that map in
 the same pull request: its diagrams, its anchors and its coverage list. `test/hover-map.test.ts`
-fails when an anchor names a file or a symbol that is gone, but it cannot tell whether a diagram
-still says what the code does, so the map is read in review too.
+fails when an anchor names a file or a symbol that is gone, when the map cites a clause the
+vendored spec does not have, or when a covered file has no anchor. It cannot tell whether a
+diagram still says what the code does, so the map is read in review too.
 
 Every new file starts with the license line (`SPDX-License-Identifier: Apache-2.0`, as a comment
 of that kind of file). JSON files are the exception.
