@@ -38,6 +38,7 @@ use the addons.mozilla.org link above.
 | Know what it reads, sends and keeps | [PRIVACY.md](PRIVACY.md) |
 | Know why it asks for each permission | [docs/permissions.md](docs/permissions.md) |
 | Understand how the extension and its settings file work | [docs/how-it-works.md](docs/how-it-works.md) |
+| Follow a hover through the code, from the video to the tooltip | [docs/hover-map.md](docs/hover-map.md) |
 | Build it from source, update the runtime or test on a local video | [docs/development.md](docs/development.md) |
 | Make the same extension for another card game | [docs/make-it-yours.md](docs/make-it-yours.md) |
 | Publish to the card-art CDN | [cdn/README.md](cdn/README.md) and [cdn/SETTINGS.md](cdn/SETTINGS.md) |
