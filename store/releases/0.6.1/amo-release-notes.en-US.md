@@ -1,0 +1,3 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
+When card recognition finishes loading while the pointer rests on a card in the video, Kenbunshoku now names that card in two cases where it could miss it: when its hidden frame in the page first connects more than 10 seconds after the pointer last moved, as in a new tab whose model loads slowly, and when loading ends just before those 10 seconds are over. The load adds at most one picture, within 60 seconds of the pointer's last move. If that picture shows a card, pictures are read while the card shows, as for any card; if not, nothing more is read after those 10 seconds until the pointer moves.

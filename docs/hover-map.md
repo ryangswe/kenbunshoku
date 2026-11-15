@@ -9,12 +9,12 @@ on screen. It covers the files listed under [Coverage](#coverage) and nothing el
 The runtime that decides when to take a picture, when to analyze it and which card to name is the
 toolkit's (`vendor/cardvision-browser/`), and it has its own map:
 [the toolkit's hover map](https://github.com/ryangswe/riftsight-vision/blob/1290046/docs/hover-map.md).
-This page does not redraw it. That map describes the toolkit at commit `1290046`, which is ahead of
-the runtime vendored here (named in `vendor/cardvision-browser/cardvision-vendor.json`), so a few
-of its steps are not in this extension yet.
+This page does not redraw it. That map describes the toolkit at commit `1290046`, two commits after
+the runtime vendored here (named in `vendor/cardvision-browser/cardvision-vendor.json`), with the
+same browser code.
 
 The rules, one clause per behavior, are in the toolkit's
-[hover spec](https://github.com/ryangswe/riftsight-vision/blob/5ef332a7da58508b1ff9747fe1cf0ba4f70af30b/docs/hover-spec.md),
+[hover spec](https://github.com/ryangswe/riftsight-vision/blob/b858925b9a764ace8866a8c1de4bfa4020795512/docs/hover-spec.md),
 at the commit vendored here. Its list of clauses is vendored as
 `vendor/cardvision-browser/hover-spec.json`. This page shows the structure and the flows: which
 part decides what, and in what order the parts talk. It does not repeat the rules; each element
@@ -47,8 +47,7 @@ anchors of its code, and the spec clauses it carries out.
   the file or in one unnamed function, so their anchors name the file alone.
 - A clause is written `S-G3` and is defined in the hover spec. A clause followed by "(differs)"
   states a rule that this code does not meet yet; the spec marks it as one that changes in a
-  product release. A clause followed by "(open)" is one the spec has not decided; it states what
-  the code does today.
+  product release.
 - Times and thresholds are in the spec and the code, not here.
 
 The diagrams follow two rules:
@@ -289,11 +288,14 @@ stateDiagram-v2
 | Element | Anchors | Spec |
 | --- | --- | --- |
 | Off until the switch is read | `src/content/index.ts`, `src/shared/enabled.ts#readEnabled` | S-H1 |
-| Made at play | `src/content/agent.ts#Agent.loadAtPlay`, `src/content/agent.ts#Agent.onPlaying` | S-A1, S-A8 (open), S-B8 |
+| Made at play | `src/content/agent.ts#Agent.loadAtPlay`, `src/content/agent.ts#Agent.onPlaying` | S-A1, S-A8 (differs), S-B8 |
 | Made at the first trusted move | `src/content/agent.ts#Agent.onPointer`, `src/content/agent.ts#Agent.ensureFrames` | S-A2 |
 | Removed after the idle time, made at the next move or tap | `src/content/agent.ts#Agent.removeFrames`, `src/content/agent.ts#Agent.makeFrames` | S-A4, S-A6 |
 | Turned on and off | `src/content/agent.ts#Agent.setEnabled`, `src/content/agent.ts#Agent.reloadAfterSwitch`, `src/content/agent.ts#Agent.teardown` | S-A7, S-H1, S-B11 |
 | Owed until the front | `src/content/agent.ts#Agent.onVisibility`, `src/content/agent.ts#Agent.setEnabled` | S-A7 |
+
+S-A8 says a video that starts playing in a background tab waits for the tab to come to the front
+before it loads. This code loads it at play in a background tab too.
 
 ### 2e. When is one frame made again?
 
@@ -477,9 +479,12 @@ flowchart TD
 | --- | --- | --- |
 | When it is asked | `src/content/agent.ts#Agent.showTooltip` | S-F1, S-F4, S-W7 |
 | The box on the picture | `src/content/outline.ts#outlineRect`, `src/content/outline.ts#MIN_OUTLINE_SIDE` | S-F1 |
-| A turned card | `src/content/outline.ts#outlinePlace`, `src/content/outline.ts#OutlinedCard`, `src/content/outline.ts#OutlinePlace` | S-F2, S-F3 (open) |
+| A turned card | `src/content/outline.ts#outlinePlace`, `src/content/outline.ts#OutlinedCard`, `src/content/outline.ts#OutlinePlace` | S-F2, S-F3 (differs) |
 | Turned outlines are asked for | `src/compute/session-options.ts#SESSION_OPTIONS` | S-F2 |
 | Drawn and hidden | `src/content/outline.ts#CardOutline.show`, `src/content/outline.ts#CardOutline.hide`, `src/content/outline.ts#OUTLINE_FADE_MS` | S-F1 |
+
+S-F3 says a turned card's outline is always turned. This code draws the upright box instead when
+the turned outline would reach past the picture.
 
 ### 2j. What does the tooltip frame draw?
 

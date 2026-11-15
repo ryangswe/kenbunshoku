@@ -85,7 +85,8 @@ const PRODUCT = {
   cardAspect: 88 / 63,
   /** Checks expected to fail on this product's code, each until the change named fixes it:
    *  { condition, old, intended, clearedBy } and an optional `when(detail, ok)` that limits it.
-   *  None today: second-tab-names-card is expected to pass with the toolkit's slow start (0.14.0rc1). */
+   *  None today: second-tab-names-card is expected to pass with the toolkit's slow start (0.14.0rc1),
+   *  which since 0.14.1 also covers a frame that first connects after the 10-second window. */
   expectedFail: {},
 };
 
@@ -644,9 +645,10 @@ try {
           record("second-tab-names-card", Boolean(named), {
             ...counts.secondTab,
             analyzed: last?.analyzed ?? null,
-            // The first step after "no frame" is about when the compute frame started: a frame
-            // that starts more than 10 s after the pointer's last move is not told of the pointer
-            // when it connects, so it gets no slow-start look.
+            // The first step after "no frame" is about when the compute frame started. Since
+            // toolkit 0.14.1, a frame that first connects more than 10 s after the pointer's last
+            // move is still told of the resting pointer and gets its one slow-start look; a frame
+            // made again during the same rest gets none.
             steps,
             compute: computeState(last),
             release: last?.release ? { source: last.release.source, reason: last.release.reason ?? null } : null,

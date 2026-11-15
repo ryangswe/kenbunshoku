@@ -27,9 +27,9 @@ describe("PRIVACY.md's times match the code", () => {
     expect(privacy).toContain(`never more than ${seconds(MAX_REST_MS)} seconds after the pointer last moved`);
   });
 
-  it("reads one picture when the model finishes loading after the pointer grace, within the rest limit (the slow start)", () => {
+  it("may read one picture when the model finishes loading under a resting pointer, past the pointer grace, within the rest limit (the slow start)", () => {
     expect(privacy).toContain(
-      `If card recognition finishes loading after those ${seconds(POINTER_GRACE_MS)} seconds while the pointer still rests over the video, it reads one picture then, still within ${seconds(MAX_REST_MS)} seconds of the pointer's last move; if that picture shows no card, nothing more is read until the pointer moves.`,
+      `If card recognition finishes loading while the pointer still rests over the video, it may read one picture as soon as it is ready, even after those ${seconds(POINTER_GRACE_MS)} seconds, still within ${seconds(MAX_REST_MS)} seconds of the pointer's last move; if that picture shows no card, nothing more is read after those ${seconds(POINTER_GRACE_MS)} seconds until the pointer moves.`,
     );
   });
 
