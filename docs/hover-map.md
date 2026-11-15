@@ -47,8 +47,7 @@ anchors of its code, and the spec clauses it carries out.
   the file or in one unnamed function, so their anchors name the file alone.
 - A clause is written `S-G3` and is defined in the hover spec. A clause followed by "(differs)"
   states a rule that this code does not meet yet; the spec marks it as one that changes in a
-  product release. A clause followed by "(open)" is one the spec has not decided; it states what
-  the code does today.
+  product release.
 - Times and thresholds are in the spec and the code, not here.
 
 The diagrams follow two rules:

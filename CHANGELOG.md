@@ -8,10 +8,13 @@ which has the full notes and the download. Versions before 0.5.0 are described o
 ## Unreleased
 
 - When card recognition finishes loading while the pointer rests on a card, that card is now named
-  in two cases where it could be missed: when the extension's hidden frame in the page connects
-  more than 10 seconds after the pointer last moved, as in a new tab whose model loads slowly, and
-  when loading ends just before those 10 seconds are over. As before, at most one picture is read
-  for the resting pointer, within 60 seconds of its last move. PRIVACY.md says so.
+  in two cases where it could be missed: when the extension's hidden frame in the page first
+  connects more than 10 seconds after the pointer last moved, as in a new tab whose model loads
+  slowly, and when loading ends just before those 10 seconds are over. The load adds at most one
+  picture, within 60 seconds of the pointer's last move. If that picture shows a card, pictures are
+  read while the card shows, as for any card; if not, nothing more is read until the pointer moves.
+  PRIVACY.md says so.
+- It runs on the cardvision toolkit 0.14.1.
 
 ## 0.6.0 (2026-11-14)
 

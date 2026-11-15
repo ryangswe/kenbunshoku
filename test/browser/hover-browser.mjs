@@ -85,7 +85,8 @@ const PRODUCT = {
   cardAspect: 88 / 63,
   /** Checks expected to fail on this product's code, each until the change named fixes it:
    *  { condition, old, intended, clearedBy } and an optional `when(detail, ok)` that limits it.
-   *  None today: second-tab-names-card is expected to pass with the toolkit's slow start (0.14.0rc1). */
+   *  None today: second-tab-names-card is expected to pass with the toolkit's slow start (0.14.0rc1),
+   *  which since 0.14.1 also covers a frame that first connects after the 10-second window. */
   expectedFail: {},
 };
 

@@ -914,6 +914,49 @@ describe("Agent and the toolkit's capture control", () => {
     expect(refused(sent, 9)).toBe(false);
   });
 
+  /** The compute frame reports its model state (`ready` once the model has loaded). */
+  const status = (state: string) => fromFrame(compute(), { kind: "status", state, error: null, backend: null });
+
+  it("slow start: a frame first made at a move and ready after 10 s at rest gets one picture, then none", async () => {
+    media.paused = true;
+    agent = await startAgent();
+    move(100, 100);
+    clock += 11_000;
+    computeReady();
+    const sent = spyOn(compute());
+    // The frame is told how long the pointer has rested, so it looks once its model is ready.
+    expect(sent.filter((m) => m.kind === "pointer").at(-1)).toMatchObject({ restedMs: 11_000 });
+    capture(1);
+    expect(refused(sent, 1)).toBe(true);
+    status("loading");
+    status("ready");
+    capture(2);
+    await settle();
+    expect(refused(sent, 2)).toBe(false);
+    // That picture showed no card: nothing more until the pointer moves.
+    capture(3);
+    expect(refused(sent, 3)).toBe(true);
+    move(101, 100);
+    capture(4);
+    await settle();
+    expect(refused(sent, 4)).toBe(false);
+  });
+
+  it("slow start: a model ready just inside the 10 s gets its picture just after them", async () => {
+    agent = await startAgent();
+    move(100, 100);
+    computeReady();
+    const sent = spyOn(compute());
+    clock += 9_900;
+    status("ready");
+    clock += 300;
+    capture(5);
+    await settle();
+    expect(refused(sent, 5)).toBe(false);
+    capture(6);
+    expect(refused(sent, 6)).toBe(true);
+  });
+
   it("3: a tap allows a picture after the finger lifts, for 10 s, and a card showing does not stretch it", async () => {
     agent = await startAgent();
     pointer("pointerdown", 100, 100, { pointerType: "touch", pointerId: 5 });
