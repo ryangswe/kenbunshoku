@@ -19,7 +19,7 @@ const MAP = join(ROOT, "docs", "hover-map.md");
 const SPEC = join(ROOT, "vendor", "cardvision-browser", "hover-spec.json");
 const VENDOR = join(ROOT, "vendor", "cardvision-browser", "cardvision-vendor.json");
 /** The map's link to the toolkit's hover spec, at a commit. */
-const SPEC_LINK = /\]\(https:\/\/github\.com\/ryangswe\/riftsight-vision\/blob\/([0-9a-f]{7,40})\/docs\/hover-spec\.md\)/g;
+const SPEC_LINK = /\]\(https:\/\/github\.com\/ryangswe\/riftsight-vision\/blob\/([0-9a-f]{7,40})\/docs\/hover-spec\.md(?:#[^)\s]*)?\)/g;
 
 const FIX = "update docs/hover-map.md in the same change (names it anchors, the clause ids it cites, its coverage list)";
 
@@ -109,6 +109,14 @@ export function coverageRepeats(text: string): string[] {
   return [...new Set(paths.filter((path, i) => paths.indexOf(path) !== i))].map((path) => `coverage ${path}: listed more than once`);
 }
 
+/** Problems with the map's links to the hover spec: none, or one not at the vendored commit. */
+export function specLinkProblems(text: string, vendorText: string): string[] {
+  const vendored = (JSON.parse(vendorText) as { toolkit?: { commit?: unknown } }).toolkit?.commit;
+  const linked = [...text.matchAll(SPEC_LINK)].map((m) => m[1]!);
+  if (linked.length === 0) return ["the map has no hover spec link"];
+  return linked.filter((commit) => commit !== vendored).map((commit) => `the hover spec link is at ${commit}, not the vendored commit ${String(vendored)}`);
+}
+
 export function problemsOf(text: string, root: string, specText: string): string[] {
   const [body, coverage] = splitCoverage(text);
   const found: string[] = [];
@@ -147,10 +155,8 @@ describe("the hover map", () => {
   });
 
   it("links the hover spec at the vendored toolkit commit", () => {
-    const vendored = (JSON.parse(readFileSync(VENDOR, "utf-8")) as { toolkit: { commit: string } }).toolkit.commit;
-    const linked = [...readFileSync(MAP, "utf-8").matchAll(SPEC_LINK)].map((m) => m[1]);
-    expect(linked.length, `the map has no hover spec link: ${FIX}`).toBeGreaterThan(0);
-    for (const commit of linked) expect(commit, `the hover spec link is not at the vendored commit: ${FIX}`).toBe(vendored);
+    const found = specLinkProblems(readFileSync(MAP, "utf-8"), readFileSync(VENDOR, "utf-8"));
+    expect(found, `${FIX}\n  ${found.join("\n  ")}`).toEqual([]);
   });
 
   it("lists each covered file once", () => {
@@ -254,6 +260,15 @@ describe("the map checker", () => {
     expect(coverageRepeats(GOOD)).toEqual([]);
     expect(coverageRepeats(`${GOOD}- \`src/x.ts\`\n`)).toEqual(["coverage src/x.ts: listed more than once"]);
     expect(coverageRepeats(GOOD.split("## Coverage")[0]!)).toEqual(["the coverage list is empty"]);
+  });
+
+  it("finds a hover spec link that is missing or at another commit", () => {
+    const vendor = JSON.stringify({ toolkit: { commit: "a".repeat(40) } });
+    const link = (commit: string, anchor = ""): string => `[spec](https://github.com/ryangswe/riftsight-vision/blob/${commit}/docs/hover-spec.md${anchor})`;
+    expect(specLinkProblems(link("a".repeat(40)), vendor)).toEqual([]);
+    expect(specLinkProblems("no link here", vendor)).toEqual(["the map has no hover spec link"]);
+    expect(specLinkProblems(link("b".repeat(40)), vendor)[0]).toContain("not the vendored commit");
+    expect(specLinkProblems(link("b".repeat(40), "#s-g3"), vendor)[0]).toContain("not the vendored commit");
   });
 
   it("does not count the coverage list as an anchor", () => {
