@@ -1,0 +1,13 @@
+{
+  "version": "0.6.1",
+  "chrome": { "submit": "auto", "publish": "default" },
+  "firefox": {
+    "releaseNotes": { "en-US": "0.6.1/amo-release-notes.en-US.md" },
+    "approvalNotes": "0.6.1/amo-approval-notes.md"
+  },
+  "permissionsChanged": false,
+  "before": [
+    { "url": "https://cdn.kenbunshoku.com/config.json", "why": "the settings file every install reads" },
+    { "url": "https://raw.githubusercontent.com/ryangswe/kenbunshoku/main/PRIVACY.md", "sha256": "f2ea4a2f45e59361ae6c484eee4aae07a3a97619bdc6c887f6ce3e5f1f5f6e4d", "why": "the privacy policy the Chrome listing links, with 0.6.1's slow-start sentence" }
+  ]
+}
