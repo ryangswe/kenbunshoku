@@ -172,6 +172,11 @@ was shown (see the comment at its top; it needs `puppeteer-core`, which is not a
   [cdn/SETTINGS.md](../cdn/SETTINGS.md) is the settings file's contract, and `cdn/config.json` is
   both the published settings and the extension's built-in default.
 
+- [hover-map.md](hover-map.md) maps the extension's own hover code, and links the toolkit's map
+  for the runtime. A change to a covered file updates the map in the same pull request, and the
+  reviewer reads its diagrams against the code; `test/hover-map.test.ts` checks only that its
+  names are real. A re-vendor that changes the runtime's hover behavior checks the link's
+  commit, and the clause ids, which come from `vendor/cardvision-browser/hover-spec.json`.
 - `kenbunshoku.config.json` holds the extension's names, sites, image hosts, settings address,
   printed-number rule, geometric pin and links; `scripts/fork-config.mjs` explains and checks it.
 - A new image host needs an extension release: the settings file can only name hosts in the

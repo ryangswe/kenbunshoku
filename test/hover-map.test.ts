@@ -9,10 +9,10 @@
 // behavior; the diagrams are read by a reviewer. It is the toolkit's tests/test_hover_map.py,
 // ported. Nothing here reads the network.
 
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 const ROOT = join(import.meta.dirname, "..");
 const MAP = join(ROOT, "docs", "hover-map.md");
@@ -98,6 +98,14 @@ export function specClauses(specText: string): Set<string> {
 
 const isFile = (path: string): boolean => existsSync(path) && statSync(path).isFile();
 
+/** Files the coverage list names more than once, or a note that the list is empty. */
+export function coverageRepeats(text: string): string[] {
+  const [, coverage] = splitCoverage(text);
+  const paths = [...coverage.matchAll(ANCHOR)].map((m) => m[1]!);
+  if (paths.length === 0) return ["the coverage list is empty"];
+  return [...new Set(paths.filter((path, i) => paths.indexOf(path) !== i))].map((path) => `coverage ${path}: listed more than once`);
+}
+
 export function problemsOf(text: string, root: string, specText: string): string[] {
   const [body, coverage] = splitCoverage(text);
   const found: string[] = [];
@@ -136,10 +144,8 @@ describe("the hover map", () => {
   });
 
   it("lists each covered file once", () => {
-    const [, coverage] = splitCoverage(readFileSync(MAP, "utf-8"));
-    const paths = [...coverage.matchAll(ANCHOR)].map((m) => m[1]);
-    expect(paths.length, `the coverage list is empty: ${FIX}`).toBeGreaterThan(0);
-    expect(new Set(paths).size, `the coverage list repeats a file: ${FIX}`).toBe(paths.length);
+    const found = coverageRepeats(readFileSync(MAP, "utf-8"));
+    expect(found, `${FIX}\n  ${found.join("\n  ")}`).toEqual([]);
   });
 });
 
@@ -203,6 +209,7 @@ describe("the map checker", () => {
     writeFileSync(join(tree, "src", "x.ts"), SOURCE);
     writeFileSync(join(tree, "src", "y.ts"), "export const Y = 1;\n");
   });
+  afterEach(() => rmSync(tree, { recursive: true, force: true }));
 
   it("passes a sound map", () => {
     expect(problemsOf(GOOD, tree, SPEC_TEXT)).toEqual([]);
@@ -226,6 +233,17 @@ describe("the map checker", () => {
     expect(GOOD.includes(before)).toBe(true);
     const found = problemsOf(GOOD.replace(before, after), tree, SPEC_TEXT);
     expect(found.some((line) => line.includes(expected)), found.join("\n")).toBe(true);
+  });
+
+  it("finds a map with no coverage list", () => {
+    const noCoverage = GOOD.split("## Coverage")[0]!;
+    expect(problemsOf(noCoverage, tree, SPEC_TEXT).some((line) => line.includes("the map has no coverage list"))).toBe(true);
+  });
+
+  it("finds a coverage list that names a file twice, or none", () => {
+    expect(coverageRepeats(GOOD)).toEqual([]);
+    expect(coverageRepeats(`${GOOD}- \`src/x.ts\`\n`)).toEqual(["coverage src/x.ts: listed more than once"]);
+    expect(coverageRepeats(GOOD.split("## Coverage")[0]!)).toEqual(["the coverage list is empty"]);
   });
 
   it("does not count the coverage list as an anchor", () => {

@@ -29,6 +29,11 @@ says how to build the extension; a build needs a model release folder, which is 
 repository. The checks on a pull request also build the extension for Chrome and Firefox with the
 bundled release and lint the Firefox build.
 
+A change to a file in the coverage list of [docs/hover-map.md](docs/hover-map.md) updates that map in
+the same pull request: its diagrams, its anchors and its coverage list. `test/hover-map.test.ts`
+fails when an anchor names a file or a symbol that is gone, but it cannot tell whether a diagram
+still says what the code does, so the map is read in review too.
+
 Every new file starts with the license line (`SPDX-License-Identifier: Apache-2.0`, as a comment
 of that kind of file). JSON files are the exception.
 
