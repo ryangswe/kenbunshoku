@@ -645,9 +645,10 @@ try {
           record("second-tab-names-card", Boolean(named), {
             ...counts.secondTab,
             analyzed: last?.analyzed ?? null,
-            // The first step after "no frame" is about when the compute frame started: a frame
-            // that starts more than 10 s after the pointer's last move is not told of the pointer
-            // when it connects, so it gets no slow-start look.
+            // The first step after "no frame" is about when the compute frame started. Since
+            // toolkit 0.14.1, a frame that first connects more than 10 s after the pointer's last
+            // move is still told of the resting pointer and gets its one slow-start look; a frame
+            // made again during the same rest gets none.
             steps,
             compute: computeState(last),
             release: last?.release ? { source: last.release.source, reason: last.release.reason ?? null } : null,
