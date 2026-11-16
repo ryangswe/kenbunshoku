@@ -444,8 +444,8 @@ sequenceDiagram
 
 The host makes a new tooltip frame when it first makes the frames, after an idle unload, when
 full screen changes, and when the page removed the frame (then at the next trusted play on a page
-that loads at play, the next trusted pointer over the picture, or the next card to show). Straight after attaching it,
-the host shows the card on show, or held on a paused video, again, with no new card needed.
+that loads at play, the next trusted pointer over the picture, or the next card to show).
+Straight after attaching it, the host shows the card on show, or held on a paused video, again, with no new card needed.
 
 ```mermaid
 sequenceDiagram
@@ -455,7 +455,7 @@ sequenceDiagram
 
   HC->>TF: make it, hidden, where it is drawn
   HC->>AD: attach, with the frame's handle
-  AD->>AD: forget the old frame: its card, its size, its place
+  AD->>AD: forget the old frame: its card, its place, its readiness (the size last shown is kept)
   AD->>TF: place it at the size last shown, as a card
   HC->>AD: show the card on show, if any
   AD->>AD: hold the card message: the frame is not ready

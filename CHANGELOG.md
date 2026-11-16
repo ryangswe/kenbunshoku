@@ -23,8 +23,8 @@ which has the full notes and the download. Versions before 0.5.0 are described o
   video, like other Twitch pages that are not a channel's page, a past broadcast or a clip.
 - A turned card whose turned outline would reach past the edge of the video is now outlined
   turned, instead of with an upright box.
-- When the page removes the card's tooltip, the card on show comes back at once, instead of at the
-  next look.
+- When the page removes the card's tooltip, the card on show comes back as soon as the tooltip is
+  made again, at the next pointer move over the video, instead of only when a new look names it.
 - A change to the popup's switch made while a page is still opening is no longer lost.
 - The page side of card hovers now comes from the cardvision toolkit's shared hover host.
   HOVER-DEVIATIONS.md lists each place where Kenbunshoku's hover differs from the toolkit's

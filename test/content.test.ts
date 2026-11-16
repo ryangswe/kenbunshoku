@@ -8,6 +8,7 @@
 // switches reach the host through a stand-in for chrome.storage.local and its change events.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { syncCardSize } from "../src/content/card-size-sync.js";
 import { TooltipView } from "../src/content/tooltip-view.js";
 import { tag } from "../src/shared/messages.js";
 import { productConfig } from "../src/shared/product.js";
@@ -56,9 +57,9 @@ class Page {
   setEnabled(on: boolean): void {
     this.store.write("enabled", on);
   }
-  /** The popup's card-size dial, as index.ts applies it. */
+  /** The popup's card-size dial: a write, which card-size-sync.ts carries to the view. */
   setCardSize(percent: number): void {
-    if (this.view.setCardSize(percent)) this.host.relayout();
+    this.store.write("cardSize", percent);
   }
   /** The popup's "Keep the card I'm pointing at", turned over. */
   flipKeepCard(): void {
@@ -213,6 +214,7 @@ async function startPage(options: { trusted?: boolean; dev?: boolean; stored?: R
     storageChanges: store.changes,
     view,
   });
+  syncCardSize(view, host, store.storage, store.changes);
   await settle();
   return new Page(host, view, store);
 }
