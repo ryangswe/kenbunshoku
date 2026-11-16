@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-// Settings compared by contents: the hourly refresh stores a new copy of an unchanged file.
+// Settings compared by contents: the hourly refresh stores a new copy of an unchanged file. The
+// comparison is the toolkit's settings core's (vendored host-settings.js), as settings/core.ts
+// gives it to the tooltip frame.
 import { describe, expect, it } from "vitest";
 
 import type { Settings } from "../src/settings/schema.js";
-import { sameSettings } from "../src/settings/same.js";
+import { sameSettings } from "../src/settings/core.js";
 import { validateSettings } from "../src/settings/schema.js";
 import CONFIG from "../cdn/config.json";
 

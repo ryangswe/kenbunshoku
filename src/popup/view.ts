@@ -10,12 +10,18 @@
 
 import { CONFIG } from "../config.js";
 import { PROJECT_URL, RUNTIME_URL } from "../constants.js";
-import { LAST_GOOD_KEY, readEffectiveSettings } from "../settings/store.js";
-import { DISMISSED_UPDATE_KEY, updateNotice } from "../settings/update.js";
-import { ENABLED_KEY, readEnabled } from "../shared/enabled.js";
+import { settingsCore } from "../settings/core.js";
+import {
+  createSwitches,
+  DISMISSED_UPDATE_KEY,
+  ENABLED_KEY,
+  KEEP_CARD_KEY,
+  LAST_GOOD_KEY,
+  type StorageChanges,
+  updateNotice,
+} from "../../vendor/cardvision-browser/host-settings.js";
 import { CARD_SIZE_KEY } from "../shared/card-size.js";
 import { initCardSize } from "./card-size-control.js";
-import { KEEP_CARD_KEY } from "../shared/keep-card.js";
 import { initKeepCard } from "./keep-card-control.js";
 import { CARD_LANGUAGE_KEY } from "../shared/card-language.js";
 import { initCardLanguage } from "./card-language-control.js";
@@ -36,9 +42,16 @@ export interface PopupEnv {
   languages?: () => readonly string[];
 }
 
+/** The popup reads each switch again on every change of it (its own listener, below), so the
+ *  switches it reads watch nothing themselves. */
+const NO_CHANGES: StorageChanges = { addListener: () => undefined, removeListener: () => undefined };
+
 /** Fill the popup and keep it current. Adds one storage listener. */
 export function initPopup(env: PopupEnv): { renderUpdate(): Promise<void>; renderSwitch(): Promise<void>; renderLanguage(): Promise<void> } {
   const $ = <T extends HTMLElement>(id: string): T => env.doc.getElementById(id) as T;
+  // The toolkit's switches: on unless stored false, and on when the storage cannot be read.
+  const switches = createSwitches(env.local, NO_CHANGES);
+  const settings = settingsCore(env.local);
 
   // The extension's own name, from kenbunshoku.config.json.
   $("name").textContent = CONFIG.name;
@@ -59,7 +72,7 @@ export function initPopup(env: PopupEnv): { renderUpdate(): Promise<void>; rende
   let ready = false;
   const renderSwitch = async (): Promise<void> => {
     // A storage that cannot be read shows the default (on) rather than a switch stuck disabled.
-    const on = await readEnabled(env.local).catch(() => true);
+    const on = await switches.enabled().catch(() => true);
     toggle.setAttribute("aria-checked", on ? "true" : "false");
     showGroup(on);
     if (ready) return;
@@ -90,9 +103,9 @@ export function initPopup(env: PopupEnv): { renderUpdate(): Promise<void>; rende
   const renderUpdate = (): Promise<void> => showUpdate().catch(() => undefined);
   const showUpdate = async (): Promise<void> => {
     if (env.updateNotices === false) return;
-    const { settings } = await readEffectiveSettings(env.local);
+    const { settings: effective } = await settings.read();
     const dismissed = (await env.local.get(DISMISSED_UPDATE_KEY))[DISMISSED_UPDATE_KEY];
-    const notice = updateNotice(settings.update, env.version, typeof dismissed === "string" ? dismissed : null);
+    const notice = updateNotice(effective.update, env.version, typeof dismissed === "string" ? dismissed : null);
     const line = $("update");
     line.hidden = notice === null;
     if (!notice) return;
@@ -105,8 +118,8 @@ export function initPopup(env: PopupEnv): { renderUpdate(): Promise<void>; rende
   void renderSwitch();
   void renderUpdate();
   const cardSize = initCardSize(env.doc, env.local);
-  const keepCard = initKeepCard(env.doc, env.local);
-  const language = initCardLanguage(env.doc, env.local, env.languages ?? (() => []));
+  const keepCard = initKeepCard(env.doc, env.local, () => switches.keepCard());
+  const language = initCardLanguage(env.doc, env.local, settings, env.languages ?? (() => []));
   env.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
     if (LAST_GOOD_KEY in changes || DISMISSED_UPDATE_KEY in changes) void renderUpdate();

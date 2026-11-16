@@ -1,15 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { allowedParentOrigin, parseFactsRequest, parseTooltipIn, parseTooltipOut, TAG, tag } from "../src/shared/messages.js";
+import { parseFactsRequest, parseTooltipIn, parseTooltipOut, TAG, tag } from "../src/shared/messages.js";
 import { computeProtocol, MAX_FRAME_SIDE } from "../vendor/cardvision-browser/compute-session.js";
 
 // The compute frame's messages are the toolkit's contract under our tag: our `tag()` and the
 // protocol's agree on the wire.
 const { parseComputeIn, parseComputeOut } = computeProtocol(TAG);
-
-/** Both sites on, whatever the build's config turns on (the config's own sites: build-data.test.ts). */
-const BOTH_SITES = { youtube: true, twitch: true };
 
 describe("message checks", () => {
   it("round-trips every compute message the content script sends under our tag (bitmap aside)", () => {
@@ -68,27 +65,6 @@ describe("message checks", () => {
     expect(parseTooltipOut(tag({ kind: "size", width: 320, height: 448, shape: "card", seq: 1.5 }))).toBeNull();
     // The tooltip has no link any more: such a message is not one of its messages.
     expect(parseTooltipOut(tag({ kind: "link", href: "https://en.onepiece-cardgame.com/cardlist/?freewords=OP01-001" }))).toBeNull();
-  });
-
-  it("accepts the video sites as parents, and the local test page only in a dev build", () => {
-    expect(allowedParentOrigin("https://www.youtube.com", false, BOTH_SITES)).toBe(true);
-    expect(allowedParentOrigin("https://www.twitch.tv", false, BOTH_SITES)).toBe(true);
-    expect(allowedParentOrigin("https://evil.example", false, BOTH_SITES)).toBe(false);
-    expect(allowedParentOrigin("http://www.youtube.com", false, BOTH_SITES)).toBe(false);
-    expect(allowedParentOrigin("http://127.0.0.1:8770", false, BOTH_SITES)).toBe(false);
-    expect(allowedParentOrigin("http://127.0.0.1:8770", true, BOTH_SITES)).toBe(true);
-    expect(allowedParentOrigin("http://127.0.0.1.evil.example", true, BOTH_SITES)).toBe(false);
-    // localhost: a second local site for the smoke check, dev builds only.
-    expect(allowedParentOrigin("http://localhost:8770", false, BOTH_SITES)).toBe(false);
-    expect(allowedParentOrigin("http://localhost:8770", true, BOTH_SITES)).toBe(true);
-    expect(allowedParentOrigin("http://localhost.evil.example", true, BOTH_SITES)).toBe(false);
-  });
-
-  it("accepts only the sites turned on", () => {
-    expect(allowedParentOrigin("https://www.youtube.com", false, { youtube: true, twitch: false })).toBe(true);
-    expect(allowedParentOrigin("https://www.twitch.tv", false, { youtube: true, twitch: false })).toBe(false);
-    expect(allowedParentOrigin("https://www.youtube.com", false, { youtube: false, twitch: true })).toBe(false);
-    expect(allowedParentOrigin("https://www.twitch.tv", false, { youtube: false, twitch: true })).toBe(true);
   });
 });
 

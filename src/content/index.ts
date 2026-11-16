@@ -1,15 +1,39 @@
 // SPDX-License-Identifier: Apache-2.0
 // Content script entry: runs in YouTube and Twitch pages (and the local test page in a dev build).
+//
+// The toolkit's shared hover host (vendored host-content.js, `startHostContent`) does the page's
+// work: which pages are active and when each loads (at the main video's play, or at the first
+// pointer over it), which video is the main one, the pointer authority under which the compute
+// frame gets pictures (only the viewer's own pointer events count), when the two frames are made
+// and removed (the popup's switch, a background tab, the idle unload, a frame the page removed,
+// "Keep the card I'm pointing at"), the outline, and when a card is shown and hidden. Its contract
+// is the toolkit's hover spec. This file gives it the extension's config (shared/product.ts) and
+// the tooltip frame's adapter (tooltip-view.ts), and keeps the adapter's one input of its own, the
+// popup's card size, current.
 
-import { Agent } from "./agent.js";
-import { readEnabled } from "../shared/enabled.js";
-import { readCardSize } from "../shared/card-size.js";
-import { applyStorageChanges } from "./storage-changes.js";
+import { startHostContent } from "../../vendor/cardvision-browser/host-content.js";
+import { CARD_SIZE_KEY, clampCardSize, readCardSize } from "../shared/card-size.js";
+import { productConfig } from "../shared/product.js";
+import { TooltipView } from "./tooltip-view.js";
 
 declare const __DEV__: boolean;
 
-const agent = new Agent({ dev: __DEV__ });
-agent.start();
-void readEnabled(chrome.storage.local).then((enabled) => agent.setEnabled(enabled));
-void readCardSize(chrome.storage.local).then((percent) => agent.setCardSize(percent));
-chrome.storage.onChanged.addListener((changes, area) => applyStorageChanges(agent, changes, area));
+const view = new TooltipView();
+const host = startHostContent({
+  config: productConfig(__DEV__),
+  win: window,
+  doc: document,
+  extensionUrl: (path) => chrome.runtime.getURL(path),
+  storage: chrome.storage.local,
+  storageChanges: chrome.storage.onChanged,
+  view,
+});
+
+/** The popup's card size: a card on show is fitted again at once. */
+const setCardSize = (percent: number): void => {
+  if (view.setCardSize(percent)) host.relayout();
+};
+void readCardSize(chrome.storage.local).then(setCardSize, () => undefined);
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && CARD_SIZE_KEY in changes) setCardSize(clampCardSize(changes[CARD_SIZE_KEY]?.newValue));
+});

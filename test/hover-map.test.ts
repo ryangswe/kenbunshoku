@@ -71,7 +71,7 @@ function methodLine(name: string): RegExp {
   );
 }
 
-/** A function-valued field's first line: `name = (...) => ...`, as the agent writes its listeners. */
+/** A function-valued field's first line: `name = (...) => ...`, as a class writes its listeners. */
 function arrowFieldLine(name: string): RegExp {
   return new RegExp(String.raw`^[ \t]+${MODIFIERS}${escape(name)}\s*(?::[^=\n]*)?=\s*(?:async\s*)?\([^\n]*\)\s*(?::[^\n]*)?=>`, "m");
 }

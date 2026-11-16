@@ -1,33 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { describe, expect, it } from "vitest";
 
-import { analysisSize, CARD_PAD, clearlyBetter, fitBesideCard, fitTooltipSize, fractionIn, MIN_ART_WIDTH, pictureRect, tooltipRadius, placeTooltip, placeTooltipAvoiding, scaleTooltipSize, TOOLTIP_GAP, VIEWPORT_MARGIN } from "../src/content/geometry.js";
-import { isActivePage, loadsAtPlay } from "../src/content/site.js";
-
-/** Both sites on, whatever the build's config turns on (the config's own sites: build-data.test.ts). */
-const BOTH_SITES = { youtube: true, twitch: true };
-
-describe("pictureRect", () => {
-  it("letterboxes a 16:9 picture in a 4:3 box (object-fit: contain)", () => {
-    expect(pictureRect({ left: 0, top: 0, width: 800, height: 600 }, { width: 1920, height: 1080 }, "contain")).toEqual({ left: 0, top: 75, width: 800, height: 450 });
-  });
-  it("pillarboxes a 4:3 picture in a 16:9 box", () => {
-    expect(pictureRect({ left: 10, top: 20, width: 1600, height: 900 }, { width: 640, height: 480 }, "contain")).toEqual({ left: 210, top: 20, width: 1200, height: 900 });
-  });
-  it("fills for object-fit: fill and before the picture has a size", () => {
-    expect(pictureRect({ left: 0, top: 0, width: 800, height: 600 }, { width: 1920, height: 1080 }, "fill")).toEqual({ left: 0, top: 0, width: 800, height: 600 });
-    expect(pictureRect({ left: 0, top: 0, width: 800, height: 600 }, { width: 0, height: 0 }, "contain")).toEqual({ left: 0, top: 0, width: 800, height: 600 });
-  });
-});
-
-describe("fractionIn", () => {
-  const r = { left: 100, top: 50, width: 200, height: 100 };
-  it("maps a point inside", () => expect(fractionIn(r, 150, 75)).toEqual({ x: 0.25, y: 0.25 }));
-  it("is null outside, including the letterbox bars", () => {
-    expect(fractionIn(r, 99, 75)).toBeNull();
-    expect(fractionIn(r, 150, 151)).toBeNull();
-  });
-});
+import { analysisSize, CARD_PAD, clearlyBetter, fitBesideCard, fitTooltipSize, MIN_ART_WIDTH, tooltipRadius, placeTooltip, placeTooltipAvoiding, scaleTooltipSize, TOOLTIP_GAP, VIEWPORT_MARGIN } from "../src/content/geometry.js";
 
 describe("analysisSize", () => {
   const range = { min: 720, max: 1920 };
@@ -51,74 +25,6 @@ describe("placeTooltip", () => {
   });
   it("hugs the edge when neither side fits", () => {
     expect(placeTooltip({ left: 100, top: 100, width: 300, height: 100 }, size, { width: 500, height: 900 }).left).toBe(500 - VIEWPORT_MARGIN - 280);
-  });
-});
-
-describe("isActivePage", () => {
-  it.each([
-    ["https://www.youtube.com/watch?v=abc", false, true],
-    ["https://www.youtube.com/embed/abc", false, true],
-    ["https://www.youtube.com/live/abc", false, true],
-    ["https://www.youtube.com/", false, false],
-    ["https://www.youtube.com/results?search_query=one+piece", false, false],
-    ["https://www.youtube.com/shorts/abc", false, false],
-    ["https://www.youtube.com/@somechannel/live", false, true],
-    ["https://www.youtube.com/@somechannel/live/", false, true],
-    ["https://www.youtube.com/channel/UC123abc/live", false, true],
-    ["https://www.youtube.com/c/SomeName/live", false, true],
-    ["https://www.youtube.com/user/somename/live", false, true],
-    ["https://www.youtube.com/@somechannel", false, false],
-    ["https://www.youtube.com/@somechannel/videos", false, false],
-    ["https://www.youtube.com/@a/b/live", false, false],
-    ["https://www.youtube.com/feed/live", false, false],
-    ["https://www.twitch.tv/somechannel", false, true],
-    ["https://www.twitch.tv/videos/123", false, true],
-    ["http://127.0.0.1:8770/", false, false],
-    ["http://127.0.0.1:8770/", true, true],
-    ["https://example.org/watch", true, false],
-  ])("%s (dev %s) → %s", (url, dev, active) => expect(isActivePage(new URL(url), dev, BOTH_SITES)).toBe(active));
-});
-
-// The page rule for loading at play: on YouTube not an embedded player; on Twitch only a channel's
-// page, a past broadcast or a clip. Other pages load at the first pointer move, as before.
-describe("loadsAtPlay", () => {
-  it.each([
-    ["https://www.youtube.com/watch?v=abc", false, true],
-    ["https://www.youtube.com/embed/abc", false, false],
-    ["https://www.youtube.com/embed/abc?autoplay=1&mute=1", false, false],
-    ["https://www.youtube.com/live/abc", false, true],
-    ["https://www.youtube.com/@somechannel/live", false, true],
-    ["https://www.youtube.com/", false, false],
-    ["https://www.youtube.com/@somechannel", false, false],
-    ["https://www.twitch.tv/somechannel", false, true],
-    ["https://www.twitch.tv/somechannel/", false, true],
-    ["https://www.twitch.tv/Some_Channel_42", false, true],
-    ["https://www.twitch.tv/videos/123456789", false, true],
-    ["https://www.twitch.tv/somechannel/clip/SomeClip-Ab_12", false, true],
-    ["https://www.twitch.tv/somechannel?sr=a", false, true],
-    ["https://www.twitch.tv/", false, false],
-    ["https://www.twitch.tv/directory", false, false],
-    ["https://www.twitch.tv/directory/category/one-piece-card-game", false, false],
-    ["https://www.twitch.tv/directory/following", false, false],
-    ["https://www.twitch.tv/search?term=one+piece", false, false],
-    ["https://www.twitch.tv/settings", false, false],
-    ["https://www.twitch.tv/Directory", false, false],
-    ["https://www.twitch.tv/videos", false, false],
-    ["https://www.twitch.tv/videos/abc", false, false],
-    ["https://www.twitch.tv/somechannel/videos", false, false],
-    ["https://www.twitch.tv/somechannel/about", false, false],
-    ["https://www.twitch.tv/somechannel/clips", false, false],
-    ["https://www.twitch.tv/popout/somechannel/player", false, false],
-    ["https://www.twitch.tv/popout/somechannel/chat", false, false],
-    ["https://www.twitch.tv/moderator/somechannel", false, false],
-    ["https://www.twitch.tv/a-b", false, false],
-    ["http://127.0.0.1:8770/", true, true],
-    ["http://127.0.0.1:8770/", false, false],
-  ])("%s (dev %s) → %s", (url, dev, loads) => expect(loadsAtPlay(new URL(url), dev, BOTH_SITES)).toBe(loads));
-
-  it("is never true where the extension is not active", () => {
-    expect(loadsAtPlay(new URL("https://www.twitch.tv/somechannel"), false, { youtube: true, twitch: false })).toBe(false);
-    expect(loadsAtPlay(new URL("https://www.youtube.com/watch?v=abc"), false, { youtube: false, twitch: true })).toBe(false);
   });
 });
 

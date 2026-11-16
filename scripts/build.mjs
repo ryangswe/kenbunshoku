@@ -13,7 +13,8 @@
 //                 is used.
 // --dev           A development build: also runs on the local test page (http://127.0.0.1, http://localhost).
 // --idle-unload-ms  Dev builds only: unload after this many idle milliseconds instead of 10
-//                 minutes (src/constants.ts IDLE_UNLOAD_MS), to check the unload quickly.
+//                 minutes (the toolkit's hover host, STANDARD_PRESET; compute.ts passes it as
+//                 devIdleUnloadMs), to check the unload quickly.
 // --store         A Chrome Web Store build: the manifest has no `key` (the store assigns the ID).
 //                 Other builds carry the public key that fixes the ID of unpacked installs.
 // --target        chrome (the default; also Edge and Brave) or firefox: the same bundles with
@@ -182,9 +183,11 @@ await build({
   },
   outdir: out,
 });
-// compute.js and content.js bundle the toolkit's extension entries (compute-session.js,
-// remote-release.js, page-capture.js), which hold no third-party code: the runtime and its license
-// comments are in runtime/worker.js and its LEGAL file.
+// The pages bundle the toolkit's extension entries, which hold no third-party code: content.js its
+// hover host's content file (host-content.js), compute.js its compute file (host-compute.js) and
+// remote-release.js, and the background, the tooltip and the popup its settings file
+// (host-settings.js). The runtime and its license comments are in runtime/worker.js and its LEGAL
+// file.
 for (const name of ["compute.html", "tooltip.html", "tooltip.css", "popup.css"]) copyFileSync(join(root, "static", name), join(out, name));
 // The popup carries the extension's name from the config, and its icon for dark surfaces when the
 // icon folder has one (shown while the popup is dark).

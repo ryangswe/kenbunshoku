@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
+// Where the settings in effect come from (SETTINGS.md, "Failure rules"): the toolkit's settings core
+// (vendored host-settings.js) on this build's schema and default (src/settings/core.ts).
 import { describe, expect, it } from "vitest";
 
-import { SETTINGS_REFRESH_MS, SETTINGS_URL, UPDATE_URL_PREFIX } from "../src/constants.js";
+import { SETTINGS_URL, UPDATE_URL_PREFIX } from "../src/constants.js";
 import DEFAULT_CONFIG from "../cdn/config.json";
-import { defaultSettings, type KeyValueStorage, LAST_ATTEMPT_KEY, LAST_GOOD_KEY, readEffectiveSettings, refreshSettings } from "../src/settings/store.js";
+import { settingsCore } from "../src/settings/core.js";
+import { type KeyValueStorage, LAST_ATTEMPT_KEY, LAST_GOOD_KEY, SETTINGS_REFRESH_MS } from "../vendor/cardvision-browser/host-settings.js";
 
 class MemoryStorage implements KeyValueStorage {
   data: Record<string, unknown> = {};
@@ -41,12 +44,16 @@ const live = {
 };
 /** The address these tests fetch (any build's, so that a build with none is tested too). */
 const URL_UNDER_TEST = "https://settings.example/config.json";
+const s0 = () => new MemoryStorage();
 
-describe("readEffectiveSettings", () => {
+/** The settings in effect, as the background, the popup and the tooltip frame read them. */
+const readEffectiveSettings = (s: KeyValueStorage) => settingsCore(s).read();
+
+describe("the settings in effect", () => {
   it("uses the built-in default when nothing was ever fetched", async () => {
     const r = await readEffectiveSettings(new MemoryStorage());
     expect(r.origin).toBe("default");
-    expect(r.settings).toEqual(defaultSettings());
+    expect(r.settings).toEqual(settingsCore(s0()).defaults());
   });
 
   it("uses the last good copy", async () => {
@@ -65,11 +72,11 @@ describe("readEffectiveSettings", () => {
   });
 });
 
-describe("refreshSettings", () => {
+describe("the settings refresh", () => {
   it("fetches the settings address and keeps a usable file", async () => {
     const s = new MemoryStorage();
     const f = fetchReturning(json(live));
-    const r = await refreshSettings(s, { url: URL_UNDER_TEST, fetch: f, now: () => 1000, force: true });
+    const r = await settingsCore(s, URL_UNDER_TEST).refresh({ fetch: f, now: () => 1000, force: true });
     expect(r.kind).toBe("updated");
     expect(f.urls).toEqual([URL_UNDER_TEST]);
     expect(s.data[LAST_GOOD_KEY]).toEqual({ raw: live, fetchedAt: 1000 });
@@ -79,8 +86,8 @@ describe("refreshSettings", () => {
   it("stores an unchanged file again, with the new time (open tooltips retry on that change)", async () => {
     const s = new MemoryStorage();
     const f = fetchReturning(json(live), json(live));
-    await refreshSettings(s, { url: URL_UNDER_TEST, fetch: f, now: () => 1000, force: true });
-    const r = await refreshSettings(s, { url: URL_UNDER_TEST, fetch: f, now: () => 1000 + SETTINGS_REFRESH_MS, force: true });
+    await settingsCore(s, URL_UNDER_TEST).refresh({ fetch: f, now: () => 1000, force: true });
+    const r = await settingsCore(s, URL_UNDER_TEST).refresh({ fetch: f, now: () => 1000 + SETTINGS_REFRESH_MS, force: true });
     expect(r.kind).toBe("updated");
     expect(s.data[LAST_GOOD_KEY]).toEqual({ raw: live, fetchedAt: 1000 + SETTINGS_REFRESH_MS });
   });
@@ -88,7 +95,7 @@ describe("refreshSettings", () => {
   it("fetches the build's own settings address by default", async () => {
     const s = new MemoryStorage();
     const f = fetchReturning(json(live));
-    const r = await refreshSettings(s, { fetch: f, now: () => 1000, force: true });
+    const r = await settingsCore(s).refresh({ fetch: f, now: () => 1000, force: true });
     if (SETTINGS_URL === null) {
       expect(r.kind).toBe("skipped");
       expect(f.urls).toEqual([]);
@@ -98,7 +105,7 @@ describe("refreshSettings", () => {
   it("fetches nothing at all when the build has no settings address", async () => {
     const s = new MemoryStorage();
     const f = fetchReturning(json(live));
-    expect((await refreshSettings(s, { url: null, fetch: f, now: () => 1000, force: true })).kind).toBe("skipped");
+    expect((await settingsCore(s, null).refresh({ fetch: f, now: () => 1000, force: true })).kind).toBe("skipped");
     expect(f.urls).toEqual([]);
     expect(s.data).toEqual({});
   });
@@ -106,19 +113,19 @@ describe("refreshSettings", () => {
   it("fetches at most once an hour unless forced (start-up)", async () => {
     const s = new MemoryStorage();
     const f = fetchReturning(json(live), json(live), json(live));
-    await refreshSettings(s, { url: URL_UNDER_TEST, fetch: f, now: () => 0, force: true });
-    expect((await refreshSettings(s, { url: URL_UNDER_TEST, fetch: f, now: () => SETTINGS_REFRESH_MS - 1 })).kind).toBe("skipped");
-    expect((await refreshSettings(s, { url: URL_UNDER_TEST, fetch: f, now: () => SETTINGS_REFRESH_MS })).kind).toBe("updated");
-    expect((await refreshSettings(s, { url: URL_UNDER_TEST, fetch: f, now: () => SETTINGS_REFRESH_MS + 1, force: true })).kind).toBe("updated");
+    await settingsCore(s, URL_UNDER_TEST).refresh({ fetch: f, now: () => 0, force: true });
+    expect((await settingsCore(s, URL_UNDER_TEST).refresh({ fetch: f, now: () => SETTINGS_REFRESH_MS - 1 })).kind).toBe("skipped");
+    expect((await settingsCore(s, URL_UNDER_TEST).refresh({ fetch: f, now: () => SETTINGS_REFRESH_MS })).kind).toBe("updated");
+    expect((await settingsCore(s, URL_UNDER_TEST).refresh({ fetch: f, now: () => SETTINGS_REFRESH_MS + 1, force: true })).kind).toBe("updated");
     expect(f.urls.length).toBe(3);
   });
 
   it("records the attempt even when it fails, so a failing host is not hammered", async () => {
     const s = new MemoryStorage();
     const f = fetchReturning(new TypeError("offline"));
-    await refreshSettings(s, { url: URL_UNDER_TEST, fetch: f, now: () => 77, force: true });
+    await settingsCore(s, URL_UNDER_TEST).refresh({ fetch: f, now: () => 77, force: true });
     expect(s.data[LAST_ATTEMPT_KEY]).toBe(77);
-    expect((await refreshSettings(s, { url: URL_UNDER_TEST, fetch: f, now: () => 78 })).kind).toBe("skipped");
+    expect((await settingsCore(s, URL_UNDER_TEST).refresh({ fetch: f, now: () => 78 })).kind).toBe("skipped");
   });
 
   it.each([
@@ -130,7 +137,7 @@ describe("refreshSettings", () => {
   ])("keeps the last good copy when the file is %s", async (_, answer, reason) => {
     const s = new MemoryStorage();
     s.data[LAST_GOOD_KEY] = { raw: live, fetchedAt: 1 };
-    const r = await refreshSettings(s, { url: URL_UNDER_TEST, fetch: fetchReturning(answer), now: () => 2, force: true });
+    const r = await settingsCore(s, URL_UNDER_TEST).refresh({ fetch: fetchReturning(answer), now: () => 2, force: true });
     expect(r.kind).toBe("kept");
     expect(r.kind === "kept" && r.reason).toMatch(reason);
     expect(s.data[LAST_GOOD_KEY]).toEqual({ raw: live, fetchedAt: 1 });
@@ -139,7 +146,7 @@ describe("refreshSettings", () => {
 
   it("with no last good copy, a bad file leaves the built-in default in effect", async () => {
     const s = new MemoryStorage();
-    await refreshSettings(s, { url: URL_UNDER_TEST, fetch: fetchReturning(json("[]")), now: () => 2, force: true });
+    await settingsCore(s, URL_UNDER_TEST).refresh({ fetch: fetchReturning(json("[]")), now: () => 2, force: true });
     expect((await readEffectiveSettings(s)).origin).toBe("default");
   });
 
@@ -147,7 +154,7 @@ describe("refreshSettings", () => {
     const s = new MemoryStorage();
     const hang = (async (_: RequestInfo | URL, init?: RequestInit) =>
       new Promise<Response>((_, reject) => init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError"))))) as typeof fetch;
-    const r = await refreshSettings(s, { url: URL_UNDER_TEST, fetch: hang, now: () => 2, force: true, timeoutMs: 20 });
+    const r = await settingsCore(s, URL_UNDER_TEST).refresh({ fetch: hang, now: () => 2, force: true, timeoutMs: 20 });
     expect(r.kind).toBe("kept");
   });
 });

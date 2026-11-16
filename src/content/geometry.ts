@@ -1,33 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
-// Page geometry of the content script: where the picture sits inside a <video> element, the size
-// a picture is analyzed at, and where the tooltip goes beside a card. Pure functions.
+// Page geometry of the tooltip frame (tooltip-view.ts): how big the tooltip is shown and where it
+// goes beside a card, and the size a picture is analyzed at. Pure functions. Where the picture
+// sits inside a <video> element is the toolkit's hover host's (vendored host-content.js), which
+// hands the tooltip the picture and the card in page coordinates.
 
 export interface Rect {
   left: number;
   top: number;
   width: number;
   height: number;
-}
-
-/** Where the picture sits inside an element's box, for the element's `object-fit` (a video is
- *  fitted inside its box by default, leaving bars). */
-export function pictureRect(element: Rect, picture: { width: number; height: number }, fit: string): Rect {
-  const whole = { left: element.left, top: element.top, width: element.width, height: element.height };
-  if (picture.width <= 0 || picture.height <= 0 || fit === "fill") return whole;
-  const sx = element.width / picture.width;
-  const sy = element.height / picture.height;
-  const scale = fit === "cover" ? Math.max(sx, sy) : fit === "none" ? 1 : fit === "scale-down" ? Math.min(1, sx, sy) : Math.min(sx, sy);
-  const width = picture.width * scale;
-  const height = picture.height * scale;
-  return { left: element.left + (element.width - width) / 2, top: element.top + (element.height - height) / 2, width, height };
-}
-
-/** The pointer in fractions of a rectangle, or null when it is outside it. */
-export function fractionIn(rect: Rect, x: number, y: number): { x: number; y: number } | null {
-  if (!(rect.width > 0 && rect.height > 0)) return null;
-  const fx = (x - rect.left) / rect.width;
-  const fy = (y - rect.top) / rect.height;
-  return fx >= 0 && fx <= 1 && fy >= 0 && fy <= 1 ? { x: fx, y: fy } : null;
 }
 
 /** The size a picture is analyzed at: its width brought within the range, its aspect kept. */

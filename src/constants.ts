@@ -21,9 +21,6 @@ export const MAINTAINER_CONTACT_URL = CONFIG.maintainerContactUrl;
 /** The settings file (SETTINGS.md, schema version 1), or null: the bundled copy only, no fetch. */
 export const SETTINGS_URL = CONFIG.settingsUrl;
 
-/** How often the settings file is fetched again while the extension runs. */
-export const SETTINGS_REFRESH_MS = 60 * 60 * 1000;
-
 /**
  * The only hosts the extension may request card images from. They are the image hosts in the
  * manifest's host permissions; a settings source on any other host is dropped (an extension
@@ -48,19 +45,12 @@ export const IMAGE_TIMEOUT_MS = 5_000;
 export const SOURCE_FAILURE_LIMIT = 3;
 
 /**
- * The compute frame ends its worker after this long with no pointer move over the picture, no card
- * shown and no analysis in flight (toolkit 0.12.0, `idleUnloadMs`), and the content script then
- * removes both frames, so the model's memory (and the geometric stage's, when on) is given back.
- * The next pointer move over the video makes them again; the files come from the browser's caches.
- */
-export const IDLE_UNLOAD_MS = 10 * 60_000;
-
-/**
  * The runtime's geometric stage (extra accuracy, WebGPU only), or null when the config turns it
  * off. Its settings file is copied into the built extension at GEOMETRIC_SETTINGS_PATH; it names
  * the packed card-feature index (about 60 MB) on an image host. The worker downloads the index
- * once, when the viewer first points at the picture after the release has loaded (session-options.ts,
- * geometricLoad "pointer"), not when the video plays and never at install. The settings file's `geometric: false` turns the stage off
+ * once, when the viewer first points at the picture after the release has loaded (the toolkit's
+ * hover host passes geometricLoad "pointer" for a product with the geometric stage), not when the
+ * video plays and never at install. The settings file's `geometric: false` turns the stage off
  * without a release.
  */
 export const GEOMETRIC = CONFIG.geometric;
@@ -68,9 +58,6 @@ export const GEOMETRIC_SETTINGS_PATH = "data/geometric.json";
 /** The SHA-256 of the index's manifest.json: the manifest, and through it every shard, is
  *  pinned. Always passed with the settings file. */
 export const GEOMETRIC_MANIFEST_SHA256 = CONFIG.geometric?.manifestSha256 ?? null;
-
-/** Smallest video, in CSS pixels of width on the page, that the extension attaches to. */
-export const MIN_VIDEO_WIDTH = 320;
 
 /** Where the release (models, bank, catalog) sits inside the built extension. */
 export const RELEASE_PATH = "release/release.json";

@@ -5,7 +5,10 @@
 // before fitting the tooltip into the page, so a larger card still stays inside the window and
 // off the card it names.
 
-import type { KeyValueStorage } from "../settings/store.js";
+/** The part of chrome.storage.local read here. */
+interface Readable {
+  get(keys: string | string[]): Promise<Record<string, unknown>>;
+}
 
 export const CARD_SIZE_KEY = "cardSize";
 export const MIN_CARD_SIZE = 70;
@@ -22,7 +25,7 @@ export function clampCardSize(value: unknown): number {
 }
 
 /** The stored card size, as a percentage (the default when nothing usable is stored). */
-export async function readCardSize(storage: Pick<KeyValueStorage, "get">): Promise<number> {
+export async function readCardSize(storage: Readable): Promise<number> {
   return clampCardSize((await storage.get(CARD_SIZE_KEY))[CARD_SIZE_KEY]);
 }
 

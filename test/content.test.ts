@@ -1,18 +1,75 @@
 // @vitest-environment happy-dom
 // SPDX-License-Identifier: Apache-2.0
-// The content script in a page: trusted pointer events only, the frames it makes and remakes,
-// the toolkit's capture control as wired here (the gate, the handshake, trusted frame messages),
-// the tooltip's hide timer, leaving on a hidden tab, and teardown.
+// The content script in a page: the toolkit's hover host (vendored host-content.js) with this
+// extension's config and tooltip adapter (src/content/tooltip-view.ts), as src/content/index.ts
+// starts them. Trusted pointer events only, the frames the host makes and remakes, the capture
+// control as the host wires it (the gate, the handshake, trusted frame messages), the tooltip's
+// size and place, the outline, the hide timer, leaving on a hidden tab, and teardown. The popup's
+// switches reach the host through a stand-in for chrome.storage.local and its change events.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { Agent, HIDE_DELAY_MS } from "../src/content/agent.js";
+import { TooltipView } from "../src/content/tooltip-view.js";
 import { tag } from "../src/shared/messages.js";
+import { productConfig } from "../src/shared/product.js";
+import { OUTLINE_COLOR, OUTLINE_GLOW_COLOR } from "../src/constants.js";
+import { HIDE_DELAY_MS, type HostContent, startHostContent } from "../vendor/cardvision-browser/host-content.js";
 import { PROTOCOL_VERSION } from "../vendor/cardvision-browser/page-capture.js";
 
 const EXT = "chrome-extension://igfdjmpikcbplijnlpkligaafepgoaaa";
 
 let video: HTMLVideoElement;
-let agent: Agent;
+
+type Change = { oldValue?: unknown; newValue?: unknown };
+type Listener = (changes: Record<string, Change | undefined>, area: string) => void;
+
+/** chrome.storage.local and its change events, as the host reads them. */
+function storageStandIn(stored: Record<string, unknown>) {
+  const data = { ...stored };
+  const listeners = new Set<Listener>();
+  return {
+    data,
+    storage: {
+      get: async (keys: string | string[]) => {
+        const out: Record<string, unknown> = {};
+        for (const k of Array.isArray(keys) ? keys : [keys]) if (k in data) out[k] = data[k];
+        return out;
+      },
+    },
+    changes: { addListener: (fn: Listener) => void listeners.add(fn), removeListener: (fn: Listener) => void listeners.delete(fn) },
+    /** A write from the popup: stored, then every listener hears it (as chrome.storage.onChanged). */
+    write(key: string, value: unknown) {
+      const oldValue = data[key];
+      data[key] = value;
+      for (const fn of [...listeners]) fn({ [key]: { oldValue, newValue: value } }, "local");
+    },
+  };
+}
+
+/** The content script as src/content/index.ts starts it, with the popup's switches as writes. */
+class Page {
+  constructor(
+    readonly host: HostContent,
+    readonly view: TooltipView,
+    private readonly store: ReturnType<typeof storageStandIn>,
+  ) {}
+  /** The popup's main switch. */
+  setEnabled(on: boolean): void {
+    this.store.write("enabled", on);
+  }
+  /** The popup's card-size dial, as index.ts applies it. */
+  setCardSize(percent: number): void {
+    if (this.view.setCardSize(percent)) this.host.relayout();
+  }
+  /** The popup's "Keep the card I'm pointing at", turned over. */
+  flipKeepCard(): void {
+    this.store.write("keepCard", this.store.data.keepCard === false);
+  }
+  stop(): void {
+    this.host.stop();
+  }
+}
+
+let page: Page;
 
 /** What the stand-in video reports; tests change it. */
 const media = { paused: false, readyState: 4, currentTime: 12.5 };
@@ -63,7 +120,14 @@ Object.defineProperty(HTMLIFrameElement.prototype, "contentWindow", {
   get(this: HTMLIFrameElement) {
     if (!windows.has(this)) {
       const sent: Array<Record<string, unknown>> = [];
-      windows.set(this, { sent, postMessage: (m) => void sent.push(m) });
+      // A cross-origin window: its location cannot be read (the extension's page is there).
+      const win = { sent, postMessage: (m: Record<string, unknown>) => void sent.push(m) };
+      Object.defineProperty(win, "location", {
+        get() {
+          throw new DOMException("cross-origin", "SecurityError");
+        },
+      });
+      windows.set(this, win);
     }
     return windows.get(this);
   },
@@ -96,49 +160,74 @@ function showCard(card: { cardId: string; name: string; box: { x: number; y: num
 }
 
 function spyOn(frame: HTMLIFrameElement | undefined): Array<Record<string, unknown>> {
+  void frame!.contentWindow;
   return windows.get(frame!)!.sent;
 }
 
+function setVisibility(state: "hidden" | "visible"): void {
+  Object.defineProperty(document, "visibilityState", { value: state, configurable: true });
+  Object.defineProperty(document, "hidden", { value: state === "hidden", configurable: true });
+  document.dispatchEvent(new Event("visibilitychange"));
+}
+
+/** An animation frame that runs at once. It returns no handle: the frame has already run, so there
+ *  is nothing left to cancel (a browser's frame always runs later and returns one). */
+const nowFrame = (cb: FrameRequestCallback): number => {
+  cb(0);
+  return null as unknown as number;
+};
+
 beforeEach(() => {
   Object.assign(media, { paused: false, readyState: 4, currentTime: 12.5 });
-  agent?.stop();
+  page?.stop();
   document.body.innerHTML = "";
   for (const f of frames()) f.remove();
-  vi.stubGlobal("chrome", { runtime: { getURL: (path: string) => `${EXT}/${path}` } });
   vi.stubGlobal("location", new URL("http://127.0.0.1:8770/"));
-  vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => (cb(0), 0));
+  vi.stubGlobal("requestAnimationFrame", nowFrame);
   video = makeVideo();
 });
 
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+  Object.defineProperty(document, "hidden", { value: false, configurable: true });
 });
 
 const settle = async () => {
   for (let i = 0; i < 5; i += 1) await Promise.resolve();
 };
 
-async function startAgent(trusted = true): Promise<Agent> {
-  trustedEvents = trusted;
-  const a = new Agent({ dev: true });
-  a.start();
-  a.setEnabled(true);
+/** Start the content script as index.ts does, and let its start-up read of the switch answer.
+ *  Nothing stored: hovers are on, as on a fresh install. */
+async function startPage(options: { trusted?: boolean; dev?: boolean; stored?: Record<string, unknown> } = {}): Promise<Page> {
+  trustedEvents = options.trusted ?? true;
+  const store = storageStandIn(options.stored ?? {});
+  const view = new TooltipView();
+  const host = startHostContent({
+    config: productConfig(options.dev ?? true),
+    win: window,
+    doc: document,
+    extensionUrl: (path) => `${EXT}/${path}`,
+    storage: store.storage,
+    storageChanges: store.changes,
+    view,
+  });
   await settle();
-  return a;
+  return new Page(host, view, store);
 }
 
-describe("Agent", () => {
+describe("the content script on the hover host", () => {
   it("ignores pointer events a page script made (a paused video, so nothing loads at play)", async () => {
     media.paused = true;
-    agent = await startAgent(false);
+    page = await startPage({ trusted: false });
     move(100, 100);
     expect(frames()).toEqual([]);
   });
 
   it("on a video that has not played, makes the two frames when the pointer first comes over the picture, and not before", async () => {
     media.paused = true;
-    agent = await startAgent();
+    page = await startPage();
     move(100, 600);
     expect(frames()).toEqual([]);
     move(100, 100);
@@ -147,7 +236,7 @@ describe("Agent", () => {
   });
 
   it("makes a frame again when the page removed it", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     const first = compute()!;
     first.remove();
@@ -157,7 +246,7 @@ describe("Agent", () => {
   });
 
   it("refuses to capture when the pointer is not over the player", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     const sent = spyOn(compute());
     computeReady();
@@ -167,7 +256,7 @@ describe("Agent", () => {
   });
 
   it("tells the compute frame the pointer left when the tab is hidden", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     const sent = spyOn(compute());
     computeReady();
@@ -179,7 +268,7 @@ describe("Agent", () => {
 
   it("shows the tooltip for a card, and hides it a moment after the card is gone", async () => {
     vi.useFakeTimers();
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     const card = { cardId: "OP01-001", name: "Roronoa Zoro", box: { x: 0.1, y: 0.1, width: 0.1, height: 0.2 } };
     showCard(card);
@@ -191,13 +280,13 @@ describe("Agent", () => {
   });
 
   it("lets the pointer through the tooltip", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     expect(tooltip()!.style.pointerEvents).toBe("none");
   });
 
   it("has no link: nothing it adds takes the pointer, and moves under the tooltip still reach the video", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     fromFrame(tooltip(), { kind: "ready" });
     computeReady();
@@ -220,7 +309,7 @@ describe("Agent", () => {
   });
 
   it("sizes the frame to the tooltip: the card's picture with rounded corners, or a name pill", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     fromFrame(tooltip(), { kind: "ready" });
     const card = { cardId: "OP01-001", name: "Zoro", box: { x: 0.1, y: 0.1, width: 0.1, height: 0.2 } };
@@ -232,14 +321,14 @@ describe("Agent", () => {
   });
 
   it("follows the card-size dial at once: the card on show is fitted again at the new size", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     fromFrame(tooltip(), { kind: "ready" });
     showCard({ cardId: "OP01-001", name: "Zoro", box: { x: 0.1, y: 0.1, width: 0.1, height: 0.2 } });
     expect([tooltip()!.style.width, tooltip()!.style.height]).toEqual(["320px", "448px"]);
-    agent.setCardSize(130);
+    page.setCardSize(130);
     expect([tooltip()!.style.width, tooltip()!.style.height, tooltip()!.style.borderRadius]).toEqual(["416px", "582px", "19px"]);
-    agent.setCardSize(70);
+    page.setCardSize(70);
     expect([tooltip()!.style.width, tooltip()!.style.height, tooltip()!.style.borderRadius]).toEqual(["224px", "314px", "10px"]);
     // A name pill is never scaled.
     fromFrame(tooltip(), { kind: "size", width: 130, height: 33, shape: "pill", cardId: "OP01-001" });
@@ -250,8 +339,8 @@ describe("Agent", () => {
     const height = Object.getOwnPropertyDescriptor(window, "innerHeight");
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 360 });
     try {
-      agent = await startAgent();
-      agent.setCardSize(130);
+      page = await startPage();
+      page.setCardSize(130);
       move(100, 100);
       fromFrame(tooltip(), { kind: "ready" });
       showCard({ cardId: "OP01-001", name: "Zoro", box: { x: 0.1, y: 0.7, width: 0.1, height: 0.2 } });
@@ -268,7 +357,7 @@ describe("Agent", () => {
     const height = Object.getOwnPropertyDescriptor(window, "innerHeight");
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 360 });
     try {
-      agent = await startAgent();
+      page = await startPage();
       move(100, 100);
       fromFrame(tooltip(), { kind: "ready" });
       showCard({ cardId: "OP01-001", name: "Zoro", box: { x: 0.1, y: 0.7, width: 0.1, height: 0.2 } });
@@ -284,7 +373,7 @@ describe("Agent", () => {
   });
 
   it("dates a paused live stream's frozen picture at the time it showed while playing", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     const sent = spyOn(compute());
     computeReady();
@@ -298,7 +387,7 @@ describe("Agent", () => {
   });
 
   it("ignores tooltip messages it does not know (an old link message), and any from elsewhere", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     fromFrame(tooltip(), { kind: "ready" });
     showCard({ cardId: "OP01-001", name: "Zoro", box: { x: 0.1, y: 0.1, width: 0.1, height: 0.2 } });
@@ -311,7 +400,7 @@ describe("Agent", () => {
   });
 
   it("forgets the time a video last played when its source changes", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     const sent = spyOn(compute());
     computeReady();
@@ -332,7 +421,7 @@ describe("Agent", () => {
       } as unknown as CanvasRenderingContext2D;
     } as unknown as typeof getContext;
     try {
-      agent = await startAgent();
+      page = await startPage();
       move(100, 100);
       const sent = spyOn(compute());
       computeReady();
@@ -349,7 +438,7 @@ describe("Agent", () => {
 
   it("sends one pointer message per trusted move, with no animation-frame throttle (owner, 10-29)", async () => {
     vi.stubGlobal("requestAnimationFrame", () => 7);
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     const sent = spyOn(compute());
     computeReady();
@@ -361,7 +450,7 @@ describe("Agent", () => {
   });
 
   it("ignores messages that do not come from its own frames", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     const shown = tag({ kind: "shown", card: { cardId: "X-1", name: "x", box: { x: 0, y: 0, width: 0.1, height: 0.1 } } });
     window.dispatchEvent(message(shown, "http://127.0.0.1:8770", window));
@@ -371,7 +460,7 @@ describe("Agent", () => {
 
   it("is on for every video with nothing stored: no button, no per-channel switch", async () => {
     // No opt-in entry anywhere: the first move over the picture starts the session.
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     expect(frames()).toHaveLength(2);
     expect(document.querySelector("[data-kenbunshoku=button]")).toBeNull();
@@ -379,7 +468,7 @@ describe("Agent", () => {
 
   it("stays idle on a paused video nobody points at: no frame for moves off the picture", async () => {
     media.paused = true;
-    agent = await startAgent();
+    page = await startPage();
     move(100, 600);
     move(2000, 2000);
     expect(frames()).toEqual([]);
@@ -387,10 +476,7 @@ describe("Agent", () => {
 
   it("refuses a capture under a resting pointer once in-page navigation leaves the active page (S-G5)", async () => {
     vi.stubGlobal("location", new URL("https://www.youtube.com/watch?v=abc"));
-    agent = new Agent({ dev: false });
-    agent.start();
-    agent.setEnabled(true);
-    await settle();
+    page = await startPage({ dev: false });
     move(100, 100);
     const sent = spyOn(compute());
     computeReady();
@@ -405,7 +491,7 @@ describe("Agent", () => {
   });
 
   it("keeps answering after in-app navigation, pointer resting (no channel to look up)", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     const sent = spyOn(compute());
     computeReady();
@@ -419,7 +505,7 @@ describe("Agent", () => {
 
   it("hides the tooltip quickly, wherever the pointer is heading", async () => {
     vi.useFakeTimers();
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     fromFrame(tooltip(), { kind: "ready" });
     const card = { cardId: "OP01-001", name: "Zoro", box: { x: 0.1, y: 0.1, width: 0.1, height: 0.2 } };
@@ -436,13 +522,14 @@ describe("Agent", () => {
 
   it("outlines the card the tooltip names, on the same box, and hides it with the tooltip", async () => {
     vi.useFakeTimers();
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     const card = { cardId: "OP01-001", name: "Roronoa Zoro", box: { x: 0.1, y: 0.1, width: 0.1, height: 0.2 } };
     showCard(card);
     const el = outline()!;
     expect(el.style.display).toBe("block");
     expect(el.style.pointerEvents).toBe("none");
+    expect(el.getAttribute("aria-hidden")).toBe("true");
     // The 960 x 540 video shows its 1920 x 1080 picture whole: the box in page pixels.
     expect([el.style.left, el.style.top, el.style.width, el.style.height].map(parseFloat)).toEqual([96, 54, 96, 108]);
     // Another card: the outline moves with the tooltip.
@@ -458,7 +545,7 @@ describe("Agent", () => {
 
   it("turns the outline with a turned card, and follows a new outline of the same card", async () => {
     vi.useFakeTimers();
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     fromFrame(tooltip(), { kind: "ready" });
     const sent = spyOn(tooltip());
@@ -486,7 +573,7 @@ describe("Agent", () => {
 
   it("draws a malformed outline upright, and still shows the card", async () => {
     vi.useFakeTimers();
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     showCard({ cardId: "OP01-001", name: "Roronoa Zoro", box: { x: 0.1, y: 0.1, width: 0.2, height: 0.4 }, rotation: 90, localWidth: 0.1, localHeight: 0.3 });
     expect(tooltip()!.style.visibility).toBe("visible");
@@ -496,7 +583,7 @@ describe("Agent", () => {
 
   it("hides the outline with the tooltip when the pointer leaves the player", async () => {
     vi.useFakeTimers();
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     showCard({ cardId: "OP01-001", name: "x", box: { x: 0.1, y: 0.1, width: 0.1, height: 0.2 } });
     expect(outline()!.style.display).toBe("block");
@@ -509,7 +596,7 @@ describe("Agent", () => {
   });
 
   it("outlines a paused live stream's frozen picture too", async () => {
-    agent = await startAgent();
+    page = await startPage();
     Object.assign(media, { paused: true, readyState: 1 });
     move(100, 100);
     showCard({ cardId: "OP01-001", name: "x", box: { x: 0.1, y: 0.1, width: 0.1, height: 0.2 } });
@@ -518,7 +605,7 @@ describe("Agent", () => {
   });
 
   it("draws no outline for a box off the picture, while the tooltip still shows", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     showCard({ cardId: "OP01-001", name: "x", box: { x: 1.2, y: 0.1, width: 0.1, height: 0.2 } });
     expect(tooltip()!.style.visibility).toBe("visible");
@@ -526,20 +613,20 @@ describe("Agent", () => {
   });
 
   it("removes the outline when the extension is switched off, and brings it back when switched on", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     showCard({ cardId: "OP01-001", name: "x", box: { x: 0.1, y: 0.1, width: 0.1, height: 0.2 } });
     expect(outline()).not.toBeNull();
-    agent.setEnabled(false);
+    page.setEnabled(false);
     expect(outline()).toBeNull();
-    agent.setEnabled(true);
+    page.setEnabled(true);
     move(110, 100);
     showCard({ cardId: "OP01-001", name: "x", box: { x: 0.1, y: 0.1, width: 0.1, height: 0.2 } });
     expect(outline()).not.toBeNull();
   });
 
   it("moves the outline and the tooltip with the page while a card is held (resize, scroll)", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     fromFrame(tooltip(), { kind: "ready" });
     showCard({ cardId: "OP01-001", name: "x", box: { x: 0.1, y: 0.1, width: 0.1, height: 0.2 } });
@@ -560,13 +647,13 @@ describe("Agent", () => {
   it("re-places at most once per animation frame, and not at all with no card shown", async () => {
     const frames: Array<() => void> = [];
     const queue = (cb: FrameRequestCallback): number => (frames.push(() => cb(0)), frames.length);
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     move(2000, 2000); // off the player: no card
     vi.stubGlobal("requestAnimationFrame", queue);
     window.dispatchEvent(new Event("resize"));
     expect(frames).toHaveLength(0);
-    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => (cb(0), 0));
+    vi.stubGlobal("requestAnimationFrame", nowFrame);
     move(100, 100);
     showCard({ cardId: "OP01-001", name: "x", box: { x: 0.1, y: 0.1, width: 0.1, height: 0.2 } });
     vi.stubGlobal("requestAnimationFrame", queue);
@@ -575,7 +662,7 @@ describe("Agent", () => {
   });
 
   it("re-mounts the tooltip and the outline inside the full-screen element, and places them there", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     showCard({ cardId: "OP01-001", name: "x", box: { x: 0.1, y: 0.1, width: 0.1, height: 0.2 } });
     const player = document.createElement("div");
@@ -598,7 +685,7 @@ describe("Agent", () => {
 
   it("keeps working across in-app navigation to another video", async () => {
     vi.useFakeTimers();
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     fromFrame(tooltip(), { kind: "ready" });
     showCard({ cardId: "OP01-001", name: "x", box: { x: 0.1, y: 0.1, width: 0.1, height: 0.2 } });
@@ -620,7 +707,7 @@ describe("Agent", () => {
   });
 
   it("shows the frame only once the tooltip has sized itself for the card shown (no flash of the previous card)", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     fromFrame(tooltip(), { kind: "ready" });
     computeReady();
@@ -642,7 +729,7 @@ describe("Agent", () => {
   });
 
   it("does not breathe: a size a few pixels off the shown one keeps the shown one", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     showCard({ cardId: "OP01-001", name: "x", box: { x: 0.1, y: 0.1, width: 0.1, height: 0.2 } });
     expect([tooltip()!.style.width, tooltip()!.style.height]).toEqual(["320px", "448px"]);
@@ -653,7 +740,7 @@ describe("Agent", () => {
   });
 
   it("moves the tooltip by the card's own displacement when the page moves (no lag, no jump)", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     showCard({ cardId: "OP01-001", name: "x", box: { x: 0.1, y: 0.1, width: 0.1, height: 0.2 } });
     const before = { left: Number.parseFloat(tooltip()!.style.left), top: Number.parseFloat(tooltip()!.style.top) };
@@ -667,7 +754,7 @@ describe("Agent", () => {
 
   it("ignores scrolls that cannot move the video (a chat scrolling itself)", async () => {
     const frames: Array<() => void> = [];
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     showCard({ cardId: "OP01-001", name: "x", box: { x: 0.1, y: 0.1, width: 0.1, height: 0.2 } });
     vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => (frames.push(() => cb(0)), frames.length));
@@ -696,7 +783,7 @@ describe("Agent", () => {
   }
 
   it("keeps the shown size against breathing only while it still fits beside the card", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     const card = { cardId: "OP01-001", name: "x", box: { x: 0.3, y: 0.1, width: 0.05, height: 0.2 } };
     withWindow(1024, 768, () => showCard(card));
@@ -708,7 +795,7 @@ describe("Agent", () => {
   });
 
   it("stays beside the card through a scroll longer than STICKY_PX when its spot is not the best one", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     const box = { x: 0.4, y: 0.5, width: 0.08, height: 0.2 };
     const onLeft = { x: 0.1, y: 0.4, width: 0.1, height: 0.2 };
@@ -730,7 +817,7 @@ describe("Agent", () => {
   });
 
   it("ignores a late size for the previous card that arrives after the new card's own", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     showCard({ cardId: "OP01-001", name: "x", box: { x: 0.1, y: 0.1, width: 0.1, height: 0.2 } });
     fromFrame(compute(), { kind: "shown", card: { cardId: "OP01-002", name: "y", box: { x: 0.5, y: 0.5, width: 0.1, height: 0.2 } } });
@@ -742,7 +829,7 @@ describe("Agent", () => {
 
   it("ignores a late size from an earlier showing of the same card", async () => {
     vi.useFakeTimers();
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     fromFrame(tooltip(), { kind: "ready" });
     computeReady();
@@ -764,7 +851,7 @@ describe("Agent", () => {
   });
 
   it("shows a held card again in the new frame after a full-screen change, without a new card", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     showCard({ cardId: "OP01-001", name: "x", box: { x: 0.1, y: 0.1, width: 0.1, height: 0.2 } });
     const player = document.createElement("div");
@@ -787,11 +874,103 @@ describe("Agent", () => {
     }
   });
 
+  it("gives a new tooltip frame a card's size before its first card", async () => {
+    page = await startPage();
+    expect([tooltip()!.style.width, tooltip()!.style.height, tooltip()!.style.borderRadius]).toEqual(["320px", "448px", "14px"]);
+    expect(tooltip()!.style.visibility).toBe("hidden");
+  });
+
+  it("asks a tooltip frame made again after the page removed it for the card on show, at once", async () => {
+    page = await startPage();
+    move(100, 100);
+    fromFrame(tooltip(), { kind: "ready" });
+    showCard({ cardId: "OP01-001", name: "x", box: { x: 0.1, y: 0.1, width: 0.1, height: 0.2 } });
+    const first = tooltip()!;
+    first.remove();
+    // The next trusted move over the picture makes the frame again, and the card on show is sent
+    // to it without waiting for the compute frame to name it again.
+    move(110, 100);
+    const fresh = tooltip()!;
+    expect(fresh).not.toBe(first);
+    fromFrame(fresh, { kind: "ready" });
+    expect(spyOn(fresh).filter((m) => m.kind === "card").at(-1)).toMatchObject({ cardId: "OP01-001" });
+    expect(fresh.style.visibility).toBe("hidden");
+    fromFrame(fresh, { kind: "size", width: 320, height: 448, shape: "card", cardId: "OP01-001" });
+    expect(fresh.style.visibility).toBe("visible");
+    expect(outline()!.style.display).toBe("block");
+  });
+
+  it("holds the card message until the tooltip frame says it is ready, then sends the latest", async () => {
+    page = await startPage();
+    move(100, 100);
+    computeReady();
+    fromFrame(compute(), { kind: "shown", card: { cardId: "OP01-001", name: "x", box: { x: 0.1, y: 0.1, width: 0.1, height: 0.2 } } });
+    fromFrame(compute(), { kind: "shown", card: { cardId: "OP01-002", name: "y", box: { x: 0.5, y: 0.5, width: 0.1, height: 0.2 } } });
+    const sent = spyOn(tooltip());
+    expect(sent).toEqual([]);
+    fromFrame(tooltip(), { kind: "ready" });
+    expect(sent.filter((m) => m.kind === "card")).toEqual([expect.objectContaining({ cardId: "OP01-002", seq: 2 })]);
+    // Ready again from the same frame changes nothing.
+    fromFrame(tooltip(), { kind: "ready" });
+    expect(sent.filter((m) => m.kind === "card")).toHaveLength(1);
+  });
+
+  it("keeps hovers off when the popup turns them off while the start-up read is pending (S-H1)", async () => {
+    trustedEvents = true;
+    const store = storageStandIn({});
+    let answer: (value: Record<string, unknown>) => void = () => undefined;
+    const slow = { get: () => new Promise<Record<string, unknown>>((resolve) => (answer = resolve)) };
+    const view = new TooltipView();
+    const host = startHostContent({ config: productConfig(true), win: window, doc: document, extensionUrl: (path) => `${EXT}/${path}`, storage: slow, storageChanges: store.changes, view });
+    page = new Page(host, view, store);
+    store.write("enabled", false);
+    answer({ enabled: true });
+    await settle();
+    expect(host.state).toBe("off");
+    playing();
+    move(100, 100);
+    expect(frames()).toEqual([]);
+  });
+
+  it("draws a turned card's outline turned even where it reaches past the picture (S-F3), and the box for a turn it cannot use", async () => {
+    page = await startPage();
+    move(100, 100);
+    const el = () => outline()!;
+    // At the picture's right edge, turned 30 degrees: drawn turned about the box's center.
+    showCard({ cardId: "OP01-001", name: "x", box: { x: 0.92, y: 0.3, width: 0.08, height: 0.4 }, rotation: 30, localWidth: 0.06, localHeight: 0.35 });
+    expect(el().style.transform).toBe("rotate(30deg)");
+    // An out-of-range turn, a side that is not a fraction, or a side under 4 pixels: the box.
+    for (const turned of [{ rotation: 50, localWidth: 0.06, localHeight: 0.35 }, { rotation: 20, localWidth: 0, localHeight: 0.35 }, { rotation: 20, localWidth: 0.003, localHeight: 0.35 }]) {
+      fromFrame(compute(), { kind: "shown", card: { cardId: "OP01-001", name: "x", box: { x: 0.4, y: 0.3, width: 0.2, height: 0.4 }, ...turned } });
+      expect(el().style.transform, JSON.stringify(turned)).toBe("none");
+    }
+  });
+
+  it("marks the outline as this extension's and draws it in the config's colors", () => {
+    const config = productConfig(false);
+    expect(config.tag).toBe("kenbunshoku");
+    expect(config.outline).toEqual({ edgeColor: OUTLINE_COLOR, glowColor: OUTLINE_GLOW_COLOR });
+    expect(config.frames).toEqual({ compute: "compute.html", view: "tooltip.html" });
+    expect(config.capabilities.geometricStage).toBe(true);
+  });
+
+  it("stops: the frames, the outline and every listener go", async () => {
+    page = await startPage();
+    move(100, 100);
+    showCard({ cardId: "OP01-001", name: "x", box: { x: 0.1, y: 0.1, width: 0.1, height: 0.2 } });
+    page.stop();
+    expect(frames()).toEqual([]);
+    expect(outline()).toBeNull();
+    move(100, 100);
+    playing();
+    expect(frames()).toEqual([]);
+  });
+
   it("removes everything when switched off", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     expect(frames()).toHaveLength(2);
-    agent.setEnabled(false);
+    page.setEnabled(false);
     expect(frames()).toHaveLength(0);
     move(100, 100);
     expect(frames()).toHaveLength(0);
@@ -801,7 +980,7 @@ describe("Agent", () => {
 // The toolkit's capture control (page-capture.js) as this content script wires it: the checks
 // from the toolkit 0.6.0 outside review, at the level a page's DOM allows. Each capture asked
 // here is refused or tried; a refusal is a `capture-failed` with `retry: false`.
-describe("Agent and the toolkit's capture control", () => {
+describe("the content script and the toolkit's capture control", () => {
   let clock = 1_000;
   const capture = (requestId: number) => fromFrame(compute(), { kind: "capture", requestId, analysisWidth: { min: 720, max: 1920 } });
   const answer = (sent: Array<Record<string, unknown>>, requestId: number) => sent.filter((m) => m.requestId === requestId).at(-1);
@@ -819,7 +998,7 @@ describe("Agent and the toolkit's capture control", () => {
   afterEach(() => vi.restoreAllMocks());
 
   it("1: ignores a made-up message from the page that names the compute frame as its source", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     computeReady();
     fromFrame(tooltip(), { kind: "ready" });
@@ -835,7 +1014,7 @@ describe("Agent and the toolkit's capture control", () => {
   });
 
   it("2: refuses before any hover, after the pointer leaves, in a background tab, and after another video", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     computeReady();
     const sent = spyOn(compute());
@@ -864,7 +1043,7 @@ describe("Agent and the toolkit's capture control", () => {
   });
 
   it("2: a video that moved away under a resting pointer (a keyboard scroll) is refused", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     computeReady();
     const sent = spyOn(compute());
@@ -874,7 +1053,7 @@ describe("Agent and the toolkit's capture control", () => {
   });
 
   it("switching to another video tells the compute frame of a new source and clears the gate", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     computeReady();
     const sent = spyOn(compute());
@@ -892,7 +1071,7 @@ describe("Agent and the toolkit's capture control", () => {
   });
 
   it("rest cap: a card showing under a resting pointer keeps pictures coming for at most 60 s", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     computeReady();
     const sent = spyOn(compute());
@@ -919,7 +1098,7 @@ describe("Agent and the toolkit's capture control", () => {
 
   it("slow start: a frame first made at a move and ready after 10 s at rest gets one picture, then none", async () => {
     media.paused = true;
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     clock += 11_000;
     computeReady();
@@ -943,7 +1122,7 @@ describe("Agent and the toolkit's capture control", () => {
   });
 
   it("slow start: a model ready just inside the 10 s gets its picture just after them", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     computeReady();
     const sent = spyOn(compute());
@@ -958,7 +1137,7 @@ describe("Agent and the toolkit's capture control", () => {
   });
 
   it("3: a tap allows a picture after the finger lifts, for 10 s, and a card showing does not stretch it", async () => {
-    agent = await startAgent();
+    page = await startPage();
     pointer("pointerdown", 100, 100, { pointerType: "touch", pointerId: 5 });
     computeReady();
     const sent = spyOn(compute());
@@ -974,7 +1153,7 @@ describe("Agent and the toolkit's capture control", () => {
 
   it("4: another contract version never captures; the same frame saying ready twice changes nothing", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     const sent = spyOn(compute());
     fromFrame(compute(), { kind: "ready", version: PROTOCOL_VERSION + 1, instance: INSTANCE });
@@ -990,7 +1169,7 @@ describe("Agent and the toolkit's capture control", () => {
   });
 
   it("4: a compute frame the page removed is made again, says hello, and is told the picture's time and the pointer", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     computeReady();
     compute()!.remove();
@@ -1005,7 +1184,7 @@ describe("Agent and the toolkit's capture control", () => {
   const idle = () => fromFrame(compute(), { kind: "status", state: "idle", error: null, backend: null });
 
   it("idle: both frames and the outline go, and nothing is made by a move off the video", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     showCard({ cardId: "OP01-001", name: "Zoro", box: { x: 0.05, y: 0.1, width: 0.1, height: 0.3 } });
     expect(tooltip()!.style.visibility).toBe("visible");
@@ -1019,7 +1198,7 @@ describe("Agent and the toolkit's capture control", () => {
   });
 
   it("idle: the next trusted move over the video makes both frames once, says hello, and tells the pointer", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     computeReady();
     idle();
@@ -1029,14 +1208,14 @@ describe("Agent and the toolkit's capture control", () => {
     expect(frames().filter((f) => f.src.endsWith("/tooltip.html"))).toHaveLength(1);
     const sent = spyOn(compute());
     expect(sent.filter((m) => m.kind === "hello")).toHaveLength(1);
-    move(120, 100); // still before the new frame's ready: the agent makes nothing of its own
+    move(120, 100); // still before the new frame's ready: the host makes nothing of its own
     expect(frames()).toHaveLength(2);
     computeReady("fedcba9876543210");
     expect(sent.map((m) => m.kind)).toEqual(expect.arrayContaining(["presented", "pointer"]));
   });
 
   it("idle: a page script's move over the video makes nothing, and the frames made again go idle again", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     computeReady();
     idle();
@@ -1051,7 +1230,7 @@ describe("Agent and the toolkit's capture control", () => {
   });
 
   it("idle: the same card shown before and after an unload reaches the new tooltip", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     showCard({ cardId: "OP01-001", name: "Zoro", box: { x: 0.05, y: 0.1, width: 0.1, height: 0.3 } });
     fromFrame(compute(), { kind: "shown", card: null });
@@ -1064,14 +1243,14 @@ describe("Agent and the toolkit's capture control", () => {
   });
 
   it("idle: frames made again and removed before their handshake (hovers off and on) are made again by the next move", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     computeReady();
     idle();
     move(110, 100); // the control's make(): both frames, no handshake yet
-    agent.setEnabled(false);
+    page.setEnabled(false);
     expect(frames()).toEqual([]);
-    agent.setEnabled(true);
+    page.setEnabled(true);
     move(120, 100);
     expect(frames().filter((f) => f.src.endsWith("/compute.html"))).toHaveLength(1);
     expect(frames().filter((f) => f.src.endsWith("/tooltip.html"))).toHaveLength(1);
@@ -1082,13 +1261,13 @@ describe("Agent and the toolkit's capture control", () => {
   });
 
   it("idle: hovers turned off and on while the video plays load both frames at once, and the next idle unloads them again", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     computeReady();
     idle();
     expect(frames()).toEqual([]);
-    agent.setEnabled(false);
-    agent.setEnabled(true);
+    page.setEnabled(false);
+    page.setEnabled(true);
     expect(frames().filter((f) => f.src.endsWith("/compute.html"))).toHaveLength(1);
     expect(frames().filter((f) => f.src.endsWith("/tooltip.html"))).toHaveLength(1);
     const sent = spyOn(compute());
@@ -1105,13 +1284,13 @@ describe("Agent and the toolkit's capture control", () => {
   });
 
   it("idle: hovers turned off and on while the video is paused load at its next play, and only once", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     computeReady();
     idle();
     media.paused = true;
-    agent.setEnabled(false);
-    agent.setEnabled(true);
+    page.setEnabled(false);
+    page.setEnabled(true);
     expect(frames()).toEqual([]);
     media.paused = false;
     playing();
@@ -1123,19 +1302,14 @@ describe("Agent and the toolkit's capture control", () => {
   });
 
   it("idle: hovers turned off and on in a background tab load nothing until the tab comes to the front", async () => {
-    const setVisibility = (state: "hidden" | "visible") => {
-      Object.defineProperty(document, "visibilityState", { value: state, configurable: true });
-      Object.defineProperty(document, "hidden", { value: state === "hidden", configurable: true });
-      document.dispatchEvent(new Event("visibilitychange"));
-    };
     try {
-      agent = await startAgent();
+      page = await startPage();
       move(100, 100);
       computeReady();
       idle();
       setVisibility("hidden");
-      agent.setEnabled(false);
-      agent.setEnabled(true);
+      page.setEnabled(false);
+      page.setEnabled(true);
       expect(frames()).toEqual([]);
       // The video playing on in the background (a loop) makes nothing either.
       playing();
@@ -1151,9 +1325,9 @@ describe("Agent and the toolkit's capture control", () => {
       computeReady("fedcba9876543210");
       idle();
       setVisibility("hidden");
-      agent.setEnabled(false);
-      agent.setEnabled(true);
-      agent.setEnabled(false);
+      page.setEnabled(false);
+      page.setEnabled(true);
+      page.setEnabled(false);
       setVisibility("visible");
       expect(frames()).toEqual([]);
     } finally {
@@ -1162,21 +1336,33 @@ describe("Agent and the toolkit's capture control", () => {
     }
   });
 
-  it("hovers turned off and on in a background tab with no idle unload load at once, as before", async () => {
-    try {
-      agent = await startAgent();
-      move(100, 100);
-      Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
-      agent.setEnabled(false);
-      agent.setEnabled(true);
-      expect(frames()).toHaveLength(2);
-    } finally {
-      Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
-    }
+  it("hovers turned off and on in a background tab with no idle unload wait for the front too (S-A7)", async () => {
+    page = await startPage();
+    move(100, 100);
+    setVisibility("hidden");
+    page.setEnabled(false);
+    page.setEnabled(true);
+    expect(frames()).toEqual([]);
+    // Back in front with the video still playing: both frames, once.
+    setVisibility("visible");
+    expect(frames()).toHaveLength(2);
+    setVisibility("hidden");
+    setVisibility("visible");
+    expect(frames()).toHaveLength(2);
+    // Turned on behind, then the video paused before the tab came back: the load is dropped,
+    // and the next play or pointer over the picture loads.
+    setVisibility("hidden");
+    page.setEnabled(false);
+    page.setEnabled(true);
+    media.paused = true;
+    setVisibility("visible");
+    expect(frames()).toEqual([]);
+    move(100, 100);
+    expect(frames()).toHaveLength(2);
   });
 
   it("idle: a full-screen change while the frames are removed makes no frame", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     computeReady();
     idle();
@@ -1186,7 +1372,7 @@ describe("Agent and the toolkit's capture control", () => {
 
   // Loading at play (owner 2026-11-10 "Products load at video play", for Kenbunshoku 2026-11-12).
   it("play: a main video already playing when hovers come on gets both frames, with no pointer move", async () => {
-    agent = await startAgent();
+    page = await startPage();
     expect(frames().filter((f) => f.src.endsWith("/compute.html"))).toHaveLength(1);
     expect(frames().filter((f) => f.src.endsWith("/tooltip.html"))).toHaveLength(1);
     expect(spyOn(compute()).some((m) => m.kind === "hello")).toBe(true);
@@ -1194,7 +1380,7 @@ describe("Agent and the toolkit's capture control", () => {
 
   it("play: a paused main video gets them at its first playing event, and not before", async () => {
     media.paused = true;
-    agent = await startAgent();
+    page = await startPage();
     expect(frames()).toEqual([]);
     media.paused = false;
     playing();
@@ -1202,7 +1388,7 @@ describe("Agent and the toolkit's capture control", () => {
   });
 
   it("play: loading takes no picture; the frame's capture before any pointer is refused", async () => {
-    agent = await startAgent();
+    page = await startPage();
     computeReady();
     const sent = spyOn(compute());
     capture(1);
@@ -1215,7 +1401,7 @@ describe("Agent and the toolkit's capture control", () => {
 
   it("play: a playing event a page script made, or one from a paused video, makes nothing", async () => {
     media.paused = true;
-    agent = await startAgent();
+    page = await startPage();
     playing(video, false);
     playing(video, true); // still paused: the toolkit's loadWhen waits for a video really playing
     expect(frames()).toEqual([]);
@@ -1223,7 +1409,7 @@ describe("Agent and the toolkit's capture control", () => {
 
   it("play: a small video playing (a preview) makes nothing; the main video playing does", async () => {
     media.paused = true;
-    agent = await startAgent();
+    page = await startPage();
     const small = document.createElement("video");
     Object.defineProperties(small, { videoWidth: { value: 640 }, videoHeight: { value: 360 }, paused: { value: false } });
     small.getBoundingClientRect = () => ({ left: 980, top: 0, width: 200, height: 112, right: 1180, bottom: 112, x: 980, y: 0, toJSON() {} }) as DOMRect;
@@ -1237,27 +1423,26 @@ describe("Agent and the toolkit's capture control", () => {
 
   it("play: with hovers off a playing video makes nothing; turning them on makes the frames", async () => {
     trustedEvents = true;
-    agent = new Agent({ dev: true });
-    agent.start();
+    page = await startPage({ stored: { enabled: false } });
     playing();
     expect(frames()).toEqual([]);
-    agent.setEnabled(true);
+    page.setEnabled(true);
     expect(frames()).toHaveLength(2);
-    agent.setEnabled(false);
+    page.setEnabled(false);
     expect(frames()).toEqual([]);
-    agent.setEnabled(true);
+    page.setEnabled(true);
     expect(frames()).toHaveLength(2);
   });
 
   it("play: not on an inactive page", async () => {
     vi.stubGlobal("location", new URL("https://www.youtube.com/"));
-    agent = await startAgent();
+    page = await startPage();
     playing();
     expect(frames()).toEqual([]);
   });
 
   it("play: after an idle unload, the video playing again (a loop) makes nothing; the next trusted move does", async () => {
-    agent = await startAgent();
+    page = await startPage();
     computeReady();
     idle();
     expect(frames()).toEqual([]);
@@ -1281,7 +1466,7 @@ describe("Agent and the toolkit's capture control", () => {
   }
 
   it("play: after an idle unload, a new larger video playing makes nothing; a trusted move over it does", async () => {
-    agent = await startAgent();
+    page = await startPage();
     computeReady();
     idle();
     const bigger = otherVideo(1280, 720);
@@ -1293,7 +1478,7 @@ describe("Agent and the toolkit's capture control", () => {
 
   it("play: a main video replaced by another element loads when the new one plays", async () => {
     media.paused = true;
-    agent = await startAgent();
+    page = await startPage();
     expect(frames()).toEqual([]);
     video.remove();
     const next = otherVideo(960, 540);
@@ -1309,7 +1494,7 @@ describe("Agent and the toolkit's capture control", () => {
     Object.defineProperties(v, { videoWidth: { value: 1920 }, videoHeight: { value: 1080 }, paused: { get: () => paused }, readyState: { value: 4 }, currentTime: { value: 3 } });
     v.getBoundingClientRect = () => ({ left: 0, top: 0, width, height: width * 0.5625, right: width, bottom: width * 0.5625, x: 0, y: 0, toJSON() {} }) as DOMRect;
     document.body.appendChild(v);
-    agent = await startAgent(); // paused main video: watched, nothing made
+    page = await startPage(); // paused main video: watched, nothing made
     expect(frames()).toEqual([]);
     width = 200; // the player shrank (a mini player) and then plays: not the main video now
     paused = false;
@@ -1322,7 +1507,7 @@ describe("Agent and the toolkit's capture control", () => {
 
   it("play: on a Twitch page that is not a channel's page, a past broadcast or a clip (the front page's featured stream), playing makes nothing; the pointer does", async () => {
     vi.stubGlobal("location", new URL("https://www.twitch.tv/"));
-    agent = await startAgent();
+    page = await startPage();
     playing();
     expect(frames()).toEqual([]);
     vi.stubGlobal("location", new URL("https://www.twitch.tv/directory/category/one-piece-card-game"));
@@ -1334,7 +1519,7 @@ describe("Agent and the toolkit's capture control", () => {
 
   it("play: in an embedded YouTube player (a muted video playing by itself on another website), playing makes nothing; the pointer does", async () => {
     vi.stubGlobal("location", new URL("https://www.youtube.com/embed/abc?autoplay=1&mute=1"));
-    agent = await startAgent();
+    page = await startPage();
     playing();
     expect(frames()).toEqual([]);
     move(100, 100);
@@ -1342,23 +1527,23 @@ describe("Agent and the toolkit's capture control", () => {
   });
 
   it("play: a Twitch channel's page, a past broadcast or a clip loads at play", async () => {
-    for (const page of ["https://www.twitch.tv/somechannel", "https://www.twitch.tv/videos/123456789", "https://www.twitch.tv/somechannel/clip/SomeClip-Ab_12"]) {
-      agent?.stop();
+    for (const address of ["https://www.twitch.tv/somechannel", "https://www.twitch.tv/videos/123456789", "https://www.twitch.tv/somechannel/clip/SomeClip-Ab_12"]) {
+      page?.stop();
       for (const f of frames()) f.remove();
-      vi.stubGlobal("location", new URL(page));
+      vi.stubGlobal("location", new URL(address));
       media.paused = true;
-      agent = await startAgent();
+      page = await startPage();
       expect(frames()).toEqual([]);
       media.paused = false;
       playing();
-      expect(frames(), page).toHaveLength(2);
+      expect(frames(), address).toHaveLength(2);
     }
   });
 
   it("play: a watch started on a channel's page makes nothing if the video first plays after the page changed to the front page; it loads on a channel's page again", async () => {
     vi.stubGlobal("location", new URL("https://www.twitch.tv/somechannel"));
     media.paused = true;
-    agent = await startAgent(); // paused: watched, nothing made
+    page = await startPage(); // paused: watched, nothing made
     vi.stubGlobal("location", new URL("https://www.twitch.tv/"));
     media.paused = false;
     playing();
@@ -1368,19 +1553,43 @@ describe("Agent and the toolkit's capture control", () => {
     expect(frames()).toHaveLength(2);
   });
 
-  it("play: a video playing in a background tab loads (no visibility filter) but is never captured; coming back invents no authority, and delayed ticks are all refused", async () => {
-    const setVisibility = (state: "hidden" | "visible") => {
-      Object.defineProperty(document, "visibilityState", { value: state, configurable: true });
-      Object.defineProperty(document, "hidden", { value: state === "hidden", configurable: true });
-      document.dispatchEvent(new Event("visibilitychange"));
-    };
+  it("play: a video that starts playing in a background tab loads when the tab comes to the front (S-A8)", async () => {
+    media.paused = true;
+    page = await startPage();
+    setVisibility("hidden");
+    media.paused = false;
+    playing();
+    expect(frames()).toEqual([]);
+    playing();
+    expect(frames()).toEqual([]);
+    setVisibility("visible");
+    expect(frames()).toHaveLength(2);
+    expect(spyOn(compute()).filter((m) => m.kind === "hello")).toHaveLength(1);
+  });
+
+  it("play: a load owed to a background tab is dropped when the video was paused before the tab came back (S-A8)", async () => {
+    media.paused = true;
+    page = await startPage();
+    setVisibility("hidden");
+    media.paused = false;
+    playing();
+    media.paused = true;
+    setVisibility("visible");
+    expect(frames()).toEqual([]);
+    // The next play loads, as on any page that loads at play.
+    media.paused = false;
+    playing();
+    expect(frames()).toHaveLength(2);
+  });
+
+  it("play: frames loaded at play are never captured from a background tab; coming back invents no authority, and delayed ticks are all refused", async () => {
     try {
       media.paused = true;
-      agent = await startAgent();
-      setVisibility("hidden");
+      page = await startPage();
       media.paused = false;
       playing();
       expect(frames()).toHaveLength(2);
+      setVisibility("hidden");
       computeReady();
       const sent = spyOn(compute());
       capture(1);
@@ -1413,7 +1622,7 @@ describe("Agent and the toolkit's capture control", () => {
   });
 
   it("play: frames the page removed are made again at the main video's next trusted playing (S-A10)", async () => {
-    agent = await startAgent();
+    page = await startPage();
     const first = { compute: compute()!, tooltip: tooltip()! };
     first.compute.remove();
     first.tooltip.remove();
@@ -1427,7 +1636,7 @@ describe("Agent and the toolkit's capture control", () => {
   });
 
   it("play: a tooltip frame the page removed alone is made again at the next trusted playing, and the compute frame kept (S-A10)", async () => {
-    agent = await startAgent();
+    page = await startPage();
     const kept = compute()!;
     const first = tooltip()!;
     first.remove();
@@ -1438,7 +1647,7 @@ describe("Agent and the toolkit's capture control", () => {
   });
 
   it("play: a frame the page removed is also made again at the next trusted move (S-A10)", async () => {
-    agent = await startAgent();
+    page = await startPage();
     const first = compute()!;
     first.remove();
     move(100, 100);
@@ -1448,10 +1657,7 @@ describe("Agent and the toolkit's capture control", () => {
 
   it("play: on a page that does not load at play (an embedded player), a removed frame waits for a move", async () => {
     vi.stubGlobal("location", new URL("https://www.youtube.com/embed/abc"));
-    agent = new Agent({ dev: false });
-    agent.start();
-    agent.setEnabled(true);
-    await settle();
+    page = await startPage({ dev: false });
     move(100, 100);
     const first = compute()!;
     first.remove();
@@ -1462,12 +1668,21 @@ describe("Agent and the toolkit's capture control", () => {
     expect(compute()).not.toBe(first);
   });
 
-  it("play: another video playing does not make a removed frame again (S-A10)", async () => {
-    agent = await startAgent();
-    compute()!.remove();
+  it("play: any trusted playing while the main video plays makes a removed frame again; none while it is paused (S-A10, S-G4)", async () => {
+    page = await startPage();
+    const first = compute()!;
+    first.remove();
     const other = document.createElement("video");
     document.body.append(other);
     try {
+      // Another video (too small to be the main one) starts playing: the main video is picked
+      // again, and it plays, so the removed frame is made again.
+      playing(other);
+      expect(compute()).toBeDefined();
+      expect(compute()).not.toBe(first);
+      // With the main video paused, another video playing makes nothing.
+      compute()!.remove();
+      media.paused = true;
       playing(other);
       expect(compute()).toBeUndefined();
     } finally {
@@ -1476,7 +1691,7 @@ describe("Agent and the toolkit's capture control", () => {
   });
 
   it("hold: keeps the tooltip but draws no outline for a card the reading hold marks held, and outlines it again once seen there", async () => {
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     const card = { cardId: "OP01-001", name: "Zoro", box: { x: 0.1, y: 0.1, width: 0.1, height: 0.2 } };
     showCard(card);
@@ -1495,12 +1710,12 @@ describe("Agent and the toolkit's capture control", () => {
 
   it("keep card: a change remakes the running compute frame, keeps the tooltip frame, clears the card on show and says hello to the new frame", async () => {
     vi.useFakeTimers();
-    agent = await startAgent();
+    page = await startPage();
     move(100, 100);
     showCard({ cardId: "OP01-001", name: "Zoro", box: { x: 0.1, y: 0.1, width: 0.1, height: 0.2 } });
     const oldCompute = compute()!;
     const oldTooltip = tooltip()!;
-    agent.restartForKeepCard();
+    page.flipKeepCard();
     expect(oldCompute.isConnected).toBe(false);
     expect(compute()).toBeDefined();
     expect(compute()).not.toBe(oldCompute);
@@ -1522,18 +1737,18 @@ describe("Agent and the toolkit's capture control", () => {
 
   it("keep card: a change makes nothing where no compute frame runs (not loaded yet, hovers off, or an idle unload waiting for the pointer)", async () => {
     media.paused = true;
-    agent = await startAgent();
-    agent.restartForKeepCard();
+    page = await startPage();
+    page.flipKeepCard();
     expect(frames()).toEqual([]);
-    agent.setEnabled(false);
-    agent.restartForKeepCard();
+    page.setEnabled(false);
+    page.flipKeepCard();
     expect(frames()).toEqual([]);
-    agent.setEnabled(true);
+    page.setEnabled(true);
     move(100, 100);
     computeReady();
     fromFrame(compute(), { kind: "status", state: "idle", error: null, backend: null });
     expect(frames()).toEqual([]);
-    agent.restartForKeepCard();
+    page.flipKeepCard();
     expect(frames()).toEqual([]);
     // The next trusted move makes them, as after any idle unload.
     move(110, 100);
@@ -1541,18 +1756,13 @@ describe("Agent and the toolkit's capture control", () => {
   });
 
   it("keep card: a tab in the background remakes its compute frame only when it comes to the front, once", async () => {
-    const setVisibility = (state: "hidden" | "visible") => {
-      Object.defineProperty(document, "visibilityState", { value: state, configurable: true });
-      Object.defineProperty(document, "hidden", { value: state === "hidden", configurable: true });
-      document.dispatchEvent(new Event("visibilitychange"));
-    };
     try {
-      agent = await startAgent();
+      page = await startPage();
       move(100, 100);
       const first = compute()!;
       setVisibility("hidden");
-      agent.restartForKeepCard();
-      agent.restartForKeepCard(); // flipped twice while away: still one remake
+      page.flipKeepCard();
+      page.flipKeepCard(); // flipped twice while away: still one remake
       expect(compute()).toBe(first);
       expect(first.isConnected).toBe(true);
       setVisibility("visible");
@@ -1566,9 +1776,9 @@ describe("Agent and the toolkit's capture control", () => {
       expect(compute()).toBe(second);
       // A frame made while the change was owed reads the switch itself: nothing more on return.
       setVisibility("hidden");
-      agent.restartForKeepCard();
-      agent.setEnabled(false);
-      agent.setEnabled(true);
+      page.flipKeepCard();
+      page.setEnabled(false);
+      page.setEnabled(true);
       move(110, 100);
       const third = compute()!;
       expect(third).not.toBe(second);
@@ -1576,7 +1786,7 @@ describe("Agent and the toolkit's capture control", () => {
       expect(compute()).toBe(third);
       // An idle unload while it was owed: nothing is made on return; the next move makes them.
       setVisibility("hidden");
-      agent.restartForKeepCard();
+      page.flipKeepCard();
       computeReady();
       fromFrame(compute(), { kind: "status", state: "idle", error: null, backend: null });
       expect(frames()).toEqual([]);

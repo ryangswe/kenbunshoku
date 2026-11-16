@@ -14,9 +14,11 @@
 import { resolveCardImage, type Resolution, SourceHealth } from "../images/chain.js";
 import type { LocalizedPictures } from "../l10n/list.js";
 import type { Settings } from "../settings/schema.js";
-import { sameSettings } from "../settings/same.js";
+import { sameSettings } from "../settings/core.js";
 import type { SourceFileMaps } from "../settings/templates.js";
-import { allowedParentOrigin, parseTooltipIn, tag, type TooltipOut, type TooltipSize } from "../shared/messages.js";
+import { VIDEO_SITES } from "../constants.js";
+import { parseTooltipIn, tag, type TooltipOut, type TooltipSize } from "../shared/messages.js";
+import { allowedParentOrigin } from "../../vendor/cardvision-browser/host-settings.js";
 import type { CardFacts, CardTable } from "./card-data.js";
 
 /** Pictures kept for cards shown in this page, oldest dropped first. */
@@ -324,7 +326,9 @@ export function connectTooltipFrame(
   controller: Pick<TooltipController, "show" | "clear">,
 ): ((message: TooltipOut) => void) | null {
   const parentOrigin = env.parentOrigin;
-  if (!env.framed || parentOrigin === null || !allowedParentOrigin(parentOrigin, env.dev)) return null;
+  // The same origins the toolkit's hover host lets frame the compute page: the video sites the
+  // config turns on, and the local test page in a dev build.
+  if (!env.framed || parentOrigin === null || !allowedParentOrigin(parentOrigin, { sites: VIDEO_SITES, dev: env.dev })) return null;
   env.win.addEventListener("message", (event) => {
     if (event.source !== env.win.parent || event.origin !== parentOrigin) return;
     const message = parseTooltipIn(event.data);

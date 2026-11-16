@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // The times PRIVACY.md promises are the times the code uses. A change to one of the constants
-// below fails here until PRIVACY.md says the new time (and the other way round).
+// below fails here until PRIVACY.md says the new time (and the other way round). The idle unload
+// and the settings refresh are the toolkit's hover host's (vendored host-compute.js and
+// host-settings.js); the pointer times are its capture control's.
 import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { IDLE_UNLOAD_MS, SETTINGS_REFRESH_MS } from "../src/constants.js";
+import { STANDARD_PRESET } from "../vendor/cardvision-browser/host-compute.js";
+import { SETTINGS_REFRESH_MS } from "../vendor/cardvision-browser/host-settings.js";
 import { MAX_REST_MS, POINTER_GRACE_MS, READING_LINGER_MS } from "../vendor/cardvision-browser/page-capture.js";
 
 const privacy = readFileSync(new URL("../PRIVACY.md", import.meta.url), "utf-8").replace(/\s+/g, " ");
@@ -34,8 +37,9 @@ describe("PRIVACY.md's times match the code", () => {
   });
 
   it("unloads card hovers after 10 idle minutes", () => {
-    expect(IDLE_UNLOAD_MS / 60_000).toBe(10);
-    expect(privacy).toContain(`After ${IDLE_UNLOAD_MS / 60_000} minutes in which the pointer has not moved over the video`);
+    const idleUnloadMs = STANDARD_PRESET.idleUnloadMs;
+    expect(idleUnloadMs / 60_000).toBe(10);
+    expect(privacy).toContain(`After ${idleUnloadMs / 60_000} minutes in which the pointer has not moved over the video`);
   });
 
   it("checks the settings file at most once an hour", () => {

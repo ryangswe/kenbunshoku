@@ -5,7 +5,10 @@
 // chrome.storage.local. A choice the settings stop offering is kept, and the pictures follow the
 // browser until it is offered again.
 
-import type { KeyValueStorage } from "../settings/store.js";
+/** The part of chrome.storage.local read here. */
+interface Readable {
+  get(keys: string | string[]): Promise<Record<string, unknown>>;
+}
 
 export const CARD_LANGUAGE_KEY = "cardLanguage";
 export const AUTOMATIC = "auto";
@@ -19,6 +22,6 @@ export function parseCardLanguage(value: unknown): string {
 }
 
 /** The stored choice ("auto" when nothing usable is stored). */
-export async function readCardLanguage(storage: Pick<KeyValueStorage, "get">): Promise<string> {
+export async function readCardLanguage(storage: Readable): Promise<string> {
   return parseCardLanguage((await storage.get(CARD_LANGUAGE_KEY))[CARD_LANGUAGE_KEY]);
 }

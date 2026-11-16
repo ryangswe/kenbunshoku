@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // The card facts of a remote release, from the compute frame to the tooltip frame.
 //
-// The toolkit's compute frame (startComputeFrame) calls `onShown(card, release)` before it posts
-// each shown card to the content script. When the card comes from a remote release the worker
+// The toolkit's compute frame calls `onShown(card, release)` before it posts each shown card to the
+// content script (compute.ts hands it to the hover host as `observe.onShown`, and the host passes
+// it on to the frame). When the card comes from a remote release the worker
 // confirmed, its facts (name, set, art, printed number) are sent first, over the extension-only
 // facts channel (FACTS_CHANNEL), never through the page. A tooltip frame that lacks a card's facts
 // (one made again, or a card that arrived before its facts) asks on the channel; it is answered
@@ -16,7 +17,7 @@ import type { CardFactsMessage } from "../shared/messages.js";
 export const SHOWN_IDS_LIMIT = 256;
 
 export interface ShownFacts {
-  /** Hand to startComputeFrame's `onShown`. */
+  /** Hand to the hover host's `observe.onShown` (compute.ts). */
   onShown(card: ShownCard | null, release: ReleaseInEffect): void;
   /** A tooltip's request: the facts of a card this frame showed, of the release in effect; null otherwise. */
   factsFor(releaseId: string, cardId: string): CardFactsMessage | null;

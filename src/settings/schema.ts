@@ -3,7 +3,7 @@
 //
 // A file is either usable or not. It is not usable when it is not a JSON object, when
 // `schemaVersion` is not exactly 1, or when a required field is missing or of the wrong type;
-// the caller then keeps its last good copy (store.ts). Inside a usable file, a single source
+// the caller then keeps its last good copy (core.ts). Inside a usable file, a single source
 // can still be dropped, and the rest kept:
 //   - a template that is not an absolute https:// URL;
 //   - a template with a placeholder this extension does not know;
@@ -17,7 +17,9 @@
 // unusable. The optional `localizedArt` field (card pictures in the viewer's language) keeps each
 // well-formed language and drops the rest; it never makes the file unusable either.
 
-import { IMAGE_HOSTS, UPDATE_URL_PREFIX } from "../constants.js";
+import { IMAGE_HOSTS, SETTINGS_URL, UPDATE_URL_PREFIX } from "../constants.js";
+// The built-in default is the published settings file itself (single source: cdn/config.json).
+import DEFAULT_CONFIG from "../../cdn/config.json";
 import { templateProblem } from "./templates.js";
 
 export interface ImageSource {
@@ -230,4 +232,14 @@ export function validateSettings(raw: unknown, allowedHosts: readonly string[] =
     },
     problems,
   };
+}
+
+/**
+ * This build's settings file as the toolkit's settings core takes it (`createSettingsCore`, in
+ * host-settings.js and host-compute.js): the validation above, the built-in default (the published
+ * cdn/config.json, valid by construction: a test checks it), and the file's address (SETTINGS_URL;
+ * null: nothing is ever fetched). A test may pass another address.
+ */
+export function settingsSchema(url: string | null = SETTINGS_URL): { validate(raw: unknown): Validation; defaultRaw: unknown; url: string | null } {
+  return { validate: (raw) => validateSettings(raw), defaultRaw: DEFAULT_CONFIG, url };
 }

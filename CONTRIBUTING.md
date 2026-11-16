@@ -35,6 +35,14 @@ fails when an anchor names a file or a symbol that is gone, when the map cites a
 vendored spec does not have, or when a covered file has no anchor. It cannot tell whether a
 diagram still says what the code does, so the map is read in review too.
 
+Most of what a hover does on the page is the cardvision toolkit's shared hover host, vendored in
+`vendor/cardvision-browser/` (`host-content.js`, `host-compute.js` and `host-settings.js`): which
+pages hovers run on, when the two frames load and unload, which video is followed, when a picture
+may be taken, the outline, and the two switches. The vendored files are never edited here, so a
+problem in one of those is an issue in this repository, not a pull request against them. This
+repository holds the tooltip (`src/content/tooltip-view.ts` and `src/tooltip/`), the compute
+frame's release choice (`src/compute/`), the popup, the background and the settings file.
+
 Every new file starts with the license line (`SPDX-License-Identifier: Apache-2.0`, as a comment
 of that kind of file). JSON files are the exception.
 

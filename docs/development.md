@@ -114,11 +114,15 @@ addons.mozilla.org (`releases/<version>.json`). See the toolkit's `docs/store-up
 ## The runtime
 
 `vendor/cardvision-browser/` holds the runtime's built modules from one toolkit commit, with its
-license and notices: the worker and the runtime, and the toolkit's entries for extensions
-(`compute-session.js` for the compute frame, `page-capture.js` for the content script,
-`remote-release.js` for remote releases; their contract is the toolkit's
-`docs/extension-session.md`), their TypeScript declarations, OpenCV.js for the geometric stage, and
-`hover-spec.json`, the index of the toolkit's hover spec. `cardvision-vendor.json` records the
+license and notices: the worker and the runtime, and the toolkit's entries for extensions, with
+their TypeScript declarations. The extension's own code imports the shared hover host, one file
+per realm: `host-content.js` for the content script, `host-compute.js` for the compute frame, and
+`host-settings.js` for the background, the tooltip frame and the popup (the host is experimental
+in the toolkit; its contract is the toolkit's hover spec and `docs/extension-session.md`). The
+compute frame also imports `remote-release.js` for remote releases. `compute-session.js` and
+`page-capture.js`, the entries the host is built on, are vendored too; the tests use them. The
+folder also holds OpenCV.js for the geometric stage, and `hover-spec.json`, the index of the
+toolkit's hover spec. `cardvision-vendor.json` records the
 toolkit version and commit, the ONNX Runtime pin and each file's SHA-256. The toolkit's own tool
 writes the folder; see "Vendoring the runtime, and checking it" in the toolkit's
 `browser/README.md`. To update it, in a clean toolkit checkout at the commit:
@@ -128,7 +132,7 @@ mkdir -p <toolkit>/browser/vendor/opencv
 cp vendor/cardvision-browser/opencv.mjs vendor/cardvision-browser/opencv_js.wasm \
    vendor/cardvision-browser/opencv.mjs.LEGAL.txt <toolkit>/browser/vendor/opencv/
 (cd <toolkit>/browser && npm ci && npm run build)
-npm --prefix <toolkit>/browser run vendor -- --into vendor/cardvision-browser --no-ort-wasm --node-tools
+npm --prefix <toolkit>/browser run vendor -- --into vendor/cardvision-browser --no-ort-wasm --node-tools --host
 npm --prefix <toolkit>/browser run vendor-check -- vendor/cardvision-browser
 ```
 
@@ -173,12 +177,14 @@ was shown (see the comment at its top; it needs `puppeteer-core`, which is not a
   both the published settings and the extension's built-in default.
 
 - [hover-map.md](hover-map.md) maps the extension's own hover code, and links the toolkit's map
-  for the runtime. A change to a covered file updates the map in the same pull request, and the
+  for the runtime. The toolkit's shared hover host (vendored `host-*.js`) is drawn there only as a
+  box. A change to a covered file updates the map in the same pull request, and the
   reviewer reads its diagrams against the code; `test/hover-map.test.ts` checks only that its
   names are real. A re-vendor checks the map's two toolkit links (its hover map, and its hover
   spec at the vendored commit, which the test compares with `cardvision-vendor.json`), the
-  clause ids, which come from `vendor/cardvision-browser/hover-spec.json`, and the "(differs)"
-  marks, which follow each clause's status there.
+  clause ids, which come from `vendor/cardvision-browser/hover-spec.json`, and whether a clause
+  needs a "(differs)" mark: one the extension does not meet yet, which the spec marks as one that
+  changes in a product release. The map marks none since the extension moved onto the host.
 - `kenbunshoku.config.json` holds the extension's names, sites, image hosts, settings address,
   printed-number rule, geometric pin and links; `scripts/fork-config.mjs` explains and checks it.
 - A new image host needs an extension release: the settings file can only name hosts in the

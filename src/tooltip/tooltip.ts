@@ -7,8 +7,8 @@
 
 import { loadImage } from "../images/chain.js";
 import { loadLocalizedPictures } from "../l10n/list.js";
-import type { Settings } from "../settings/schema.js";
-import { LAST_GOOD_KEY, readEffectiveSettings } from "../settings/store.js";
+import { settingsCore } from "../settings/core.js";
+import { LAST_GOOD_KEY } from "../../vendor/cardvision-browser/host-settings.js";
 import { AUTOMATIC, CARD_LANGUAGE_KEY, parseCardLanguage, readCardLanguage } from "../shared/card-language.js";
 import { type CardTable, parseSourceFileMaps } from "./card-data.js";
 import { connectTooltipFrame, TooltipController } from "./controller.js";
@@ -35,6 +35,8 @@ let post: ((message: TooltipOut) => void) | null = null;
 /** The browser's languages, most preferred first. */
 const browserLanguages = (): readonly string[] => (navigator.languages?.length ? navigator.languages : [navigator.language]);
 
+const settings = settingsCore(chrome.storage.local);
+
 void (async () => {
   const framed = window.parent !== window;
   const parentOrigin = location.ancestorOrigins?.[0] ?? null;
@@ -42,7 +44,7 @@ void (async () => {
   const [cards, files, effective, language] = await Promise.all([
     fetchJson("data/cards.json"),
     fetchJson("data/source-files.json"),
-    readEffectiveSettings(chrome.storage.local),
+    settings.read(),
     readCardLanguage(chrome.storage.local).catch(() => AUTOMATIC),
   ]);
   const controller = new TooltipController({
@@ -88,7 +90,7 @@ void (async () => {
     if (area !== "local") return;
     if (CARD_LANGUAGE_KEY in changes) localized.cardLanguage = parseCardLanguage((changes[CARD_LANGUAGE_KEY] as { newValue?: unknown } | undefined)?.newValue);
     if (LAST_GOOD_KEY in changes) {
-      void readEffectiveSettings(chrome.storage.local).then((e) => {
+      void settings.read().then((e) => {
         settingsNow = e.settings;
         controller.setSettings(e.settings);
         localized.sync(e.settings);
