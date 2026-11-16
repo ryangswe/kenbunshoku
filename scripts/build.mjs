@@ -42,6 +42,7 @@ import { checkVendoredRuntime } from "./vendor-check.mjs";
 import { CONFIG_PATH, geometricIndexProblem, hasOnDarkIcons, ICON_SIZES, loadForkConfig, ON_DARK_ICON_SIZES } from "./fork-config.mjs";
 import { LEGAL_FILES, releaseLegalProblem } from "./release-legal.mjs";
 import { describeOversized, oversizedTextFiles, TEXT_FILE_LIMIT } from "./package-size.mjs";
+import { realmCheck } from "./realm-check.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const { values } = parseArgs({
@@ -269,6 +270,13 @@ copyFileSync(join(root, "THIRD_PARTY_LICENSES.txt"), join(out, "THIRD_PARTY_LICE
 copyFileSync(join(vendorDir, "LICENSE"), join(out, "runtime", "LICENSE"));
 copyFileSync(join(vendorDir, "NOTICE"), join(out, "runtime", "NOTICE"));
 
+// No built file may hold a runtime module twice (the toolkit's realm check).
+const realm = realmCheck(out);
+if (!realm.ok) {
+  console.error(realm.message);
+  process.exit(1);
+}
+
 let commit = "unknown";
 try {
   commit = execFileSync("git", ["-C", root, "rev-parse", "--short", "HEAD"], { encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] }).trim();
@@ -282,6 +290,7 @@ console.log(`  release ${release.id} (${release.game}, ${release.bank.cardCount}
 console.log(`  runtime cardvision-browser from toolkit ${vendor.version} at ${vendor.commit.slice(0, 7)}, onnxruntime-web ${ortVersion}`);
 console.log(`  content.js ${kb("content.js")}, compute.js ${kb("compute.js")}, tooltip.js ${kb("tooltip.js")}, runtime/worker.js ${kb("runtime/worker.js")}`);
 console.log(`  ${mapSummary}`);
+console.log(`  ${realm.message}`);
 // A dev build may hold them (a smoke on an unconverted release); `npm run package` refuses them.
 const big = oversizedTextFiles(out);
 if (big.length > 0) console.warn(`  warning: text files of ${TEXT_FILE_LIMIT / 1024 / 1024} MiB or more, which npm run package refuses: ${describeOversized(big)}`);

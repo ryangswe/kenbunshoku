@@ -20,6 +20,7 @@ import { loadForkConfig } from "./fork-config.mjs";
 import { firefoxAddonId } from "./manifest.mjs";
 import { describeOversized, oversizedTextFiles, TEXT_FILE_LIMIT } from "./package-size.mjs";
 import { writeZip, zipLayout } from "./package-zip.mjs";
+import { realmCheck } from "./realm-check.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const dist = join(root, "dist");
@@ -44,6 +45,12 @@ if (gecko && gecko.id !== firefoxAddonId(config, false)) {
 const big = oversizedTextFiles(dist);
 if (big.length > 0) {
   console.error(`dist/ holds text files of ${TEXT_FILE_LIMIT / 1024 / 1024} MiB or more (addons.mozilla.org refuses 5 MiB): ${describeOversized(big)}.`);
+  process.exit(1);
+}
+// A build whose realm check failed still leaves its files in dist/, so the check runs again here.
+const realm = realmCheck(dist);
+if (!realm.ok) {
+  console.error(realm.message);
   process.exit(1);
 }
 // A zip for a release page is loaded unpacked and carries the key; a Web Store build has none.

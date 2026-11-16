@@ -151,6 +151,9 @@ entry names.
 
 `--node-tools` adds the toolkit's Node tools in `vendor/cardvision-browser/node/`. The store
 workflows run its `store-upload.mjs`; the extension's packages do not include that folder.
+`npm run build` runs its `realm-check.mjs` on the built folder, and fails when one built file
+holds twice one of the runtime modules that the toolkit marks. That file would then have two
+copies of the module's state. `npm run package` runs the check again before it zips a build.
 
 ## Manual check on a local video
 
