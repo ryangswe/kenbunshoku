@@ -7,6 +7,12 @@ which has the full notes and the download. Versions before 0.5.0 are described o
 
 ## Unreleased
 
+Nothing yet.
+
+## 0.6.1 (2026-11-17)
+
+[GitHub release](https://github.com/ryangswe/kenbunshoku/releases/tag/v0.6.1)
+
 - When card recognition finishes loading while the pointer rests on a card, that card is now named
   in two cases where it could be missed: when the extension's hidden frame in the page first
   connects more than 10 seconds after the pointer last moved, as in a new tab whose model loads
@@ -15,7 +21,8 @@ which has the full notes and the download. Versions before 0.5.0 are described o
   read while the card shows, as for any card; if not, nothing more is read after those 10 seconds
   until the pointer moves. PRIVACY.md says so.
   ([#61](https://github.com/ryangswe/kenbunshoku/pull/61))
-- It runs on the cardvision toolkit 0.14.1.
+- It runs on the cardvision toolkit 0.14.1. It ships the same recognition release as 0.6.0, B2.1,
+  and asks for the same permissions.
 
 ## 0.6.0 (2026-11-14)
 
