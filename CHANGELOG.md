@@ -27,8 +27,8 @@ which has the full notes and the download. Versions before 0.5.0 are described o
   made again, at the next pointer move over the video, instead of only when a new look names it.
 - A change to the popup's switch made while a page is still opening is no longer lost.
 - The page side of card hovers now comes from the cardvision toolkit's shared hover host.
-  HOVER-DEVIATIONS.md lists each place where Kenbunshoku's hover differs from the toolkit's
-  standard.
+  HOVER-DEVIATIONS.md records that Kenbunshoku follows the toolkit's standard hover, and lists what
+  Kenbunshoku sets itself and what changed in the move.
 
 ## 0.6.0 (2026-11-14)
 

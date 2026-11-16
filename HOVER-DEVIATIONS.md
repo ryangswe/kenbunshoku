@@ -15,28 +15,28 @@ pick, the outline and the switches.
 
 Kenbunshoku has none. It runs the spec's standard options. Its releases carry a geometric stage,
 so the standard's `geometricScope: "focus"` and `geometricLoad: "pointer"` apply too (S-A3, S-C7,
-S-C8 and S-W9). Kenbunshoku turns them on with `capabilities.geometricStage: true` in its product
-config.
+S-C8 and S-W9). Kenbunshoku turns them on with `capabilities.geometricStage: true` in
+`src/shared/product.ts`.
 
 ## What Kenbunshoku sets itself
 
-The spec leaves these to each product. They are listed here so that a reader comparing products
-can find them in one place.
+The spec does not set these. They are listed here so that a reader comparing products can find
+them in one place.
 
-1. **The geometric stage.** Kenbunshoku's releases check recognized cards against their art's
-   features with OpenCV.js, using a card-feature file of about 60 MB on the CDN. The load request
-   carries the file's address and pinned SHA-256, and the compute frame asks for persistent
-   storage once it has started. The settings file can turn the stage off with
-   `geometric: false`. On the One Piece test set, it raises the share of cards named right from
-   74.4% to 83.8% (see docs/accuracy.md).
+1. **The geometric stage's file and switches.** The stage itself is standard for a release that
+   carries one. What is Kenbunshoku's own is how it is served and turned off. The stage checks
+   recognized cards against their art's features with OpenCV.js, using a card-feature file of about
+   60 MB on Kenbunshoku's CDN. The load request carries the file's address and pinned SHA-256, and
+   the compute frame asks for persistent storage once it has started. The settings file can turn the
+   stage off with `geometric: false`. On the One Piece test set, it raises the share of cards named
+   right from 74.4% to 83.8% (see docs/accuracy.md).
 2. **Localized card pictures.** The Card language menu picks the language of the card pictures,
-   because the card game's publisher releases official pictures in some languages (French
-   today). This uses the `localizedArt` settings, a picture chain that tries the localized
-   picture first, the `{sourceFile}` maps, and an object URL that is reused only for the same
-   picture. All of it sits inside the tooltip frame.
+   because the card game's publisher releases official pictures in some languages (French today).
+   This uses the `localizedArt` settings, a picture chain that tries the localized picture first,
+   the `{sourceFile}` maps and the settings file's `{sourceFile}` template variable, and an object
+   URL that is reused only for the same picture. All of it sits inside the tooltip frame.
 3. **Card shape.** The tooltip's placeholder keeps the One Piece card's 63 × 88 mm shape.
-4. **Card numbers.** The printed-number pattern is in `kenbunshoku.config.json`. The
-   `{sourceFile}` variable belongs to the settings file's picture templates.
+4. **Card numbers.** The printed-number pattern is in `kenbunshoku.config.json`.
 5. **Outline color.** The outline is navy, as set in `kenbunshoku.config.json`.
 6. **The tooltip's placement and size.** Kenbunshoku places and sizes its own tooltip, which
    shows the card picture or the card name only, with no details panel

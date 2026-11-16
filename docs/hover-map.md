@@ -442,10 +442,11 @@ sequenceDiagram
 
 ### 3b. A new tooltip frame
 
-The host makes a new tooltip frame when it first makes the frames, after an idle unload, when
-full screen changes, and when the page removed the frame (then at the next trusted play on a page
-that loads at play, the next trusted pointer over the picture, or the next card to show).
-Straight after attaching it, the host shows the card on show, or held on a paused video, again, with no new card needed.
+The host makes a new tooltip frame when it first makes the frames, after an idle unload, when full
+screen changes, and when the page removed the frame (then at the next trusted play on a page that
+loads at play, the next trusted pointer over the picture, or the next card to show). Straight after
+attaching it, the host shows the card on show, or held on a paused video, again, with no new card
+needed.
 
 ```mermaid
 sequenceDiagram
