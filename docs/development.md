@@ -132,7 +132,7 @@ mkdir -p <toolkit>/browser/vendor/opencv
 cp vendor/cardvision-browser/opencv.mjs vendor/cardvision-browser/opencv_js.wasm \
    vendor/cardvision-browser/opencv.mjs.LEGAL.txt <toolkit>/browser/vendor/opencv/
 (cd <toolkit>/browser && npm ci && npm run build)
-npm --prefix <toolkit>/browser run vendor -- --into vendor/cardvision-browser --no-ort-wasm --node-tools --host
+npm --prefix <toolkit>/browser run vendor -- --into vendor/cardvision-browser --no-ort-wasm --node-tools --host --harness
 npm --prefix <toolkit>/browser run vendor-check -- vendor/cardvision-browser
 ```
 
@@ -154,6 +154,11 @@ workflows run its `store-upload.mjs`; the extension's packages do not include th
 `npm run build` runs its `realm-check.mjs` on the built folder, and fails when one built file
 holds twice one of the runtime modules that the toolkit marks. That file would then have two
 copies of the module's state. `npm run package` runs the check again before it zips a build.
+
+`--harness` adds the toolkit's browser test harness in `vendor/cardvision-browser/harness/`. It
+holds the toolkit's hover browser test and its rollback check, which `test/browser/LIVE-CHECKS.md`
+describes. They are run by hand, and the built extension and its packages do not include that
+folder.
 
 ## Manual check on a local video
 

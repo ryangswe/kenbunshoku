@@ -11,6 +11,14 @@ CDN. Each browser check names the clause it covers in the toolkit's hover spec
 ([docs/hover-spec.md](https://github.com/ryangswe/riftsight-vision/blob/main/docs/hover-spec.md)),
 in the `CLAUSES` table of the test. Unit tests are the vitest files in `test/`.
 
+The toolkit's own versions of these checks are vendored in `vendor/cardvision-browser/harness/`.
+The toolkit's `hover-browser.mjs` runs the same checks as the toolkit has them at the vendored
+commit. Its `rollback-check.mjs` installs one build over another on the same profile, as a store
+update or rollback does, and checks that the hovers work and the viewer's choices stay. Both take
+`--product test/browser/product.mjs`, which describes this extension to them, and
+`test/browser-product.test.ts` checks that module against the extension. They are run by hand,
+and the header of each file shows its options.
+
 | Step done by hand | Covered by | Still by hand |
 | --- | --- | --- |
 | The model loads when the video plays, before any hover | browser test `frames-at-play` | on YouTube and Twitch pages |
