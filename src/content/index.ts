@@ -9,11 +9,11 @@
 // "Keep the card I'm pointing at"), the outline, and when a card is shown and hidden. Its contract
 // is the toolkit's hover spec. This file gives it the extension's config (shared/product.ts) and
 // the tooltip frame's adapter (tooltip-view.ts), and keeps the adapter's one input of its own, the
-// popup's card size, current.
+// popup's card size, current (card-size-sync.ts).
 
 import { startHostContent } from "../../vendor/cardvision-browser/host-content.js";
-import { CARD_SIZE_KEY, clampCardSize, readCardSize } from "../shared/card-size.js";
 import { productConfig } from "../shared/product.js";
+import { syncCardSize } from "./card-size-sync.js";
 import { TooltipView } from "./tooltip-view.js";
 
 declare const __DEV__: boolean;
@@ -29,11 +29,4 @@ const host = startHostContent({
   view,
 });
 
-/** The popup's card size: a card on show is fitted again at once. */
-const setCardSize = (percent: number): void => {
-  if (view.setCardSize(percent)) host.relayout();
-};
-void readCardSize(chrome.storage.local).then(setCardSize, () => undefined);
-chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === "local" && CARD_SIZE_KEY in changes) setCardSize(clampCardSize(changes[CARD_SIZE_KEY]?.newValue));
-});
+syncCardSize(view, host, chrome.storage.local, chrome.storage.onChanged);

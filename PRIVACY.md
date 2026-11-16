@@ -57,9 +57,10 @@ Card hovers start in a tab when the page's main video plays there, with Kenbunsh
 in the popup, whether or not you point at it. A video that has not played, such as one paused when
 the page opened, starts them when the pointer first comes over its picture. So does a YouTube
 player embedded in another website, and a video on a Twitch page other than a channel's page, a
-past broadcast or a clip, such as the featured stream on Twitch's front page. A video that plays
-in a tab you are not looking at also starts them, and so does a supported video with no cards in
-it. Starting card hovers loads the recognition model and makes the requests below, except the
+past broadcast or a clip, such as the featured stream on Twitch's front page. A video that starts
+playing in a tab you are not looking at starts them when you bring that tab to the front, if it
+is still playing then. A supported video with no cards in it starts them too. Starting card
+hovers loads the recognition model and makes the requests below, except the
 card-feature file, which waits until you point at the video. Starting card hovers reads no picture
 of the video. After 10
 minutes in which the pointer has not moved over the video and no card has been showing,
@@ -67,7 +68,7 @@ Kenbunshoku unloads card hovers in that tab to free memory. They start again the
 pointer comes over the video; the video simply playing on does not start them again. Turning card
 hovers off and on in the popup starts them afresh, as when the page opens: at once where the main
 video plays on a page where playing starts them, or else when it next plays or the pointer comes
-over it; in a tab in the background that had unloaded, that waits until you bring the tab to
+over it; in a tab in the background, that waits until you bring the tab to
 the front. Each time, the
 requests below follow the same rules: most files come
 from your browser's caches, and the settings file is still checked at most once an hour.

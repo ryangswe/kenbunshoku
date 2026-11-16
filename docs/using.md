@@ -28,8 +28,9 @@ Nothing in the video is analyzed until you point at it. A video that has not pla
 paused when the page opened, starts card hovers when the pointer first comes over it. So does a
 YouTube player embedded in another website, even one that plays by itself. On Twitch, a video
 starts them by playing only on a channel's page, a past broadcast or a clip; elsewhere, such as the
-featured stream on the front page, they start when you first point at it. A video playing in a tab
-you are not looking at starts them too, but nothing is analyzed there. To
+featured stream on the front page, they start when you first point at it. A video that
+starts playing in a tab you are not looking at starts them when you bring that tab to the front,
+if it is still playing then. To
 turn card hovers off everywhere, use the switch in Kenbunshoku's toolbar popup; there is no
 per-channel switch. The extension separately checks its settings file when it is installed or
 updated and when the browser starts, and at most once an hour while you use it.
@@ -118,7 +119,7 @@ pointer off the card. The next time you point at the video, the model
 starts again, as the first time does; the video simply playing on does not start it again.
 Turning **Card hovers** off and on in the popup starts it afresh, as when the page opens: at once if
 the video plays on a page where playing starts card hovers, or else when it next plays or when you
-next point at it. A tab in the background that had unloaded waits until you bring it to the front. Its
+next point at it. In a tab in the background, that waits until you bring it to the front. Its
 files come from the extension itself or from the
 browser's caches. In a tab you are not looking at, the browser may run Kenbunshoku's timers less
 often, so the unload can come later there.

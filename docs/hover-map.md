@@ -118,7 +118,7 @@ flowchart TD
 | --- | --- | --- |
 | Content script | `src/content/index.ts`, `src/content/index.ts#host`, `src/content/index.ts#view` | |
 | What the host is told | `src/shared/product.ts#productConfig`, `src/shared/product.ts#COMPUTE_PAGE`, `src/shared/product.ts#TOOLTIP_PAGE` | S-A3, S-G1 |
-| The card size, the adapter's own input | `src/content/index.ts#setCardSize`, `src/content/tooltip-view.ts#TooltipView.setCardSize`, `src/shared/card-size.ts#readCardSize`, `src/shared/card-size.ts#CARD_SIZE_KEY` | |
+| The card size, the adapter's own input | `src/content/card-size-sync.ts#syncCardSize`, `src/content/tooltip-view.ts#TooltipView.setCardSize`, `src/shared/card-size.ts#readCardSize`, `src/shared/card-size.ts#CARD_SIZE_KEY` | |
 | Tooltip adapter | `src/content/tooltip-view.ts#TooltipView` | S-B9 |
 | Content script to tooltip frame | `src/shared/messages.ts#TooltipIn`, `src/shared/messages.ts#TooltipOut`, `src/shared/messages.ts#TooltipSize`, `src/shared/messages.ts#tag`, `src/shared/messages.ts#TAG` | S-B9 |
 | Compute frame | `src/compute/compute.ts` | S-X2, S-X3 |
@@ -315,7 +315,7 @@ flowchart TD
 | --- | --- | --- |
 | Where it was | `src/content/tooltip-view.ts#TooltipView.show` | |
 | The places and the choice | `src/content/geometry.ts#placeTooltipAvoiding`, `src/content/geometry.ts#clearlyBetter`, `src/content/geometry.ts#STICKY_PX`, `src/content/geometry.ts#CARD_PAD` | |
-| Placed again when the card size changes | `src/content/index.ts#setCardSize` | |
+| Placed again when the card size changes | `src/content/card-size-sync.ts#syncCardSize` | |
 
 ### 2f. Which of the tooltip frame's messages count?
 
@@ -444,7 +444,7 @@ sequenceDiagram
 
 The host makes a new tooltip frame when it first makes the frames, after an idle unload, when
 full screen changes, and when the page removed the frame (then at the next trusted play on a page
-that loads at play, or the next trusted pointer over the picture). Straight after attaching it,
+that loads at play, the next trusted pointer over the picture, or the next card to show). Straight after attaching it,
 the host shows the card on show, or held on a paused video, again, with no new card needed.
 
 ```mermaid
@@ -518,6 +518,7 @@ notice.
 - `src/compute/compute.ts`
 - `src/compute/facts.ts`
 - `src/compute/load-request.ts`
+- `src/content/card-size-sync.ts`
 - `src/content/geometry.ts`
 - `src/content/index.ts`
 - `src/content/tooltip-view.ts`

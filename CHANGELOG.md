@@ -16,6 +16,19 @@ which has the full notes and the download. Versions before 0.5.0 are described o
   until the pointer moves. PRIVACY.md says so.
   ([#61](https://github.com/ryangswe/kenbunshoku/pull/61))
 - It runs on the cardvision toolkit 0.14.1.
+- Card hovers no longer start in a tab you are not looking at. A video that starts playing in a
+  background tab starts them when you bring the tab to the front, if it is still playing then, and
+  so does switching card hovers on while the tab is in the background. PRIVACY.md says so.
+- On Twitch, the Following and Creator Camp pages now start card hovers when you first point at the
+  video, like other Twitch pages that are not a channel's page, a past broadcast or a clip.
+- A turned card whose turned outline would reach past the edge of the video is now outlined
+  turned, instead of with an upright box.
+- When the page removes the card's tooltip, the card on show comes back at once, instead of at the
+  next look.
+- A change to the popup's switch made while a page is still opening is no longer lost.
+- The page side of card hovers now comes from the cardvision toolkit's shared hover host.
+  HOVER-DEVIATIONS.md lists each place where Kenbunshoku's hover differs from the toolkit's
+  standard.
 
 ## 0.6.0 (2026-11-14)
 
