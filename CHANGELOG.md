@@ -9,7 +9,7 @@ which has the full notes and the download. Versions before 0.5.0 are described o
 
 Nothing yet.
 
-## 0.6.1 (2026-11-17)
+## 0.6.1 (2026-11-16)
 
 [GitHub release](https://github.com/ryangswe/kenbunshoku/releases/tag/v0.6.1)
 
