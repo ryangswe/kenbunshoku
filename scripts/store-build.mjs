@@ -5,6 +5,8 @@
 //
 //   out/chrome.zip           the Chrome Web Store package (npm run build -- --store)
 //   out/firefox.zip          the addons.mozilla.org package (npm run build -- --target firefox)
+//   out/kenbunshoku-<version>.zip  the zip for people who load the extension unpacked, with the
+//                            key that keeps its extension ID (npm run build, then npm run package)
 //   out/firefox-source.zip   the source archive Mozilla's reviewers ask for (never publish it)
 //
 //   npm run store:build [-- --release <folder>] [--runtime-repo <toolkit checkout>]
@@ -60,7 +62,8 @@ const vendor = readVendorManifest();
 const dirty = capture("git", ["status", "--porcelain", "--untracked-files=no"]).trimEnd();
 if (dirty) fail(`uncommitted changes to tracked files; commit first:\n${dirty}`);
 mkdirSync(out, { recursive: true });
-for (const zip of ["chrome.zip", "firefox.zip", "firefox-source.zip"]) rmSync(join(out, zip), { force: true });
+const unpackedZip = `${config.packageName}-${version}.zip`;
+for (const zip of ["chrome.zip", "firefox.zip", "firefox-source.zip", unpackedZip]) rmSync(join(out, zip), { force: true });
 
 // 1. The release.
 let releaseDir;
@@ -93,7 +96,7 @@ expect("bundledRelease.recognizerSha256", row.bundledRelease?.recognizerSha256, 
 if (rowProblems.length > 0) fail(`cdn/RUNTIMES.json's row for ${version}:\n  ${rowProblems.join("\n  ")}`);
 console.log(`cdn/RUNTIMES.json: the ${version} row matches the vendored runtime and release ${release.id}`);
 
-// 3. The two packages. Each build writes dist/, and npm run package zips it at the top level.
+// 3. The three packages. Each build writes dist/, and npm run package zips it at the top level.
 const packageOnce = (buildArgs, zipName, dest) => {
   run(process.execPath, ["scripts/build.mjs", "--release", releaseDir, ...buildArgs]);
   run(process.execPath, ["scripts/package.mjs"]);
@@ -102,6 +105,8 @@ const packageOnce = (buildArgs, zipName, dest) => {
 };
 packageOnce(["--store"], `${config.packageName}-${version}-store.zip`, join(out, "chrome.zip"));
 packageOnce(["--target", "firefox"], `${config.packageName}-${version}-firefox.zip`, join(out, "firefox.zip"));
+// The zip for people who load the extension unpacked, with the key that keeps its extension ID.
+packageOnce([], unpackedZip, join(out, unpackedZip));
 
 // 4. The source archive, from the toolkit's history at the vendored commit.
 let runtimeRepo;
@@ -151,4 +156,4 @@ for (const name of b.keys()) if (!a.has(name)) differences.push(`${name}: only i
 if (differences.length > 0) fail(`the source archive does not rebuild out/firefox.zip:\n  ${differences.join("\n  ")}`);
 console.log(`the source archive rebuilds out/firefox.zip: the same ${a.size} files, byte for byte`);
 
-console.log(`wrote out/chrome.zip, out/firefox.zip and out/firefox-source.zip for ${version}`);
+console.log(`wrote out/chrome.zip, out/firefox.zip, out/${unpackedZip} and out/firefox-source.zip for ${version}`);

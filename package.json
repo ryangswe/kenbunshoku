@@ -15,6 +15,7 @@
     "build": "node scripts/build.mjs",
     "package": "node scripts/package.mjs",
     "store:build": "node scripts/store-build.mjs",
+    "publish:settings": "node scripts/publish-settings.mjs",
     "vendor-check": "node vendor/cardvision-browser/cardvision-vendor-check.mjs vendor/cardvision-browser",
     "manual": "node test/manual/serve.mjs"
   },

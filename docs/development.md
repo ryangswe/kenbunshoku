@@ -89,6 +89,8 @@ archive into an empty folder, run `./build-firefox.sh`, and `diff -r` the unzipp
 
 - `out/chrome.zip`, the Chrome Web Store package (the `--store` build);
 - `out/firefox.zip`, the addons.mozilla.org package;
+- `out/kenbunshoku-<version>.zip`, the zip for people who load the extension unpacked, with the
+  key that keeps its extension ID (the GitHub release attaches it);
 - `out/firefox-source.zip`, the source archive for Mozilla's reviewers (never publish it).
 
 It downloads the bundled release pinned in `scripts/bundled-release.json`, the same pin the tests
@@ -101,15 +103,22 @@ uncommitted changes, since reviewers rebuild from one commit. After building, it
 archive in a temporary folder outside this repository, runs its `./build-firefox.sh`, and fails
 unless the rebuilt package holds the same files, byte for byte, as `out/firefox.zip`.
 
-The workflows are the toolkit's template, with every action pinned to a commit
-(`.github/workflows/store-release.yml`), and a pull request check that runs the same build and
-checks with the tag the version would get (`.github/workflows/store-check.yml`). The `store/`
+The workflows are the toolkit's templates, with every action pinned to a commit. Merging a new
+version to `main` runs `.github/workflows/extension-release.yml`, which tags it, makes the GitHub
+release from its changelog section and starts `.github/workflows/store-release.yml`. That one
+builds and checks the packages, attaches them with `SHA256SUMS` and a release record to the GitHub
+release, and uploads to the stores once the owner approves. `.github/workflows/store-status.yml`
+compares both stores with the newest release file every day. A pull request check runs the same
+build and checks with the tag the version would get (`.github/workflows/store-check.yml`).
+[RELEASING.md](../RELEASING.md) has the owner's steps. The `store/`
 folder holds what the toolkit's `store-upload.mjs check` compares the packages with: the store
 items and the words no workflow may contain (`store.config.json`), the permissions of this release
 (`permissions.json`), the Firefox lint warnings already read and accepted, with the linter version
-they come from (`lint-baseline.json`; the workflows run web-ext 10.8.0 in place of the template's
-8.10.0, and that version and this list move together), and one file per release with its notes for
-addons.mozilla.org (`releases/<version>.json`). See the toolkit's `docs/store-uploads.md`.
+they come from (`lint-baseline.json`; the workflows run web-ext 10.8.0, and that version and this list
+move together), and one file per release with its notes for
+addons.mozilla.org (`releases/<version>.json`), and the bundled card release for the release
+record, which the check compares with `cdn/RUNTIMES.json` (`record-facts.json`). See the toolkit's
+`docs/store-uploads.md`.
 
 ## The runtime
 

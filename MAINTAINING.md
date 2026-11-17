@@ -63,26 +63,25 @@ core-model refresh, below, not a set update.
 
 ## Store releases
 
-- The package: bump `version` in `package.json`, then `npm test`, `npm run build -- --release <release
-  folder> --store` and `npm run package`. The store zip (`kenbunshoku-<version>-store.zip`) has
-  `manifest.json` at its top level and no `key`; the other zip (`npm run build -- --release <release folder>`) is for the release page. The
-  opening line of `release-legal/NOTICE` must name the release (the build refuses otherwise).
-- A store build bundles the release the pointer names when it is built, and its geometric pin
-  (`geometric.manifestSha256` in `kenbunshoku.config.json`, and `data/geometric.json`) is that
-  release's index.
-- Move the Unreleased entries in `CHANGELOG.md` under a heading for the new version, with its
-  date (UTC) and a link to its GitHub release. A pull request that changes what a viewer can
-  notice adds or updates its entry under Unreleased; an entry for a change not merged yet says so.
-- Add a row to `cdn/RUNTIMES.json` for the new version (its runtime commit, ONNX Runtime Web version
-  and bundled release), so that `publish-release` knows which versions a pointer reaches.
-- The store version moves in step with the GitHub release: the same version, built from the same
-  commit. Submitting, and every declaration in the store's dashboard, is the owner's.
-- For the store release workflow, add `store/releases/<version>.json` with its notes for
-  addons.mozilla.org, and update `store/permissions.json` and `store/lint-baseline.json` when the
-  packages change them. The store check on pull requests stays red until they match the version
-  in `package.json`. `npm run store:build` builds the packages the workflow uploads, and the
-  release tag starts the workflow, whose upload waits for the owner's approval. See "Store
-  packages" in `docs/development.md` and the toolkit's `docs/store-uploads.md`.
+[RELEASING.md](RELEASING.md) has the steps: one release pull request, and merging it tags the
+version, makes the GitHub release and starts the store upload, which waits for the owner's
+approval. What follows is what a release must get right.
+
+- The opening line of `release-legal/NOTICE` must name the bundled release (the build refuses
+  otherwise). A store build bundles the release the pointer names when it is built, and its
+  geometric pin (`geometric.manifestSha256` in `kenbunshoku.config.json`, and
+  `data/geometric.json`) is that release's index.
+- A pull request that changes what a viewer can notice adds or updates its entry under
+  Unreleased in `CHANGELOG.md`; an entry for a change not merged yet says so. The release pull
+  request moves them under the version's dated heading.
+- The `cdn/RUNTIMES.json` row tells `publish-release` which versions a pointer reaches.
+- The store version, the tag and the GitHub release are the same version, built from the same
+  commit. Merging the release, approving the upload, and every declaration in the store's
+  dashboard are the owner's.
+- Update `store/permissions.json` and `store/lint-baseline.json` when the packages change them.
+  The store check on pull requests stays red until the release file, the runtime row and these
+  match the version in `package.json`. See "Store packages" in `docs/development.md` and the
+  toolkit's `docs/store-uploads.md`.
 
 ## A core-model refresh
 
