@@ -154,7 +154,10 @@ describe("the hover map", () => {
     expect(found, `docs/hover-map.md is out of date with the code: ${FIX}\n  ${found.join("\n  ")}`).toEqual([]);
   });
 
-  it("links the hover spec at the vendored toolkit commit", () => {
+  // The toolkit's downstream canary vendors a toolkit pull request's own build here, so the vendored
+  // commit can never be the one the map links. It sets CARDVISION_CANARY=1, and this one check is
+  // skipped there. Every other run of the tests keeps it.
+  it.skipIf(process.env.CARDVISION_CANARY === "1")("links the hover spec at the vendored toolkit commit", () => {
     const found = specLinkProblems(readFileSync(MAP, "utf-8"), readFileSync(VENDOR, "utf-8"));
     expect(found, `${FIX}\n  ${found.join("\n  ")}`).toEqual([]);
   });

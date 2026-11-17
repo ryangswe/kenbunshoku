@@ -192,7 +192,9 @@ was shown (see the comment at its top; it needs `puppeteer-core`, which is not a
   spec at the vendored commit, which the test compares with `cardvision-vendor.json`), the
   clause ids, which come from `vendor/cardvision-browser/hover-spec.json`, and whether a clause
   needs a "(differs)" mark: one the extension does not meet yet, which the spec marks as one that
-  changes in a product release. The map marks none since the extension moved onto the host.
+  changes in a product release. The map marks none since the extension moved onto the host. The
+  toolkit's downstream canary vendors a toolkit pull request's own build, so it sets
+  `CARDVISION_CANARY=1`, and the test skips the commit check of the spec link there.
 - `kenbunshoku.config.json` holds the extension's names, sites, image hosts, settings address,
   printed-number rule, geometric pin and links; `scripts/fork-config.mjs` explains and checks it.
 - A new image host needs an extension release: the settings file can only name hosts in the
