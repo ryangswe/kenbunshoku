@@ -99,9 +99,12 @@ workflow uses (`node scripts/fetch-release.mjs --out <folder>` downloads it alon
 clones the toolkit into `out/toolkit`, unless `--runtime-repo <toolkit checkout>` names one. It
 refuses to build when `cdn/RUNTIMES.json` has no row for the version, or the row names a different
 toolkit commit, ONNX Runtime Web version or bundled release, and when tracked files have
-uncommitted changes, since reviewers rebuild from one commit. After building, it unpacks the source
-archive in a temporary folder outside this repository, runs its `./build-firefox.sh`, and fails
-unless the rebuilt package holds the same files, byte for byte, as `out/firefox.zip`.
+uncommitted changes, since reviewers rebuild from one commit. A row that no longer matches is only a
+warning when `STORE_CHECK_MODE` is `released`, which the pull request check sets for a version that
+is already tagged when the pull request does not change its release file, notes or row. After
+building, it unpacks the source archive in a temporary folder outside this repository, runs its
+`./build-firefox.sh`, and fails unless the rebuilt package holds the same files, byte for byte, as
+`out/firefox.zip`.
 
 The workflows are the toolkit's templates, with every action pinned to a commit. Merging a new
 version to `main` runs `.github/workflows/extension-release.yml`, which tags it, makes the GitHub
@@ -109,7 +112,11 @@ release from its changelog section and starts `.github/workflows/store-release.y
 builds and checks the packages, attaches them with `SHA256SUMS` and a release record to the GitHub
 release, and uploads to the stores once the owner approves. `.github/workflows/store-status.yml`
 compares both stores with the newest release file every day. A pull request check runs the same
-build and checks with the tag the version would get (`.github/workflows/store-check.yml`).
+build and checks with the tag the version would get (`.github/workflows/store-check.yml`). While
+that tag does not exist yet, or when the pull request changes the version's release file, notes or
+runtime row, it checks everything (`release`). Once the version is tagged, other pull requests get
+`released`, which still builds and lints the packages and checks them against
+`store/permissions.json`, but only warns about what describes the tagged version.
 [RELEASING.md](../RELEASING.md) has the owner's steps. The `store/`
 folder holds what the toolkit's `store-upload.mjs check` compares the packages with: the store
 items and the words no workflow may contain (`store.config.json`), the permissions of this release

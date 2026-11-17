@@ -12,7 +12,10 @@
 //   npm run store:build [-- --release <folder>] [--runtime-repo <toolkit checkout>]
 //
 // Before building, it checks that cdn/RUNTIMES.json has a row for this version that names the
-// vendored toolkit commit, the ONNX Runtime Web version and the bundled release. After building,
+// vendored toolkit commit, the ONNX Runtime Web version and the bundled release. When the store
+// check on a pull request sets STORE_CHECK_MODE=released (the version is already tagged and the
+// pull request does not change what describes it), a row that no longer matches is a warning
+// instead, since this commit will not ship as that version. After building,
 // it unpacks the source archive in a temporary folder outside this repository (so nothing here can
 // stand in for a missing dependency), runs its build-firefox.sh and checks that the package it
 // makes holds the same files, byte for byte, as out/firefox.zip. It refuses to start when tracked
@@ -93,8 +96,18 @@ expect("ortWeb", row.ortWeb, pkg.dependencies?.["onnxruntime-web"]);
 expect("bundledRelease.id", row.bundledRelease?.id, release.id);
 expect("bundledRelease.detectorSha256", row.bundledRelease?.detectorSha256, release.detector?.sha256);
 expect("bundledRelease.recognizerSha256", row.bundledRelease?.recognizerSha256, release.recognizer?.sha256);
-if (rowProblems.length > 0) fail(`cdn/RUNTIMES.json's row for ${version}:\n  ${rowProblems.join("\n  ")}`);
-console.log(`cdn/RUNTIMES.json: the ${version} row matches the vendored runtime and release ${release.id}`);
+if (rowProblems.length > 0) {
+  const problem = `cdn/RUNTIMES.json's row for ${version}:\n  ${rowProblems.join("\n  ")}`;
+  if (process.env.STORE_CHECK_MODE !== "released") fail(problem);
+  // A version that is already released keeps the row that describes what it shipped. The next
+  // version's release pull request adds a row for what ships then.
+  console.warn(`store:build: warning, ${version} is already released, so this commit will not ship as ${version}. ${problem}`);
+  if (process.env.GITHUB_ACTIONS === "true") {
+    console.log(`::warning title=cdn/RUNTIMES.json::The ${version} row does not match this commit (${rowProblems.join("; ")}). The next version's row must name what ships then.`);
+  }
+} else {
+  console.log(`cdn/RUNTIMES.json: the ${version} row matches the vendored runtime and release ${release.id}`);
+}
 
 // 3. The three packages. Each build writes dist/, and npm run package zips it at the top level.
 const packageOnce = (buildArgs, zipName, dest) => {

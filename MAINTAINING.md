@@ -79,9 +79,12 @@ approval. What follows is what a release must get right.
   commit. Merging the release, approving the upload, and every declaration in the store's
   dashboard are the owner's.
 - Update `store/permissions.json` and `store/lint-baseline.json` when the packages change them.
-  The store check on pull requests stays red until the release file, the runtime row and these
-  match the version in `package.json`. See "Store packages" in `docs/development.md` and the
-  toolkit's `docs/store-uploads.md`.
+  While the version in `package.json` is not tagged yet, the store check on pull requests stays
+  red until the release file, the runtime row and these match it. Once the version is tagged, a
+  pull request that leaves its release file, notes and runtime row alone still fails when the
+  packages do not match `store/permissions.json` or `store/lint-baseline.json`, and only warns
+  about the runtime row and a permission change since the tag. See "Store packages" in
+  `docs/development.md` and the toolkit's `docs/store-uploads.md`.
 
 ## A core-model refresh
 
