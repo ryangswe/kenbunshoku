@@ -13,17 +13,20 @@ Piece Card Game release of its models: a detector that finds cards in the pictur
 recognizer that matches each card against a bank of known cards, with an accept rule that shows
 nothing when the match is not clear.
 
-- The **content script** (`src/content/`) runs in YouTube and Twitch pages. It follows the
-  page's main video and the pointer over it, and captures a picture when asked.
+- The **content script** (`src/content/`) runs in YouTube and Twitch pages. The toolkit's shared
+  hover host (`host-content.js`, vendored) does its work: it follows the page's main video and the
+  pointer over it, captures a picture when asked, makes and removes the two frames, and draws the
+  outline. The extension gives it its config (`src/shared/product.ts`) and the tooltip frame's
+  adapter (`src/content/tooltip-view.ts`), which sizes and places the tooltip.
 - A hidden **compute frame** (`src/compute/`), an extension page inside the video page, hosts
   the runtime's worker. It decides when to analyze a picture (only around pointer activity,
   with the runtime's scheduler; the looks that keep a card fresh are spaced so that analysis takes
   about a quarter of the time it measures on this computer, up to a longest wait, while a look the
-  viewer waits on is not: `measuredPacing` in `src/compute/session-options.ts`), and which card a tooltip shows at
+  viewer waits on is not: `measuredPacing`, one of the hover host's standard options), and which card a tooltip shows at
   the pointer (the runtime's
   hover rule). How long a shown card stays is the runtime's hold, picked when the frame starts by
-  the popup's **Keep the card I'm pointing at** (`sessionOptions` in
-  `src/compute/session-options.ts`): on, the reading hold (`READING_HOLD`) keeps the card while the
+  the popup's **Keep the card I'm pointing at** (the hover host reads it, `host-compute.js`): on,
+  the reading hold (`READING_HOLD`) keeps the card while the
   pointer stays where it was seen, and the content script hides the outline of a card marked
   `held`; off, the shown hold (`SHOWN_HOLD`) keeps it through short gaps. A change makes a running
   compute frame again, at once in the tab in front and in a background tab when it next comes to
@@ -35,7 +38,8 @@ nothing when the match is not clear.
 - The runtime's **geometric stage** (WebGPU only) checks recognized cards against their art's
   ORB features, using OpenCV.js and a packed card-feature index on the CDN. An analysis checks
   only the card under the pointer and the boxes overlapping it, not every card in the picture
-  (`geometricScope: "focus"`, set in `src/compute/session-options.ts`). A card the stage applies
+  (`geometricScope: "focus"`, which the hover host sets for an extension whose config says its
+  releases carry the stage, `src/shared/product.ts`). A card the stage applies
   to and has not checked yet shows nothing until it is checked. On a still picture the next
   analysis checks every card, and the repeats after it reuse that analysis, so a later move to
   another card is answered from it. The compute frame
@@ -91,15 +95,16 @@ the rest is the base pipeline. An arrow into `cdn.kenbunshoku.com` or
 `optcgapi.com` is a request, with its contents and its timing as in [PRIVACY.md](../PRIVACY.md).
 
 - **The content script** is on for all supported videos (the popup's switch is the sole
-  control). It makes both frames, and so loads the model, when the page's main video plays (the
-  toolkit's `loadWhen`, once per video element), or at the first pointer move over a video that has
-  not played. A video playing loads the model only on pages that are for watching
-  (`loadsAtPlay` in `site.ts`): not in an embedded YouTube player, which on another website may be
-  a muted video that plays by itself, and on Twitch only on a channel's page, a past broadcast or
-  a clip. Elsewhere, such as Twitch's front page with its featured stream, only the pointer does.
-  The main video is picked by size, and a featured stream is the largest video on its page, so the
-  page rule, not the size, keeps it from loading.
-  A video playing in a background tab loads the model too, with no visibility filter. Loading
+  control). Its hover host makes both frames, and so loads the model, when the page's main video
+  plays, or at the first pointer move over a video that has not played. A video playing loads the
+  model only on pages that are for watching (the host's page policy, the hover spec's address
+  table): not in an embedded YouTube player, which on another website may be a muted video that
+  plays by itself, and on Twitch only on a channel's page, a past broadcast or a clip. Elsewhere,
+  such as Twitch's front page with its featured stream or its following page, only the pointer
+  does. The main video is picked by size, and a featured stream is the largest video on its page,
+  so the page rule, not the size, keeps it from loading.
+  A video that starts playing in a background tab loads the model when the tab comes to the front,
+  if it is still playing then. Loading
   reads no picture: the tab going to the background ends the hover, and coming back does not
   restore it until the browser reports the pointer over the video again. From then on it reports
   the pointer and seeks to the compute frame,
@@ -110,7 +115,7 @@ the rest is the base pipeline. An arrow into `cdn.kenbunshoku.com` or
   their memory back; the next pointer move over the picture makes them again, and the video
   playing on does not (toolkit 0.12.0, `idleUnloadMs` and `whenIdle`). Card hovers turned off
   and on in the popup start afresh: a playing main video loads them at once, as it does before
-  any unload, and a tab in the background that had unloaded waits until it comes to the front.
+  any unload, and a tab in the background waits until it comes to the front.
 - **The compute frame** decides when to analyze and runs the hover rule; its worker runs the
   vendored runtime on the release bundled in the extension, or on a newer release the settings
   file names (the toolkit's remote-release module, vendored): the frame downloads that release's files once, checks each against
@@ -122,8 +127,8 @@ the rest is the base pipeline. An arrow into `cdn.kenbunshoku.com` or
   each shown card's name to the tooltip frame over a channel the page cannot reach.
 - **The tooltip frame** gets a card id and name, loads the card's picture (from the CDN, then
   `optcgapi.com` if the CDN fails, or none with `namesOnly`), and reports its size back. The
-  content script places it, and draws the **outline** around the same box, turned with the card
-  when the compute frame sends the card's turned outline.
+  content script sizes and places it, and the hover host draws the **outline** around the same
+  box, turned with the card when the compute frame sends the card's turned outline.
 - **The background** fetches the settings file. The popup and the tooltip frame ask it for a
   refresh, which it makes at most once an hour.
 

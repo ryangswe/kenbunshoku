@@ -17,8 +17,7 @@ import { buildManifest, UNPACKED_EXTENSION_ID } from "../scripts/manifest.mjs";
 // @ts-expect-error plain JavaScript build scripts
 import { configProblems, geometricIndexProblem, hasOnDarkIcons, loadForkConfig, videoSitePatterns } from "../scripts/fork-config.mjs";
 import { GEOMETRIC_MANIFEST_SHA256, IMAGE_HOSTS, SETTINGS_URL, UPDATE_URL_PREFIX } from "../src/constants.js";
-import { isActivePage } from "../src/content/site.js";
-import { allowedParentOrigin } from "../src/shared/messages.js";
+import { allowedParentOrigin, pagePolicy } from "../vendor/cardvision-browser/host-settings.js";
 import { makePrintedId, printedId } from "../src/settings/templates.js";
 import { CONFIG, IS_KENBUNSHOKU, TOY_CONFIG } from "./helpers/fork.js";
 import { buildLoadRequest, geometricOption, stageForPage } from "../src/compute/load-request.js";
@@ -228,10 +227,11 @@ describe("a fork's minimal config (names only, no settings address, no stage, on
     expect(m.action.default_title).toBe("Toy Cards");
   });
   it("its pages and frames accept only that site", () => {
-    expect(isActivePage(new URL("https://www.youtube.com/watch?v=abc"), false, TOY_CONFIG.videoSites)).toBe(true);
-    expect(isActivePage(new URL("https://www.twitch.tv/someone"), false, TOY_CONFIG.videoSites)).toBe(false);
-    expect(allowedParentOrigin("https://www.twitch.tv", false, TOY_CONFIG.videoSites)).toBe(false);
-    expect(allowedParentOrigin("https://www.youtube.com", false, TOY_CONFIG.videoSites)).toBe(true);
+    const toy = { sites: TOY_CONFIG.videoSites, dev: false };
+    expect(pagePolicy(new URL("https://www.youtube.com/watch?v=abc"), toy).active).toBe(true);
+    expect(pagePolicy(new URL("https://www.twitch.tv/someone"), toy).active).toBe(false);
+    expect(allowedParentOrigin("https://www.twitch.tv", toy)).toBe(false);
+    expect(allowedParentOrigin("https://www.youtube.com", toy)).toBe(true);
   });
   it("its printed-number rule 'none' gives no number and so no {printedId}", () => {
     expect(makePrintedId("none")("OP01-001")).toBeNull();
@@ -402,10 +402,11 @@ describe("release-legal fits the release", () => {
 
 describe("the bundled default settings", () => {
   it("are the published cdn/config.json", async () => {
-    const { defaultSettings } = await import("../src/settings/store.js");
+    const { settingsCore } = await import("../src/settings/core.js");
     const { validateSettings } = await import("../src/settings/schema.js");
     const published = JSON.parse(readFileSync(new URL("../cdn/config.json", import.meta.url), "utf-8"));
-    expect(defaultSettings()).toEqual(validateSettings(published).settings);
+    const storage = { get: async () => ({}), set: async () => undefined };
+    expect(settingsCore(storage).defaults()).toEqual(validateSettings(published).settings);
   });
 });
 

@@ -9,7 +9,7 @@
 // does with it; the stored choice is kept, and shows again if the language comes back.
 
 import { CATALOG_LANGUAGE, offeredLanguages, viewerLanguage } from "../l10n/language.js";
-import { readEffectiveSettings } from "../settings/store.js";
+import type { Settings } from "../settings/schema.js";
 import { AUTOMATIC, CARD_LANGUAGE_KEY, readCardLanguage } from "../shared/card-language.js";
 
 interface Area {
@@ -39,17 +39,23 @@ export function languageOptions(offered: readonly string[], automatic: string): 
   return [{ value: AUTOMATIC, label: `Automatic (${languageName(automatic)})` }, { value: CATALOG_LANGUAGE, label: languageName(CATALOG_LANGUAGE) }, ...others];
 }
 
-/** Fill the menu and keep it current. Returns its render function, for storage changes (the
+/** Fill the menu and keep it current. `settingsSource` gives the settings in effect (the popup's
+ *  settings core, settings/core.ts). Returns its render function, for storage changes (the
  *  choice, or a new settings file with other languages) and the browser's language changing
  *  (popup.ts). */
-export function initCardLanguage(doc: Document, local: Area, languages: () => readonly string[]): { render(): Promise<void> } {
+export function initCardLanguage(
+  doc: Document,
+  local: Area,
+  settingsSource: { read(): Promise<{ settings: Settings }> },
+  languages: () => readonly string[],
+): { render(): Promise<void> } {
   const select = doc.getElementById("card-language") as HTMLSelectElement;
   let ready = false;
   const render = async (): Promise<void> => {
     // An unreadable storage shows Automatic, with English alone. Settings with `namesOnly` on
     // offer no other language (no localized picture is shown then).
     const choice = await readCardLanguage(local).catch(() => AUTOMATIC);
-    const settings = await readEffectiveSettings(local).then((e) => e.settings).catch(() => null);
+    const settings = await settingsSource.read().then((e) => e.settings).catch(() => null);
     const offered = settings ? offeredLanguages(settings) : [];
     const options = languageOptions(offered, viewerLanguage(offered, AUTOMATIC, languages()));
     select.replaceChildren(...options.map(({ value, label }) => {

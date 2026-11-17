@@ -1,26 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 // The messages between the content script (in the video page) and the tooltip frame, which
 // shows a card, and the facts channel from the compute frame to the tooltip frame. The compute
-// frame's own messages are the toolkit's contract (vendored compute-session.js and page-capture.js,
-// `computeProtocol(TAG)`; the toolkit's docs/extension-session.md), under the same tag.
+// frame's own messages are the toolkit's contract (its hover host, vendored host-content.js and
+// host-compute.js, speaks `computeProtocol(TAG)`; the toolkit's docs/extension-session.md), under
+// the same tag. The host checks every message from the tooltip frame (trusted, from that frame's
+// window, at the extension's origin) before the content script reads it.
 //
 // They travel by `window.postMessage`, so the page itself could post to the frames or read their
 // replies. Every message is checked on arrival (`parse*`), and nothing in them is secret: replies
 // are card names and sizes. Each message carries `kenbunshoku: 1` so that unrelated messages on
 // the same window are told apart.
 
-import type { VideoSites } from "../config.js";
-import { VIDEO_SITES } from "../constants.js";
-
 export const TAG = "kenbunshoku" as const;
-
-/** A box in fractions of the analyzed frame (0 to 1). */
-export interface FractionBox {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
 
 /** Content script → tooltip frame. */
 /** `seq` numbers each card the content script sends; the tooltip echoes it in its sizes, so a
@@ -146,10 +137,3 @@ export function parseTooltipOut(data: unknown): TooltipOut | null {
 
 /** Background messages (chrome.runtime): pages ask for a settings refresh when one is due. */
 export type BackgroundIn = { kind: "settings:refresh" };
-
-/** The origins a frame accepts messages from: the video sites, and the local test page in a dev build. */
-export function allowedParentOrigin(origin: string, dev: boolean, sites: VideoSites = VIDEO_SITES): boolean {
-  if (sites.youtube && origin === "https://www.youtube.com") return true;
-  if (sites.twitch && origin === "https://www.twitch.tv") return true;
-  return dev && /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin);
-}

@@ -13,7 +13,8 @@
 //                 is used.
 // --dev           A development build: also runs on the local test page (http://127.0.0.1, http://localhost).
 // --idle-unload-ms  Dev builds only: unload after this many idle milliseconds instead of 10
-//                 minutes (src/constants.ts IDLE_UNLOAD_MS), to check the unload quickly.
+//                 minutes (the toolkit's hover host, STANDARD_PRESET; compute.ts passes it as
+//                 devIdleUnloadMs), to check the unload quickly.
 // --store         A Chrome Web Store build: the manifest has no `key` (the store assigns the ID).
 //                 Other builds carry the public key that fixes the ID of unpacked installs.
 // --target        chrome (the default; also Edge and Brave) or firefox: the same bundles with
@@ -41,6 +42,7 @@ import { checkVendoredRuntime } from "./vendor-check.mjs";
 import { CONFIG_PATH, geometricIndexProblem, hasOnDarkIcons, ICON_SIZES, loadForkConfig, ON_DARK_ICON_SIZES } from "./fork-config.mjs";
 import { LEGAL_FILES, releaseLegalProblem } from "./release-legal.mjs";
 import { describeOversized, oversizedTextFiles, TEXT_FILE_LIMIT } from "./package-size.mjs";
+import { realmCheck } from "./realm-check.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const { values } = parseArgs({
@@ -182,9 +184,11 @@ await build({
   },
   outdir: out,
 });
-// compute.js and content.js bundle the toolkit's extension entries (compute-session.js,
-// remote-release.js, page-capture.js), which hold no third-party code: the runtime and its license
-// comments are in runtime/worker.js and its LEGAL file.
+// The pages bundle the toolkit's extension entries, which hold no third-party code: content.js its
+// hover host's content file (host-content.js), compute.js its compute file (host-compute.js) and
+// remote-release.js, and the background, the tooltip and the popup its settings file
+// (host-settings.js). The runtime and its license comments are in runtime/worker.js and its LEGAL
+// file.
 for (const name of ["compute.html", "tooltip.html", "tooltip.css", "popup.css"]) copyFileSync(join(root, "static", name), join(out, name));
 // The popup carries the extension's name from the config, and its icon for dark surfaces when the
 // icon folder has one (shown while the popup is dark).
@@ -266,6 +270,13 @@ copyFileSync(join(root, "THIRD_PARTY_LICENSES.txt"), join(out, "THIRD_PARTY_LICE
 copyFileSync(join(vendorDir, "LICENSE"), join(out, "runtime", "LICENSE"));
 copyFileSync(join(vendorDir, "NOTICE"), join(out, "runtime", "NOTICE"));
 
+// No built file may hold a runtime module twice (the toolkit's realm check).
+const realm = realmCheck(out);
+if (!realm.ok) {
+  console.error(realm.message);
+  process.exit(1);
+}
+
 let commit = "unknown";
 try {
   commit = execFileSync("git", ["-C", root, "rev-parse", "--short", "HEAD"], { encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] }).trim();
@@ -279,6 +290,7 @@ console.log(`  release ${release.id} (${release.game}, ${release.bank.cardCount}
 console.log(`  runtime cardvision-browser from toolkit ${vendor.version} at ${vendor.commit.slice(0, 7)}, onnxruntime-web ${ortVersion}`);
 console.log(`  content.js ${kb("content.js")}, compute.js ${kb("compute.js")}, tooltip.js ${kb("tooltip.js")}, runtime/worker.js ${kb("runtime/worker.js")}`);
 console.log(`  ${mapSummary}`);
+console.log(`  ${realm.message}`);
 // A dev build may hold them (a smoke on an unconverted release); `npm run package` refuses them.
 const big = oversizedTextFiles(out);
 if (big.length > 0) console.warn(`  warning: text files of ${TEXT_FILE_LIMIT / 1024 / 1024} MiB or more, which npm run package refuses: ${describeOversized(big)}`);

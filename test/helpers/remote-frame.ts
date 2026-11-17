@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // The toolkit's compute frame (vendored compute-session.js) on a remote release, with a stand-in
-// worker, and Kenbunshoku's card facts (src/compute/facts.ts) wired to it as compute.ts wires them.
+// worker, and Kenbunshoku's card facts (src/compute/facts.ts) wired to it as compute.ts wires them:
+// compute.ts gives the hover host `observe.onShown`, which the host passes on to this same frame
+// as `onShown` (test/compute-host.test.ts starts the frame through the host).
 import type { ReleaseStatus } from "../../vendor/cardvision-browser/cardvision.js";
 import { computeProtocol, type ShownCard, startComputeFrame, type WorkerLike } from "../../vendor/cardvision-browser/compute-session.js";
 import type { CardTable, RemoteReleaseChoice } from "../../vendor/cardvision-browser/remote-release.js";
 import { createShownFacts } from "../../src/compute/facts.js";
-import { allowedParentOrigin, type CardFactsMessage, TAG } from "../../src/shared/messages.js";
+import { type CardFactsMessage, TAG } from "../../src/shared/messages.js";
+import { productConfig } from "../../src/shared/product.js";
+import { allowedParentOrigin } from "../../vendor/cardvision-browser/host-settings.js";
 import { SITE_ORIGIN } from "./fork.js";
 
 export const RID = "0123456789abcdef";
@@ -64,7 +68,7 @@ export async function remoteFrame(table: CardTable) {
     win: { parent: { postMessage: () => undefined }, addEventListener: () => undefined, removeEventListener: () => undefined },
     framed: true,
     parentOrigin: SITE_ORIGIN,
-    allowedParentOrigin: (origin) => allowedParentOrigin(origin, false),
+    allowedParentOrigin: (origin) => allowedParentOrigin(origin, productConfig(false)),
     protocol: computeProtocol(TAG),
     createWorker: () => {
       const w = new FakeWorker();
