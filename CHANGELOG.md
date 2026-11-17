@@ -7,6 +7,12 @@ which has the full notes and the download. Versions before 0.5.0 are described o
 
 ## Unreleased
 
+Nothing yet.
+
+## 0.7.0 (2026-11-17)
+
+[GitHub release](https://github.com/ryangswe/kenbunshoku/releases/tag/v0.7.0)
+
 - Card hovers no longer start in a tab you are not looking at. A video that starts playing in a
   background tab starts them when you bring the tab to the front, if it is still playing then, and
   so does switching card hovers on while the tab is in the background. PRIVACY.md says so.
@@ -29,7 +35,8 @@ which has the full notes and the download. Versions before 0.5.0 are described o
 - If the recognition worker in the extension's hidden frame restarts while the pointer rests, a
   rest that already had its one picture after a slow load no longer gets a second one.
   ([#65](https://github.com/ryangswe/kenbunshoku/pull/65))
-- It runs on the cardvision toolkit 0.15.0rc1.
+- It runs on the cardvision toolkit 0.15.0rc1. It ships the same recognition release as 0.6.1, B2.1,
+  and asks for the same permissions.
 
 ## 0.6.1 (2026-11-16)
 
