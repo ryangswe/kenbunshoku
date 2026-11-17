@@ -50,6 +50,22 @@ declare const __IDLE_UNLOAD_MS__: number | null;
 const frames: Array<Record<string, number | null>> = [];
 let geometricBytes: number | null = null;
 let geometricReason: string | null = null;
+// In dev builds, these record when this page finished loading and when the first message from the
+// embedding page (the content script's hello) arrived, in epoch ms. The hover browser test reports
+// the difference.
+let loadedAt: number | null = null;
+let helloAt: number | null = null;
+if (__DEV__) {
+  const epochNow = (): number => performance.timeOrigin + performance.now();
+  window.addEventListener("load", () => (loadedAt ??= epochNow()));
+  window.addEventListener(
+    "message",
+    (event) => {
+      if (helloAt === null && event.source === window.parent) helloAt = epochNow();
+    },
+    true,
+  );
+}
 
 const sha256Hex = async (bytes: ArrayBuffer): Promise<string> => {
   const digest = await crypto.subtle.digest("SHA-256", bytes);
@@ -218,6 +234,8 @@ void (async () => {
         geometricBytes,
         geometricReason,
         frames,
+        loadedAt,
+        helloAt,
       };
     };
   }
