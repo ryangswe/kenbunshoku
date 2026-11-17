@@ -21,8 +21,8 @@
     }
   },
   "update": {
-    "latest": "0.7.0",
-    "url": "https://github.com/ryangswe/kenbunshoku/releases/tag/v0.7.0"
+    "latest": "0.7.1",
+    "url": "https://github.com/ryangswe/kenbunshoku/releases/tag/v0.7.1"
   },
   "release": {
     "id": "0aa3e56d7c3dde5d",

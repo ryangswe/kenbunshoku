@@ -9,6 +9,17 @@ which has the full notes and the download. Versions before 0.5.0 are described o
 
 Nothing yet.
 
+## 0.7.1 (2026-11-17)
+
+[GitHub release](https://github.com/ryangswe/kenbunshoku/releases/tag/v0.7.1)
+
+- It runs on the cardvision toolkit 0.15.0. The toolkit files Kenbunshoku ships are the same as in
+  0.15.0rc1, so card hovers work as in 0.7.0. It ships the same recognition release, B2.1, and asks
+  for the same permissions.
+- The GitHub release now also carries the Chrome and Firefox store packages, SHA-256 checksums for
+  its files and a record of what the version ships, beside the zip.
+  ([#70](https://github.com/ryangswe/kenbunshoku/pull/70))
+
 ## 0.7.0 (2026-11-17)
 
 [GitHub release](https://github.com/ryangswe/kenbunshoku/releases/tag/v0.7.0)
