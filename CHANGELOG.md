@@ -20,7 +20,9 @@ which has the full notes and the download. Versions before 0.5.0 are described o
 - The page side of card hovers now comes from the cardvision toolkit's shared hover host.
   HOVER-DEVIATIONS.md records that Kenbunshoku follows the toolkit's standard hover, and lists what
   Kenbunshoku sets itself and what changed in the move.
-- It runs on the cardvision toolkit 0.14.1.
+- If the recognition worker in the extension's hidden frame restarts while the pointer rests, a
+  rest that already had its one picture after a slow load no longer gets a second one.
+- It runs on the cardvision toolkit 0.15.0rc1.
 
 ## 0.6.1 (2026-11-16)
 
