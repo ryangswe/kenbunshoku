@@ -69,7 +69,16 @@ jobs:
           node "$STORE_TOOL" check --config store/store.config.json --release "store/releases/$version.json" \
             --tag "$TAG" --tag-prefix "$TAG_PREFIX" --permissions store/permissions.json $PREVIOUS \
             --chrome-zip out/chrome.zip --firefox-zip out/firefox.zip --firefox-source out/firefox-source.zip \
+            --load-unpacked-zip "out/kenbunshoku-$version.zip" \
             --workflow .github/workflows/store-release.yml --workflow .github/workflows/store-check.yml \
+            --workflow .github/workflows/extension-release.yml --workflow .github/workflows/store-status.yml \
             --lint out/lint.json --lint-baseline store/lint-baseline.json --hashes-out out/hashes.json \
+            --record-out out/record.json --vendor-manifest vendor/cardvision-browser/cardvision-vendor.json \
+            --facts store/record-facts.json --runtimes cdn/RUNTIMES.json \
             --summary "$GITHUB_STEP_SUMMARY"
           cat out/hashes.json
+
+      # What the release would attach to its GitHub release, collected and checked against the
+      # record as store-release.yml's release-assets job does. Nothing is attached here.
+      - name: Collect the release assets
+        run: node "$STORE_TOOL" assets --record out/record.json --dir out --out-dir out/release-assets
