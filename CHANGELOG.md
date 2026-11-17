@@ -10,18 +10,25 @@ which has the full notes and the download. Versions before 0.5.0 are described o
 - Card hovers no longer start in a tab you are not looking at. A video that starts playing in a
   background tab starts them when you bring the tab to the front, if it is still playing then, and
   so does switching card hovers on while the tab is in the background. PRIVACY.md says so.
+  ([#65](https://github.com/ryangswe/kenbunshoku/pull/65))
 - On Twitch, the Following and Creator Camp pages now start card hovers when you first point at the
   video, like other Twitch pages that are not a channel's page, a past broadcast or a clip.
+  ([#65](https://github.com/ryangswe/kenbunshoku/pull/65))
 - A turned card whose turned outline would reach past the edge of the video is now outlined
   turned, instead of with an upright box.
+  ([#65](https://github.com/ryangswe/kenbunshoku/pull/65))
 - When the page removes the card's tooltip, the card on show comes back as soon as the tooltip is
   made again, at the next pointer move over the video, instead of only when a new look names it.
+  ([#65](https://github.com/ryangswe/kenbunshoku/pull/65))
 - A change to the popup's switch made while a page is still opening is no longer lost.
+  ([#65](https://github.com/ryangswe/kenbunshoku/pull/65))
 - The page side of card hovers now comes from the cardvision toolkit's shared hover host.
   HOVER-DEVIATIONS.md records that Kenbunshoku follows the toolkit's standard hover, and lists what
   Kenbunshoku sets itself and what changed in the move.
+  ([#65](https://github.com/ryangswe/kenbunshoku/pull/65))
 - If the recognition worker in the extension's hidden frame restarts while the pointer rests, a
   rest that already had its one picture after a slow load no longer gets a second one.
+  ([#65](https://github.com/ryangswe/kenbunshoku/pull/65))
 - It runs on the cardvision toolkit 0.15.0rc1.
 
 ## 0.6.1 (2026-11-16)

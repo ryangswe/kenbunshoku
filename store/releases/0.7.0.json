@@ -1,0 +1,13 @@
+{
+  "version": "0.7.0",
+  "chrome": { "submit": "auto", "publish": "default" },
+  "firefox": {
+    "releaseNotes": { "en-US": "0.7.0/amo-release-notes.en-US.md" },
+    "approvalNotes": "0.7.0/amo-approval-notes.md"
+  },
+  "permissionsChanged": false,
+  "before": [
+    { "url": "https://cdn.kenbunshoku.com/config.json", "why": "the settings file every install reads" },
+    { "url": "https://raw.githubusercontent.com/ryangswe/kenbunshoku/main/PRIVACY.md", "sha256": "b2925f59944e85b47e8fc73fc32c369b9f9a4a16487daf86e7abf3abff1a8277", "why": "the privacy policy the Chrome listing links, with 0.7.0's background-tab sentence" }
+  ]
+}
