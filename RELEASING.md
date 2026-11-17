@@ -28,8 +28,10 @@ before it is merged: once it merges, the tag and the GitHub release are made and
 - If the version changes what PRIVACY.md must say, PRIVACY.md changes on `main` in an earlier pull
   request, usually the one that changes the behavior. The release file's `before` list pins
   PRIVACY.md on `main` by its SHA-256, so the release pull request's check passes only once that
-  text is live. The release pull request says in its description that the policy changed,
-  because addons.mozilla.org keeps its own copy (step 2 below).
+  text is live. The check does not run again by itself when the policy lands, so re-run it then:
+  on the release pull request's Checks tab, open "Store packages and check (no store access)"
+  and choose "Re-run jobs". The release pull request says in its description that the policy
+  changed, because addons.mozilla.org keeps its own copy (step 2 below).
 
 ## The maintainer's steps
 
@@ -69,7 +71,9 @@ which emails the maintainer, when a store shows a version it should not.
   run. The store that already has the version is skipped.
 - **The store check refused the release.** Its run page says why (notes too long, a permission
   change the release file does not declare, a new Firefox lint warning, an address in `before`
-  that is not live). Fix it in a pull request before merging.
+  that is not live). Fix it in a pull request before merging. When the fix is somewhere else,
+  such as a PRIVACY.md change on `main`, re-run the release pull request's check once it is
+  live.
 - **The settings publish stopped.** It says why and changes nothing on the CDN before the dry run
   passes and you answer yes. Run it again once the cause is fixed.
 

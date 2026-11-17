@@ -13,7 +13,7 @@
 #   in cdn/RUNTIMES.json (a fix before tagging again). Everything the tag's build job checks, except
 #   that a "before upload" address that is not live yet is a warning: it is published after the
 #   merge. The tag's build job checks it again, and the upload refuses while it is not live.
-#   (In Kenbunshoku that address stays red; see below.)
+#   (Kenbunshoku sets BEFORE_ON_PULL_REQUEST to fail, so that address stays red; see below.)
 # - `released`: the tag exists and the pull request changes none of those. This commit will never
 #   ship as that version: the packages are still built, linted and checked against
 #   store/permissions.json, but only the version is read from the release file, and a permission
@@ -22,19 +22,19 @@
 # Replace the step marked PRODUCT with the same commands as store-release.yml's. A product's own
 # release gates that compare this commit with the released version (its runtime row, say) can read
 # STORE_CHECK_MODE and warn instead of failing when it is `released`. Every `uses:` is pinned to a
-# full commit.
+# full commit. This workflow has no store access and must name no store or CDN credential:
+# `check` refuses a denied name.
 #
 # Kenbunshoku keeps the rest of this file as the toolkit's template, so that the two are easy to
-# compare, and differs from it in the steps marked PRODUCT. npm run store:build is the build step,
-# and its cdn/RUNTIMES.json row check reads STORE_CHECK_MODE and warns when it is `released`. In
-# `release` mode the check runs without --pull-request, as the tag's build job does, so an address
-# in the release file's `before` list that is not live yet stays red. Merging a version creates its
-# tag (extension-release.yml), and a tag cannot be moved. The check also gets the zip for people
-# who load the extension unpacked and the store status workflow, and the last step collects what
-# the GitHub release would attach, as store-release.yml's release-assets job does.
-#
-# This workflow has no store access and must name no store or CDN credential: `check` refuses a
-# denied name.
+# compare, and differs from it in this note and in the lines marked PRODUCT. npm run store:build
+# is the build step, and its cdn/RUNTIMES.json row check reads STORE_CHECK_MODE and warns when it
+# is `released`. BEFORE_ON_PULL_REQUEST is `fail`, and this job is a required check on main,
+# because merging a version creates its tag (extension-release.yml) and a tag cannot be moved. A
+# release pull request whose release file's `before` list names something that is not live yet
+# (PRIVACY.md on main, say) stays red until it is, and this job must then be re-run by hand. The
+# check also gets the zip for people who load the extension unpacked and the store status
+# workflow, and the last step collects what the GitHub release would attach, as
+# store-release.yml's release-assets job does.
 
 name: Store check
 
@@ -51,6 +51,13 @@ concurrency:
 env:
   TAG_PREFIX: v
   STORE_TOOL: vendor/cardvision-browser/node/store-upload.mjs
+  # In `release` mode, a "before upload" address that is not live yet: `warn` (the default) or
+  # `fail`. Choose `fail` when merging the version pull request releases it (extension-release.yml
+  # tags the merge) and the address can be live before that merge, and make this job a required
+  # status check: the pull request then cannot be merged until the address is live (re-run the job
+  # once it is), so the tag is not made too early. Keep `warn` when the address is published after
+  # the merge: the tag's build job fails until it is live, and is run again then.
+  BEFORE_ON_PULL_REQUEST: fail # PRODUCT
 
 jobs:
   store-check:
@@ -143,9 +150,12 @@ jobs:
           unpacked="--load-unpacked-zip out/kenbunshoku-$version.zip"
           facts=""; [ -f store/record-facts.json ] && facts="--facts store/record-facts.json"
           runtimes=""; [ -f cdn/RUNTIMES.json ] && runtimes="--runtimes cdn/RUNTIMES.json"
-          # PRODUCT: only `released` relaxes the check. `release` runs it in full, so that an address
-          # in `before` that is not live yet is red before the merge creates the tag.
-          pr=""; [ "$STORE_CHECK_MODE" = released ] && pr="--pull-request released"
+          case "$BEFORE_ON_PULL_REQUEST" in
+            warn) pr="--pull-request $STORE_CHECK_MODE" ;;
+            # The release's own checks, before addresses included, as the tag's build job runs them.
+            fail) pr="--pull-request $STORE_CHECK_MODE"; [ "$STORE_CHECK_MODE" = release ] && pr="" ;;
+            *) echo "::error::BEFORE_ON_PULL_REQUEST is warn or fail, not '$BEFORE_ON_PULL_REQUEST'"; exit 1 ;;
+          esac
           node "$STORE_TOOL" check $pr --config store/store.config.json \
             --release "store/releases/$version.json" --tag "$TAG" --tag-prefix "$TAG_PREFIX" \
             --permissions store/permissions.json $PREVIOUS \
