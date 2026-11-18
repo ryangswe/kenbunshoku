@@ -72,6 +72,12 @@ which emails the maintainer, when a store shows a version it should not.
 - **The merge released nothing.** The "Extension release" run's summary names what is missing:
   the release file, a dated changelog section, or a version that already has a tag. Fix it in a
   pull request; the next merge to `main` releases the version.
+- **The "Extension release" run stopped at "Check the pinned files before the tag".** Another merge
+  changed a pinned file, usually PRIVACY.md, after the release pull request's check ran, and the run
+  wrote nothing. In a pull request, restore the pinned text or put the new text's hash in the
+  release file. A new hash ships the other merge's policy, so that pull request says the policy
+  changed (step 2 below). Correct the changelog date if the merge happens on another day. Merging
+  that pull request releases the version.
 - **One store failed after the other succeeded.** Re-run the failed job of the "Store release"
   run. The store that already has the version is skipped.
 - **The store check refused the release.** Its run page says why (notes too long, a permission
@@ -83,7 +89,7 @@ which emails the maintainer, when a store shows a version it should not.
   pull request.
 - **The tag's build or the upload stopped waiting for PRIVACY.md.** Open the address in the run's
   error. If it serves the text the release file pins, re-run the failed job. If it does not,
-  another merge changed the policy after the check ran. The tag cannot be moved, so the next
+  another merge changed the policy after the tag was made. The tag cannot be moved, so the next
   version is the fix.
 - **The settings publish stopped.** It says why and changes nothing on the CDN before the dry run
   passes and you answer yes. Run it again once the cause is fixed.

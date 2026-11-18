@@ -91,6 +91,14 @@ jobs:
             --release-exists "$RELEASE_EXISTS" \
             --store-runs "$STORE_RUNS" --notes "${RUNNER_TEMP}/notes.md" \
             --output "$GITHUB_OUTPUT" --summary "$GITHUB_STEP_SUMMARY"
+      # PRODUCT: a tag cannot be moved, and another merge can change a pinned file after the release
+      # pull request's check ran. This stops before anything is written, and merging the correction
+      # releases the version.
+      - name: Check the pinned files before the tag
+        if: steps.plan.outputs.create == 'true'
+        env:
+          TAG: ${{ steps.plan.outputs.tag }}
+        run: node scripts/before-addresses.mjs committed "${RELEASES_DIR}/${TAG#"$TAG_PREFIX"}.json"
       - name: Create the tag and the release
         if: steps.plan.outputs.create == 'true'
         env:
