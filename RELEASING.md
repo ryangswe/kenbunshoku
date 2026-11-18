@@ -11,6 +11,12 @@ settings file.
 One pull request holds everything a version needs. Its "Store packages and check" must be green
 before it is merged: once it merges, the tag and the GitHub release are made and cannot be undone.
 
+Red means do not merge. A pull request check fails only on what that pull request can fix. What
+can only happen after the merge is a warning on the pull request, and the tag's build or the upload
+enforces it. The one exception is a `before` address other than a file of this repository pinned by
+its hash. Such an address stays red until it is live, because merging creates a tag that cannot be
+moved.
+
 - `package.json` and `package-lock.json` at the new version.
 - In `CHANGELOG.md`, the Unreleased entries moved under a heading for the version with the date
   it is merged, in UTC (`## 1.2.0 (2026-11-20)`), and a line under it that links its GitHub
@@ -25,13 +31,12 @@ before it is merged: once it merges, the tag and the GitHub release are made and
   moves with it.
 - The update notice in `cdn/config.json`: `update.latest` at the new version and `update.url` at
   its GitHub release, `https://github.com/ryangswe/kenbunshoku/releases/tag/v<version>`.
-- If the version changes what PRIVACY.md must say, PRIVACY.md changes on `main` in an earlier pull
-  request, usually the one that changes the behavior. The release file's `before` list pins
-  PRIVACY.md on `main` by its SHA-256, so the release pull request's check passes only once that
-  text is live. The check does not run again by itself when the policy lands, so re-run it then:
-  on the release pull request's Checks tab, open "Store packages and check (no store access)"
-  and choose "Re-run jobs". The release pull request says in its description that the policy
-  changed, because addons.mozilla.org keeps its own copy (step 2 below).
+- If the version changes what PRIVACY.md must say, the new text can be in the release pull request
+  itself. The release file's `before` list pins PRIVACY.md on `main` by its SHA-256, and the check
+  compares the pull request's own copy with that hash. After the merge, the tag's build and the
+  upload wait for GitHub to serve the new text, which usually takes five to six minutes and stops
+  after about ten. The release pull request says in its description that the policy changed,
+  because addons.mozilla.org keeps its own copy (step 2 below).
 
 ## The maintainer's steps
 
@@ -71,9 +76,15 @@ which emails the maintainer, when a store shows a version it should not.
   run. The store that already has the version is skipped.
 - **The store check refused the release.** Its run page says why (notes too long, a permission
   change the release file does not declare, a new Firefox lint warning, an address in `before`
-  that is not live). Fix it in a pull request before merging. When the fix is somewhere else,
-  such as a PRIVACY.md change on `main`, re-run the release pull request's check once it is
-  live.
+  that is not live). Fix it in a pull request before merging. When an address outside this
+  repository is what is missing, publish it and re-run the release pull request's check.
+- **The store check says PRIVACY.md does not match its pin.** Put the output of
+  `shasum -a 256 PRIVACY.md` in the release file's `before` entry, or correct the text, in the same
+  pull request.
+- **The tag's build or the upload stopped waiting for PRIVACY.md.** Open the address in the run's
+  error. If it serves the text the release file pins, re-run the failed job. If it does not,
+  another merge changed the policy after the check ran. The tag cannot be moved, so the next
+  version is the fix.
 - **The settings publish stopped.** It says why and changes nothing on the CDN before the dry run
   passes and you answer yes. Run it again once the cause is fixed.
 
