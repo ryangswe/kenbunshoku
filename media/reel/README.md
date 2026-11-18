@@ -43,7 +43,7 @@ no "any", "every", "all", "first" or "only" claims, no accuracy numbers, no othe
 
 ## Requirements
 
-- Node.js 22 or later, with npm.
+- Node.js 22.12 or later, with npm.
 - ffmpeg with libx264 (`brew install ffmpeg` on macOS).
 - Python 3 with Pillow, to remake the store images (`pip install pillow`). `scripts/analyze-music.py`
   also needs NumPy.
@@ -62,6 +62,11 @@ npm run render     # out/reel-16x9.mp4, out/reel-9x16.mp4, out/poster.png, out/p
 
 `npm run render` runs `npm run audio`, then `npm run render:frames` (both compositions, without
 sound), then `npm run mux`. To preview and scrub the timeline, use `npm run studio`.
+
+`package.json` overrides `zod` with a patched version, because this Remotion version pins one with
+a known security problem. Remotion therefore prints a version warning for `zod` on each run, and
+`npx remotion versions` reports the same mismatch and exits with status 1. Both are expected, and
+the frames render the same with the override.
 
 ## Remake everything from new captures
 
