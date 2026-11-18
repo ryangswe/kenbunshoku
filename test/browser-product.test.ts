@@ -14,9 +14,7 @@ import { validateSettings } from "../src/settings/schema.js";
 import { TAG } from "../src/shared/messages.js";
 // @ts-expect-error plain JavaScript test modules
 import PRODUCT from "./browser/product.mjs";
-// @ts-expect-error plain JavaScript test modules
 import { productProblems } from "../vendor/cardvision-browser/harness/product-shape.mjs";
-// @ts-expect-error plain JavaScript test modules
 import { CHECKS } from "../vendor/cardvision-browser/harness/clauses.mjs";
 
 describe("test/browser/product.mjs", () => {
