@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it, vi } from "vitest";
 
 // @ts-expect-error plain JavaScript build scripts
-import { commitTimeMs, FETCH_TIMEOUT_MS, main, MAX_WAIT_MS, ownFile, POLL_MS, pullRequestProblems, SETTLE_MS, STEADY_POLLS, waitForOwnFiles } from "../scripts/before-addresses.mjs";
+import { committedProblems, commitTimeMs, FETCH_TIMEOUT_MS, main, MAX_WAIT_MS, ownFile, POLL_MS, pullRequestProblems, SETTLE_MS, STEADY_POLLS, waitForOwnFiles } from "../scripts/before-addresses.mjs";
 
 const hash = (text: string | Uint8Array) => createHash("sha256").update(text).digest("hex");
 const OWN = "https://raw.githubusercontent.com/ryangswe/kenbunshoku/main/";
@@ -97,6 +97,31 @@ describe("pullRequestProblems", () => {
   it("passes on another address that is live", async () => {
     const fetchFn = vi.fn().mockResolvedValue(served("{}"));
     expect(await pullRequestProblems({ before: [{ url: CONFIG }] }, { readFile: vi.fn(), fetchFn })).toEqual([]);
+  });
+});
+
+describe("committedProblems", () => {
+  it("passes when the commit holds the pinned text", () => {
+    expect(committedProblems({ before: [own] }, { readFile: () => "new policy" })).toEqual([]);
+  });
+
+  it("stops the tag when another merge changed the pinned text", () => {
+    const problems = committedProblems({ before: [own] }, { readFile: () => "changed again" });
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain("PRIVACY.md");
+  });
+
+  it("stops the tag when the commit has no such file", () => {
+    const readFile = () => {
+      throw new Error("no such file");
+    };
+    expect(committedProblems({ before: [own] }, { readFile })).toHaveLength(1);
+  });
+
+  it("leaves every other address to the tag's build", () => {
+    const readFile = vi.fn();
+    expect(committedProblems({ before: [{ url: CONFIG }, { url: CONFIG, sha256: own.sha256 }] }, { readFile })).toEqual([]);
+    expect(readFile).not.toHaveBeenCalled();
   });
 });
 
@@ -231,22 +256,43 @@ describe("main", () => {
     expect(await main(["pull-request", file], { readFile: () => "new policy", log: () => {} })).toBe(0);
   });
 
-  it("refuses an unknown mode", async () => {
-    expect(await main(["later", "file.json"], { log: () => {} })).toBe(2);
+  it("reads only the commit in `committed` mode", async () => {
+    const file = releaseFile([{ url: CONFIG }, own]);
+    const fetchFn = vi.fn();
+    expect(await main(["committed", file], { readFile: () => "changed again", fetchFn, log: () => {} })).toBe(1);
+    expect(await main(["committed", file], { readFile: () => "new policy", fetchFn, log: () => {} })).toBe(0);
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it("still asks other addresses in `pull-request` mode", async () => {
+    const file = releaseFile([{ url: CONFIG }]);
+    const fetchFn = vi.fn(async () => served("gone", 404));
+    expect(await main(["pull-request", file], { readFile: vi.fn(), fetchFn, log: () => {} })).toBe(1);
+  });
+
+  it.each(["later", "constructor", "toString"])("refuses the mode %s", async (mode) => {
+    expect(await main([mode, "file.json"], { log: () => {} })).toBe(2);
   });
 });
 
 describe("the script as the workflows run it", () => {
   const script = fileURLToPath(new URL("../scripts/before-addresses.mjs", import.meta.url));
-  const run = (before: unknown[]) => spawnSync(process.execPath, [script, "pull-request", releaseFile(before)], { encoding: "utf-8" });
+  const run = (before: unknown[], mode = "pull-request") => spawnSync(process.execPath, [script, mode, releaseFile(before)], { encoding: "utf-8" });
 
-  it.skipIf(notCheckout)("exits 0 on the committed text", () => {
+  it.skipIf(notCheckout).each(["pull-request", "committed"])("exits 0 on the committed text in `%s` mode", (mode) => {
     const committed = execFileSync("git", ["show", "HEAD:PRIVACY.md"], { cwd: repo });
-    expect(run([{ url: PRIVACY, sha256: hash(committed) }]).status).toBe(0);
+    expect(run([{ url: PRIVACY, sha256: hash(committed) }], mode).status).toBe(0);
   });
 
   it("exits 1 and names the file on any other text", () => {
     const result = run([{ url: PRIVACY, sha256: hash("not the policy") }]);
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("::error::before upload: PRIVACY.md");
+  });
+
+  it("exits 1 before a tag when the commit does not hold the pinned text", () => {
+    const file = releaseFile([{ url: PRIVACY, sha256: hash("not the policy") }]);
+    const result = spawnSync(process.execPath, [script, "committed", file], { encoding: "utf-8" });
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("::error::before upload: PRIVACY.md");
   });
@@ -256,9 +302,9 @@ describe("the script as the workflows run it", () => {
     expect(run([{ url: `${OWN}store`, sha256: hash(listing) }]).status).toBe(1);
   });
 
-  it("exits 1 on a file that is on disk but was never committed", () => {
+  it.each(["pull-request", "committed"])("exits 1 in `%s` mode on a file that is on disk but was never committed", (mode) => {
     const ignored = readFileSync(join(repo, "node_modules", ".package-lock.json"));
-    expect(run([{ url: `${OWN}node_modules/.package-lock.json`, sha256: hash(ignored) }]).status).toBe(1);
+    expect(run([{ url: `${OWN}node_modules/.package-lock.json`, sha256: hash(ignored) }], mode).status).toBe(1);
   });
 });
 
@@ -274,6 +320,22 @@ describe("the store workflows", () => {
       `      - name: Check the release's before addresses\n        if: env.STORE_CHECK_MODE == 'release'\n        run: node scripts/before-addresses.mjs pull-request "${release}"\n`,
     );
     expect(text).not.toContain("continue-on-error");
+  });
+
+  it("check the pinned files after the decision and before the tag is made", () => {
+    const text = workflow("extension-release.yml");
+    const step =
+      "      - name: Check the pinned files before the tag\n        if: steps.plan.outputs.create == 'true'\n        env:\n" +
+      "          TAG: ${{ steps.plan.outputs.tag }}\n" +
+      '        run: node scripts/before-addresses.mjs committed "${RELEASES_DIR}/${TAG#"$TAG_PREFIX"}.json"\n';
+    expect(text).toContain(step);
+    expect(text.indexOf(step)).toBeGreaterThan(text.indexOf("- name: Decide"));
+    expect(text.indexOf(step)).toBeLessThan(text.indexOf("- name: Create the tag and the release"));
+    expect(text).not.toContain("continue-on-error");
+    // A stop holds only if the later steps cannot run anyway and the tag names the checked commit.
+    expect(text).not.toContain("always()");
+    expect(text).toContain('--target "$GITHUB_SHA"');
+    expect(text).not.toMatch(/^\s+ref:/m);
   });
 
   it("wait for the merged text before the tag's build and the upload check it", () => {

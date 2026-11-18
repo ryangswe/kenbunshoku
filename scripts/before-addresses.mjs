@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
-// The "before upload" addresses of a release file, for the two moments the store tool cannot judge
+// The "before upload" addresses of a release file, for the three moments the store tool cannot judge
 // by reading the address once.
 //
 // `pull-request` runs in the store check. A file of this repository that the release pins by its
 // SHA-256 goes live when the pull request merges, so the copy in the commit under test is compared
 // with the hash. Any other address must already be live.
+//
+// `committed` runs just before the merge is tagged. Another merge can change a pinned file after the
+// pull request's check ran, and a tag cannot be moved, so the commit to be tagged is compared again.
 //
 // `wait` runs before the tag's build and the upload check the live addresses. GitHub can serve the
 // old text of a file for a few minutes after a merge, so this waits until the new text is served.
@@ -58,24 +61,35 @@ export async function liveProblem(entry, fetchFn = fetch) {
   }
 }
 
+/** Why the commit's copy of a pinned file is not the pinned text, or null when it is. */
+function copyProblem(entry, path, readFile) {
+  let got;
+  try {
+    got = sha256(readFile(path));
+  } catch (error) {
+    return `${path}: cannot be read from the commit (${error.message})`;
+  }
+  return got === entry.sha256 ? null : `${path}: the commit's copy has sha256 ${got}, and the release file pins ${entry.sha256}`;
+}
+
 /** What a pull request must fix: its own copy of a pinned file, or another address not yet live. */
 export async function pullRequestProblems(release, { readFile = committedFile, fetchFn = fetch } = {}) {
   const problems = [];
   for (const entry of release.before ?? []) {
     const path = ownFile(entry);
-    if (path === null) {
-      const problem = await liveProblem(entry, fetchFn);
-      if (problem) problems.push(problem);
-      continue;
-    }
-    let got;
-    try {
-      got = sha256(readFile(path));
-    } catch (error) {
-      problems.push(`${path}: cannot be read from the commit (${error.message})`);
-      continue;
-    }
-    if (got !== entry.sha256) problems.push(`${path}: this pull request's copy has sha256 ${got}, and the release file pins ${entry.sha256}`);
+    const problem = path === null ? await liveProblem(entry, fetchFn) : copyProblem(entry, path, readFile);
+    if (problem) problems.push(problem);
+  }
+  return problems;
+}
+
+/** What stops this commit from being tagged: its copy of a pinned file of this repository. */
+export function committedProblems(release, { readFile = committedFile } = {}) {
+  const problems = [];
+  for (const entry of release.before ?? []) {
+    const path = ownFile(entry);
+    const problem = path === null ? null : copyProblem(entry, path, readFile);
+    if (problem) problems.push(problem);
   }
   return problems;
 }
@@ -111,12 +125,14 @@ export async function waitForOwnFiles(release, { fetchFn = fetch, sleep = (ms) =
 
 export async function main([mode, file], deps = {}) {
   const log = deps.log ?? console.log;
-  if ((mode !== "pull-request" && mode !== "wait") || !file) {
-    log("usage: node scripts/before-addresses.mjs pull-request|wait <release file>");
+  const checks = new Map([["pull-request", pullRequestProblems], ["committed", committedProblems], ["wait", waitForOwnFiles]]);
+  const check = checks.get(mode);
+  if (!check || !file) {
+    log("usage: node scripts/before-addresses.mjs pull-request|committed|wait <release file>");
     return 2;
   }
   const release = JSON.parse(readFileSync(file, "utf-8"));
-  const problems = mode === "wait" ? await waitForOwnFiles(release, deps) : await pullRequestProblems(release, deps);
+  const problems = await check(release, deps);
   for (const problem of problems) log(`::error::before upload: ${problem}`);
   return problems.length === 0 ? 0 : 1;
 }
