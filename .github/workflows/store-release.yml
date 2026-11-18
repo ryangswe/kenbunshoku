@@ -121,6 +121,10 @@ jobs:
             echo "::warning::could not read the commit's check runs; the release record leaves them out"
           fi
 
+      # PRODUCT: GitHub can serve the old text of a pinned file for a few minutes after the merge.
+      - name: Wait for the merged text of the pinned files
+        run: node scripts/before-addresses.mjs wait "store/releases/${TAG#"$TAG_PREFIX"}.json"
+
       - name: Check the release
         run: |
           version="${TAG#"$TAG_PREFIX"}"
@@ -177,6 +181,10 @@ jobs:
         with:
           name: store-packages
           path: out
+
+      # PRODUCT: as in the build job, and before this job holds any store credential.
+      - name: Wait for the merged text of the pinned files
+        run: node scripts/before-addresses.mjs wait "store/releases/${TAG#"$TAG_PREFIX"}.json"
 
       # Option A (keyless): GitHub's identity token is exchanged for a Google access token through
       # Workload Identity Federation. Option B: replace the two lines after `with:` by
