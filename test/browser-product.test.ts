@@ -2,7 +2,8 @@
 // test/browser/product.mjs, the module the toolkit's browser checks take with --product, still
 // describes this extension: the harness accepts its shape, its test settings file passes this
 // extension's own settings check, and its storage keys and outline marker are the ones this
-// extension uses. The harness runs only by hand, so these keep it from drifting in between.
+// extension uses. CI's browser test runs in its own job and the rollback check only by hand, so
+// these catch a drift in the unit tests first.
 
 import { readFileSync } from "node:fs";
 
@@ -29,6 +30,13 @@ describe("test/browser/product.mjs", () => {
     const result = validateSettings(PRODUCT.testSettings(`https://${host}${PRODUCT.artPath("{art}")}`));
     expect(result.problems).toEqual([]);
     expect(result.settings).not.toBeNull();
+  });
+
+  it("runs every shared check, arrives-under-rest included", () => {
+    // Without a return time for card C the harness marks arrives-under-rest unsupported, which
+    // does not fail the run, and test/browser/LIVE-CHECKS.md would then claim a check that never ran.
+    expect(PRODUCT.places.C.back).toBeGreaterThan(PRODUCT.places.C.until);
+    expect(PRODUCT.unsupported).toEqual({});
   });
 
   it("names this extension's storage keys and outline marker", () => {

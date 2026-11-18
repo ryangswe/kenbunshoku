@@ -173,8 +173,9 @@ copies of the module's state. `npm run package` runs the check again before it z
 
 `--harness` adds the toolkit's browser test harness in `vendor/cardvision-browser/harness/`. It
 holds the toolkit's hover browser test and its rollback check, which `test/browser/LIVE-CHECKS.md`
-describes. They are run by hand, and the built extension and its packages do not include that
-folder.
+describes. CI runs the hover browser test with `test/browser/product.mjs` in the "Hover browser
+test" job; the rollback check is run by hand. The built extension and its packages do not include
+that folder.
 
 ## Manual check on a local video
 

@@ -5,19 +5,21 @@ Before a release, the maintainer checks a test build by hand on real videos. Thi
 steps and, for each one, the automatic check that now covers it, if any. A step with no automatic
 check is still done by hand.
 
-The hover browser test is `test/browser/hover-browser.mjs`. It runs in CI on every pull request,
-with a synthetic clip on a local page, so it never sees YouTube, Twitch, real footage or the real
-CDN. Each browser check names the clause it covers in the toolkit's hover spec
+The hover browser test is the toolkit's shared one, vendored in
+`vendor/cardvision-browser/harness/hover-browser.mjs`. It runs in CI on every pull request, with a
+synthetic clip on a local page, so it never sees YouTube, Twitch, real footage or the real CDN. It
+takes `--product test/browser/product.mjs`, which describes this extension and places the cards in
+the clip, and `test/browser-product.test.ts` checks that module against the extension. Each
+browser check names the clause it covers in the toolkit's hover spec
 ([docs/hover-spec.md](https://github.com/ryangswe/riftsight-vision/blob/main/docs/hover-spec.md)),
-in the `CLAUSES` table of the test. Unit tests are the vitest files in `test/`.
+in the harness's `clauses.mjs`. Every run writes `timings.json`, the times it measured, beside its
+report. Unit tests are the vitest files in `test/`.
 
-The toolkit's own versions of these checks are vendored in `vendor/cardvision-browser/harness/`.
-The toolkit's `hover-browser.mjs` runs the same checks as the toolkit has them at the vendored
-commit. Its `rollback-check.mjs` installs one build over another on the same profile, as a store
-update or rollback does, and checks that the hovers work and the viewer's choices stay. Both take
-`--product test/browser/product.mjs`, which describes this extension to them, and
-`test/browser-product.test.ts` checks that module against the extension. They are run by hand,
-and the header of each file shows its options.
+The toolkit's `rollback-check.mjs`, vendored beside it, installs one build over another on the same
+profile, as a store update or rollback does, and checks that the hovers work and the viewer's
+choices stay. It takes the same module and is run by hand. The header of each file shows its
+options, and the "Hover browser test" job in `.github/workflows/tests.yml` shows the two builds
+the browser test runs on.
 
 | Step done by hand | Covered by | Still by hand |
 | --- | --- | --- |
@@ -26,6 +28,8 @@ and the header of each file shows its options.
 | Hovering a card shows its picture at once | browser test `art-visible` (time to the picture is reported) | on real footage, at real network speed |
 | The outline marks the hovered card | browser test `outline-shows` | tilted cards, cards near the edge |
 | Moving off the video clears the tooltip | browser test `move-off-clears` | none |
+| On a paused video, pointing at one card and then the next names each at once | browser test `paused-names-each` (within 1 s each; the times are reported) | on real footage |
+| A card that comes onto an empty place where the pointer rests, with no seek, is named | browser test `arrives-under-rest` (the clip's card C leaves at 12 s, the pointer comes to rest on its empty place, and C comes back at 16 s; within 3 s of its return) | on real footage |
 | A card laid on top doesn't replace the one you point at | browser test `covered-kept` | none |
 | Its outline goes while the picture stays | browser test `held-outline-hides` | none |
 | With the switch off, the card on top replaces it | browser test `switch-flips` | none |
@@ -43,7 +47,7 @@ and the header of each file shows its options.
 | No request leaves for any host but the settings host | browser test network scope (every Chrome process; Chrome's own sign-in and update traffic to Google's hosts, which no page or extension starts, is exempt and listed in the report) | none |
 | The geometric stage (WebGPU) checks and corrects cards | none: CI has no accelerated WebGPU | yes, on a Mac |
 | The video plays as smoothly as without the extension | none | yes |
-| A still card's tooltip and outline do not jitter | none | yes |
+| A still card's tooltip and outline do not jitter | browser test `still-card-no-blink` and `still-outline-steady` (a 16.5-second rest on a card that stays put, with Keep the card I'm pointing at off) | with Keep the card I'm pointing at on (the default), and on real footage, where the card's outline can move with the picture |
 | Firefox | none | yes |
 
 ## Planned, not covered yet
@@ -60,5 +64,7 @@ they are, unit tests cover part of them and the rest stays by hand.
 - Keep the card I'm pointing at changed while the model loads (by hand).
 - The geometric stage becoming ready during a session, with a move onto a card it has not
   checked while another analysis runs (by hand, on a Mac with WebGPU).
-- A card picked up from under a resting pointer (the clip has one; not asserted yet).
+- A card picked up from under a pointer already resting on it, and laid back (by hand). With
+  Keep the card I'm pointing at on, the card is kept while it is away. `arrives-under-rest` covers
+  only a card that comes onto a place that was already empty when the pointer came to rest.
 
