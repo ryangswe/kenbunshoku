@@ -10,7 +10,7 @@ Most of a hover's work in the page is the toolkit's, vendored in `vendor/cardvis
 
 - **The runtime** decides when to take a picture, when to analyze it and which card to name. It
   has its own map:
-  [the toolkit's hover map](https://github.com/ryangswe/riftsight-vision/blob/584012d/docs/hover-map.md),
+  [the toolkit's hover map](https://github.com/ryangswe/riftsight-vision/blob/9ece68a/docs/hover-map.md),
   at the commit vendored here (named in `vendor/cardvision-browser/cardvision-vendor.json`). This
   page does not redraw it.
 - **The shared hover host** (`host-content.js`, `host-compute.js` and `host-settings.js`, one file
@@ -22,7 +22,7 @@ Most of a hover's work in the page is the toolkit's, vendored in `vendor/cardvis
   not draw it yet, so this page draws it only as a box, with the clauses it carries out.
 
 The rules, one clause per behavior, are in the toolkit's
-[hover spec](https://github.com/ryangswe/riftsight-vision/blob/584012dcaf3278c6de1dba07fc0aad51d4db5f1e/docs/hover-spec.md),
+[hover spec](https://github.com/ryangswe/riftsight-vision/blob/9ece68a13428b012684ee7d3d1dbf8dfae7608d7/docs/hover-spec.md),
 at the commit vendored here. Its list of clauses is vendored as
 `vendor/cardvision-browser/hover-spec.json`. This page shows the structure and the flows: which
 part decides what, and in what order the parts talk. It does not repeat the rules; each element

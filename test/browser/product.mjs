@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // Kenbunshoku's module for the toolkit's browser checks, vendored in
-// vendor/cardvision-browser/harness/: the hover browser test (hover-browser.mjs) and the rollback
-// check (rollback-check.mjs) take it with --product. It names this extension's config, frames,
-// storage keys and debug global, the test settings file, and the cards of the harness's clip.
+// vendor/cardvision-browser/harness/: the hover browser test (hover-browser.mjs), which CI runs in
+// the "Hover browser test" job of .github/workflows/tests.yml, and the rollback check
+// (rollback-check.mjs) take it with --product. It names this extension's config, frames, storage
+// keys and debug global, the test settings file, and the cards of the harness's clip.
 
 export default {
   name: "Kenbunshoku",
@@ -44,12 +45,15 @@ export default {
   /** Card width in the clip, in pixels, and the card's height over its width. */
   cardWidth: 158,
   cardAspect: 88 / 63,
-  /** The clip, and the card places inside it, as in the toolkit's example. */
+  /** The clip, and the card places inside it, as in the toolkit's example. A is on show for the
+   *  whole clip, and D is laid on top of it from 8 s (a card covering the hovered one). B is on
+   *  show for the whole clip. C is on show until 12 s, then picked up, and laid back in its place
+   *  at 16 s, so that it arrives under a resting pointer with no seek (arrives-under-rest). */
   clip: { width: 1280, height: 720, fps: 15, seconds: 20 },
   places: {
     A: { x: 140, y: 250 },
     B: { x: 430, y: 250 },
-    C: { x: 720, y: 250, until: 12 },
+    C: { x: 720, y: 250, until: 12, back: 16 },
     D: { x: 152, y: 262, from: 8 },
   },
   /** Checks expected to fail on this extension's code, each until the change named fixes it.
